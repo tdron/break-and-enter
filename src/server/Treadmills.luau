@@ -6,17 +6,19 @@
 	character starts running by itself: there are no keys to hold, so you can
 	go AFK and keep getting faster. ESCAPE (or Space) hops you off.
 
-	Every speed level adds +1 walk speed, which is how you outrun the faster
-	security drones in the fancier houses. Instead of buying better treadmills,
-	you upgrade your own: the "Treadmill" upgrade (in the shop, or the prompt on
-	the treadmill's console) raises how much speed XP it gives per second.
+	Training hands out "speed" (see Config.Speed): every point is +4 studs/s of
+	walk speed, which is how you outrun the faster security drones in the fancier
+	houses. It never stops paying off - there is no speed cap - but you upgrade
+	the treadmill itself (in the shop, or the prompt on its console) to train
+	faster: every level doubles the speed gained and halves the wait between
+	gains, so each level is four times as fast as the last.
 
 	How a run works:
 	  client  walks onto their own belt -> Remotes.Treadmill:InvokeServer("Start")
 	  server  checks it's their treadmill and that they're standing on it, sets
-	          the player's "Training" attribute and awards XP every tick. No input
-	          is needed, so AFK works. Training stops if they wander off, die, sit
-	          down, lose their warehouse or leave.
+	          the player's "Training" attribute and trains them every tick. No
+	          input is needed, so AFK works. Training stops if they wander off,
+	          die, sit down, lose their warehouse or leave.
 	  client  ESCAPE / Space -> Remotes.Treadmill:InvokeServer("Stop")
 
 	Map layout expected: Workspace.Map.Warehouses.Plot<N>.Treadmill (Model)
@@ -55,7 +57,7 @@ type Treadmill = {
 type Trainer = {
 	Treadmill: Treadmill,
 	AwayTime: number, -- seconds spent too far from the belt
-	PendingLevels: number, -- speed levels gained since the last "Speed up!" toast
+	PendingPoints: number, -- speed gained since the last "Speed up!" toast
 	LastToast: number,
 }
 
@@ -64,7 +66,7 @@ local TICK = 0.25
 -- server sees the character a little behind where the player's own screen has it.
 local START_DISTANCE = 20
 local AWAY_GRACE = 2 -- seconds you may spend off the belt before training stops
-local TOAST_INTERVAL = 3 -- at most one "Speed up!" toast this often
+local TOAST_INTERVAL = 8 -- at most one "Speed up!" toast this often
 
 local Treadmills = {}
 
@@ -130,9 +132,9 @@ local function refreshDisplay(treadmill: Treadmill)
 		part.Color = color
 	end
 
-	local xpPerSecond = Config.getUpgradeValue("Treadmill", level)
+	local rate = Config.treadmillText(level)
 	if treadmill.LevelLabel then
-		treadmill.LevelLabel.Text = if owner then string.format("LV %d\n⚡ %d XP/s", level, xpPerSecond) else "EMPTY"
+		treadmill.LevelLabel.Text = if owner then string.format("LV %d\n⚡ %s", level, rate) else "EMPTY"
 	end
 	if treadmill.OwnerLabel then
 		treadmill.OwnerLabel.Text = if owner then string.upper(owner.DisplayName) .. "'S TREADMILL" else "TREADMILL"
@@ -143,24 +145,29 @@ local function refreshDisplay(treadmill: Treadmill)
 		local upgrade = Config.UpgradesById.Treadmill
 		local maxed = level >= #upgrade.Costs
 		prompt:SetAttribute("OwnerUserId", ownerId)
-		prompt.ObjectText = string.format("Treadmill Lv %d (%d XP/s)", level, xpPerSecond)
+		prompt.ObjectText = string.format("Treadmill Lv %d (%s)", level, rate)
 		prompt.ActionText = if maxed then "Maxed out!" else "Upgrade: " .. Format.money(upgrade.Costs[level + 1])
 		prompt.Enabled = owner ~= nil and not maxed
 	end
 end
 
 local function sendSpeedToast(player: Player, trainer: Trainer)
-	local gained = trainer.PendingLevels
+	local gained = trainer.PendingPoints
 	if gained <= 0 then
 		return
 	end
-	trainer.PendingLevels = 0
+	trainer.PendingPoints = 0
 	trainer.LastToast = os.clock()
-	local walkSpeed = PlayerData.getWalkSpeed(player)
-	local text = if gained == 1
-		then string.format("⚡ Speed up! Your walk speed is now %d", walkSpeed)
-		else string.format("⚡ Speed up! +%d levels, your walk speed is now %d", gained, walkSpeed)
-	Notify.send(player, text, "level")
+	Notify.send(
+		player,
+		string.format(
+			"⚡ Speed up! +%d — Speed %s (%s studs/s)",
+			gained,
+			Format.commas(PlayerData.getSpeedStat(player)),
+			Format.commas(PlayerData.getWalkSpeed(player))
+		),
+		"level"
+	)
 end
 
 local function setTrainer(player: Player, trainer: Trainer?)
@@ -195,7 +202,7 @@ function Treadmills.start(player: Player): (boolean, string)
 	if distance > START_DISTANCE then
 		return false, "Walk onto your treadmill to train!"
 	end
-	setTrainer(player, { Treadmill = treadmill, AwayTime = 0, PendingLevels = 0, LastToast = 0 })
+	setTrainer(player, { Treadmill = treadmill, AwayTime = 0, PendingPoints = 0, LastToast = 0 })
 	return true, ""
 end
 
@@ -235,24 +242,15 @@ local function train(player: Player, trainer: Trainer, dt: number)
 		return
 	end
 	trainer.AwayTime = 0
-	if player:GetAttribute("SpeedMaxed") == true then
-		return
-	end
 
-	local gained = PlayerData.addSpeedXP(player, PlayerData.getUpgradeValue(player, "Treadmill") * dt)
+	-- The treadmill's level sets how fast it trains: "amount every interval",
+	-- doubling the amount and halving the interval with every level.
+	local level = PlayerData.getUpgradeLevel(player, "Treadmill")
+	local gained = PlayerData.addSpeed(player, Config.treadmillRate(level) * dt)
 	if gained > 0 then
-		trainer.PendingLevels += gained
-		if player:GetAttribute("SpeedMaxed") == true then
-			trainer.PendingLevels = 0
-			trainer.LastToast = os.clock()
-			Notify.send(
-				player,
-				string.format("⚡ MAX SPEED! Walk speed %d is as fast as it gets. Go rob the Mansion!", PlayerData.getWalkSpeed(player)),
-				"level"
-			)
-		end
+		trainer.PendingPoints += gained
 	end
-	if trainer.PendingLevels > 0 and os.clock() - trainer.LastToast >= TOAST_INTERVAL then
+	if trainer.PendingPoints > 0 and os.clock() - trainer.LastToast >= TOAST_INTERVAL then
 		sendSpeedToast(player, trainer)
 	end
 end
@@ -262,7 +260,7 @@ local function loop()
 	while true do
 		task.wait(TICK)
 		local now = os.clock()
-		local dt = math.min(now - last, 1) -- don't hand out a burst of XP after a server hitch
+		local dt = math.min(now - last, 1) -- don't hand out a burst of speed after a server hitch
 		last = now
 		for player, trainer in trainers do
 			if player.Parent then

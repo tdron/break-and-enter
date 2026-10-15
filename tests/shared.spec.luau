@@ -105,20 +105,65 @@ test("warehouse storage fits the 50 shelf slots", function()
 	check(storage.Values[#storage.Values] <= 50, "max storage exceeds the 50 slots in each warehouse")
 end)
 
-test("speed progression", function()
-	eq(Config.walkSpeedForLevel(0), 16)
-	eq(Config.walkSpeedForLevel(Config.Speed.MaxLevel), 66)
-	local totalXP = 0
-	for level = 0, Config.Speed.MaxLevel - 1 do
-		check(Config.xpForLevel(level) > 0, "xp must be positive")
-		totalXP += Config.xpForLevel(level)
+test("the Speed stat is a quarter of the speed you move at, with no ceiling", function()
+	eq(Config.Speed.SpeedDivisor, 4)
+	eq(Config.speedStatForPoints(0), 4, "a fresh player is Speed 4")
+	eq(Config.walkSpeedForPoints(0), 16, "and walks at the usual 16 studs/s")
+	for points = 0, 20 do
+		local stat = Config.speedStatForPoints(points)
+		eq(stat, 4 + points, "one speed point is +1 Speed")
+		eq(Config.walkSpeedForPoints(points), stat * Config.Speed.SpeedDivisor, "walk speed is 4x the Speed stat")
 	end
-	-- Max speed should take a while on a new treadmill but be quick on a fully upgraded one.
+	eq(Config.walkSpeedForPoints(6.75), 40, "fractional points don't round the Speed stat up")
+	-- No ceiling: the speed keeps climbing.
+	check(Config.walkSpeedForPoints(1000) > Config.walkSpeedForPoints(999), "speed must keep growing")
+	eq(Config.walkSpeedForPoints(1000), 4016)
+end)
+
+test("treadmill levels: the gain doubles and the wait halves, four times faster each level", function()
 	local treadmill = Config.UpgradesById.Treadmill
-	local slowMinutes = totalXP / treadmill.Values[1] / 60
-	local fastMinutes = totalXP / treadmill.Values[#treadmill.Values] / 60
-	check(slowMinutes > 15, "a level 1 treadmill maxes speed too fast: " .. slowMinutes)
-	check(fastMinutes < 3, "a maxed treadmill maxes speed too slowly: " .. fastMinutes)
+	eq(#treadmill.Values, 8, "eight treadmill levels")
+	local amount, interval = Config.treadmillTick(1)
+	eq(amount, 1, "level 1 gives one speed per tick")
+	eq(interval, 4, "every four seconds")
+	eq(Config.treadmillRate(1), 0.25, "a quarter of a speed per second")
+	for level = 2, #treadmill.Values do
+		local nextAmount, nextInterval = Config.treadmillTick(level)
+		eq(nextAmount, amount * 2, "level " .. level .. " doubles the amount")
+		eq(nextInterval, interval / 2, "level " .. level .. " halves the wait")
+		eq(treadmill.Values[level], nextAmount, "the value table lists the amounts")
+		eq(Config.treadmillRate(level), Config.treadmillRate(level - 1) * 4, "level " .. level .. " is 4x faster")
+		amount, interval = nextAmount, nextInterval
+	end
+	eq(Config.treadmillRate(8), 4096, "a maxed treadmill pours on 4,096 speed a second")
+
+	-- Prices follow an exponential curve, in step with the training rate (level 1 is free).
+	eq(treadmill.Costs[1], 0, "the first level is free")
+	check(treadmill.Costs[2] > 0, "level 2 costs money")
+	for level = 3, #treadmill.Costs do
+		local price, previous = treadmill.Costs[level], treadmill.Costs[level - 1]
+		eq(price, previous * 4, "price of level " .. level)
+		check(price > previous, "prices must go up")
+	end
+
+	-- ...and the shop/console say so in words.
+	eq(Config.treadmillText(1), "+1 speed / 4s")
+	eq(Config.treadmillText(2), "+2 speed / 2s")
+	eq(Config.treadmillText(3), "+4 speed / 1s")
+	eq(Config.treadmillText(8), "4,096 speed/s")
+	eq(Config.describeUpgrade("Treadmill", 2), "+2 speed / 2s", "the shop card uses the rate text")
+	eq(Config.describeUpgrade("Treadmill", 9), "4,096 speed/s", "and clamps past the last level")
+	eq(Config.describeUpgrade("Bag", 2), "3 items", "other upgrades keep their plain values")
+end)
+
+test("Format.decimal trims what it doesn't need", function()
+	eq(Format.decimal(4), "4")
+	eq(Format.decimal(2.5), "2.5")
+	eq(Format.decimal(0.25), "0.25")
+	eq(Format.decimal(0.03125, 3), "0.031")
+	eq(Format.decimal(1234), "1234")
+	eq(Format.decimal(2.5, 3), "2.5")
+	eq(Format.decimal(0.5, 1), "0.5")
 end)
 
 test("house tiers get harder", function()
@@ -129,8 +174,9 @@ test("house tiers get harder", function()
 		check(b.LockpickTime > a.LockpickTime, "lockpick time must increase")
 		check(b.AlarmWindup <= a.AlarmWindup, "alarm windup must not increase")
 	end
-	-- The fastest guard must be beatable at max speed, the slowest at base speed.
-	check(Config.HouseTiers[4].GuardSpeed < Config.walkSpeedForLevel(Config.Speed.MaxLevel), "mansion drones too fast")
+	-- The fastest guard must be beatable by a trained runner, the slowest must outrun a fresh one.
+	check(Config.HouseTiers[4].GuardSpeed < Config.walkSpeedForPoints(50), "mansion drones too fast to ever beat")
+	check(Config.HouseTiers[4].GuardSpeed > Config.Speed.BaseWalkSpeed, "the drones should outrun someone who never trained")
 	check(Config.HouseTiers[1].GuardSpeed < Config.Speed.BaseWalkSpeed, "cottage cats too fast for new players")
 end)
 

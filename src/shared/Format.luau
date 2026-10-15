@@ -61,4 +61,14 @@ function Format.money(value: number): string
 	return "$" .. Format.short(value)
 end
 
+-- Compact decimals with the trailing zeros trimmed: 4 -> "4", 0.5 -> "0.5", 0.03125 -> "0.031".
+function Format.decimal(value: number, places: number?): string
+	local text = string.format("%." .. tostring(math.max(places or 3, 0)) .. "f", value)
+	if string.find(text, ".", 1, true) then
+		text = string.gsub(text, "0+$", "")
+		text = string.gsub(text, "%.$", "")
+	end
+	return text
+end
+
 return Format

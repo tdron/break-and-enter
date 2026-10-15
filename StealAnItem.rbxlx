@@ -220313,6 +220313,9 @@ export type Upgrade = {
 	Costs: { number },
 	-- string.format pattern used to display a value, e.g. "%d items"
 	Format: string,
+	-- Optional: write the value out yourself (the treadmill uses this for its
+	-- "+2 speed / 2s" rates). Falls back to string.format(Format, value).
+	Describe: ((level: number, value: number) -> string)?,
 }
 
 export type HouseTier = {
@@ -220347,6 +220350,8 @@ export type LightingPreset = {
 	AtmosphereColor: Color3,
 	AtmosphereDecay: Color3,
 }
+
+local Format = require(script.Parent.Format)
 
 local Config = {}
 
@@ -220409,9 +220414,16 @@ Config.Upgrades = {
 		DisplayName = "Treadmill",
 		Icon = "🏃",
 		Description = "Your warehouse treadmill trains faster (AFK works!)",
-		Values = { 2, 3, 5, 8, 12, 17, 24, 34 },
-		Costs = { 0, 300, 1200, 4000, 12000, 35000, 90000, 220000 },
-		Format = "%d XP/s",
+		-- Speed handed out per tick of training. Every level doubles it and halves
+		-- the wait between ticks (see Config.treadmillTick), so each level trains
+		-- four times as fast as the last.
+		Values = { 1, 2, 4, 8, 16, 32, 64, 128 },
+		-- Exponential: every level costs 4x the last, in step with the treadmill.
+		Costs = { 0, 300, 1200, 4800, 19200, 76800, 307200, 1228800 },
+		Format = "+%s speed",
+		Describe = function(level: number): string
+			return Config.treadmillText(level)
+		end,
 	},
 } :: { Upgrade }
 
@@ -220433,24 +220445,36 @@ end
 
 --------------------------------------------------------------------------------
 -- Speed training
+--
+-- The "Speed" stat (the HUD, the leaderboard and the treadmill all quote it) is
+-- a quarter of the speed you actually move at:
+--
+--     Speed 4  =  16 studs/s   (what you start with)
+--     Speed 5  =  20 studs/s   (one speed point = four studs/s)
+--
+-- There is no ceiling: the longer you run, the faster you get.
 --------------------------------------------------------------------------------
 Config.Speed = {
 	BaseWalkSpeed = 16, -- Roblox default walk speed
-	SpeedPerLevel = 1,
-	MaxLevel = 50, -- max walk speed = 16 + 50 = 66
+	SpeedDivisor = 4, -- the speed you move at is the Speed stat times this
+	-- Speed is uncapped; set a number here if you ever want a ceiling back.
+	MaxWalkSpeed = math.huge,
 }
 
--- Training XP needed to go from `level` to `level + 1`.
-function Config.xpForLevel(level: number): number
-	return 8 + level * 2
+-- The Speed stat for a number of trained speed points (it starts at BaseWalkSpeed / SpeedDivisor).
+function Config.speedStatForPoints(points: number): number
+	local base = math.floor(Config.Speed.BaseWalkSpeed / Config.Speed.SpeedDivisor)
+	return base + math.max(0, math.floor(points))
 end
 
-function Config.walkSpeedForLevel(level: number): number
-	return Config.Speed.BaseWalkSpeed + level * Config.Speed.SpeedPerLevel
+-- The speed you move at: always exactly SpeedDivisor times the Speed stat.
+function Config.walkSpeedForPoints(points: number): number
+	local walkSpeed = Config.speedStatForPoints(points) * Config.Speed.SpeedDivisor
+	return math.min(walkSpeed, Config.Speed.MaxWalkSpeed)
 end
 
 -- Every warehouse has its own treadmill out front. Walk onto yours and you
--- run by yourself (AFK is fine) earning the "Treadmill" upgrade's XP/s.
+-- run by yourself (AFK is fine), earning the "Treadmill" upgrade's speed/s.
 Config.Treadmill = {
 	-- Training stops if your character ends up further than this (studs) from the middle of the belt.
 	MaxDistance = 4,
@@ -220461,6 +220485,12 @@ Config.Treadmill = {
 	BeltSpeedPerLevel = 1.5,
 	RunAnimSpeedBase = 1,
 	RunAnimSpeedPerLevel = 0.08,
+	-- Speed training in two numbers: at level 1 the treadmill hands you
+	-- `BaseAmount` speed every `BaseInterval` seconds. Every level doubles the
+	-- amount and halves the interval, so level 8 gives 128 speed every 1/32 s.
+	-- (Config.treadmillTick turns a level into those two numbers.)
+	BaseAmount = 1,
+	BaseInterval = 4,
 	-- The treadmill's trim gets flashier with every upgrade level.
 	LevelColors = {
 		Color3.fromRGB(200, 205, 215), -- 1 silver
@@ -220473,6 +220503,46 @@ Config.Treadmill = {
 		Color3.fromRGB(255, 205, 40), -- 8 gold
 	},
 }
+
+-- How much speed a treadmill of this level hands out and how long you wait for it:
+-- (amount, interval) in seconds. Level 1 is (1, 4), level 2 (2, 2), level 8 (128, 1/32).
+function Config.treadmillTick(level: number): (number, number)
+	local settings = Config.Treadmill
+	local amount = math.max(Config.getUpgradeValue("Treadmill", level), 1e-9)
+	local interval = settings.BaseInterval * (settings.BaseAmount / amount)
+	return amount, interval
+end
+
+-- Speed per second a treadmill of this level trains you at: the first level gives
+-- 0.25, and every level after that is four times faster.
+function Config.treadmillRate(level: number): number
+	local amount, interval = Config.treadmillTick(level)
+	return amount / interval
+end
+
+-- The treadmill's rate in words: "+2 speed / 2s" while a tick takes a second or
+-- longer, "64 speed/s" once the ticks come faster than that.
+function Config.treadmillText(level: number): string
+	local amount, interval = Config.treadmillTick(level)
+	if interval >= 1 then
+		return string.format("+%s speed / %ss", Format.decimal(amount, 3), Format.decimal(interval, 3))
+	end
+	return string.format("%s speed/s", Format.commas(Config.treadmillRate(level)))
+end
+
+-- Writes an upgrade's value the way the shop and the purchase toasts show it.
+function Config.describeUpgrade(upgradeId: string, level: number): string
+	local upgrade = upgradesById[upgradeId]
+	if not upgrade then
+		return tostring(level)
+	end
+	local index = math.clamp(math.floor(level), 1, #upgrade.Values)
+	local value = upgrade.Values[index]
+	if upgrade.Describe then
+		return upgrade.Describe(index, value)
+	end
+	return string.format(upgrade.Format, value)
+end
 
 -- Treadmill trim colour for an upgrade level.
 function Config.treadmillColor(level: number): Color3
@@ -220759,6 +220829,16 @@ function Format.money(value: number): string
 		return "$" .. Format.commas(value)
 	end
 	return "$" .. Format.short(value)
+end
+
+-- Compact decimals with the trailing zeros trimmed: 4 -> "4", 0.5 -> "0.5", 0.03125 -> "0.031".
+function Format.decimal(value: number, places: number?): string
+	local text = string.format("%." .. tostring(math.max(places or 3, 0)) .. "f", value)
+	if string.find(text, ".", 1, true) then
+		text = string.gsub(text, "0+$", "")
+		text = string.gsub(text, "%.$", "")
+	end
+	return text
 end
 
 return Format
@@ -222741,7 +222821,7 @@ function Economy.purchase(player: Player, upgradeId: any): (boolean, string)
 			upgrade.Icon,
 			upgrade.DisplayName,
 			level + 1,
-			string.format(upgrade.Format, upgrade.Values[level + 1])
+			Config.describeUpgrade(upgradeId, level + 1)
 		)
 end
 
@@ -224129,7 +224209,7 @@ return Notify
 	Important numbers are mirrored onto Player attributes so the client UI can
 	react to them without any extra remotes:
 	  Cash, Income, Carried, CarriedList, BagCapacity, TrunkCount, TrunkCapacity,
-	  StoredCount, StorageCapacity, SpeedLevel, SpeedXP, SpeedXPNeeded,
+	  StoredCount, StorageCapacity, Speed, SpeedPoints, SpeedProgress,
 	  WalkSpeed, Level_<UpgradeId>, Discovered (comma-separated item ids for
 	  the Loot Index)
 
@@ -224146,8 +224226,7 @@ local Items = require(ReplicatedStorage.Shared.Items)
 export type Profile = {
 	Cash: number,
 	Levels: { [string]: number },
-	SpeedLevel: number,
-	SpeedXP: number,
+	SpeedPoints: number, -- trained speed; the Speed stat is its whole part (see Config.Speed)
 	Stored: { string },
 	Trunk: { string },
 	TotalStolen: number,
@@ -224206,8 +224285,7 @@ local function defaultProfile(): Profile
 	return {
 		Cash = Config.Economy.StartingCash,
 		Levels = levels,
-		SpeedLevel = 0,
-		SpeedXP = 0,
+		SpeedPoints = 0,
 		Stored = {},
 		Trunk = {},
 		TotalStolen = 0,
@@ -224259,8 +224337,10 @@ local function sanitize(raw: any): Profile
 			end
 		end
 	end
-	profile.SpeedLevel = math.floor(readNumber(raw.SpeedLevel, 0, 0, Config.Speed.MaxLevel))
-	profile.SpeedXP = readNumber(raw.SpeedXP, 0, 0, 1e9)
+	-- Speed used to be stored as whole levels (+1 walk speed each) plus leftover XP;
+	-- turn that back into the same speed. (New saves store SpeedPoints directly.)
+	local legacyLevel = readNumber(raw.SpeedLevel, 0, 0, 1e9)
+	profile.SpeedPoints = readNumber(raw.SpeedPoints, legacyLevel / Config.Speed.SpeedDivisor, 0, 1e15)
 	profile.Stored = readItemList(raw.Stored, Config.getUpgradeValue("Storage", profile.Levels.Storage))
 	profile.Trunk = readItemList(raw.Trunk, Config.getUpgradeValue("Trunk", profile.Levels.Trunk))
 	profile.TotalStolen = math.floor(readNumber(raw.TotalStolen, 0, 0, 1e12))
@@ -224325,10 +224405,20 @@ function PlayerData.getUpgradeValue(player: Player, upgradeId: string): number
 	return Config.getUpgradeValue(upgradeId, PlayerData.getUpgradeLevel(player, upgradeId))
 end
 
-function PlayerData.getWalkSpeed(player: Player): number
+-- Trained speed points (a float: the treadmill trickles them in).
+function PlayerData.getSpeedPoints(player: Player): number
 	local session = sessions[player]
-	local level = if session then session.Profile.SpeedLevel else 0
-	return Config.walkSpeedForLevel(level)
+	return if session then session.Profile.SpeedPoints else 0
+end
+
+-- The Speed stat the HUD, the leaderboard and the treadmill quote (a quarter of
+-- the speed the player moves at).
+function PlayerData.getSpeedStat(player: Player): number
+	return Config.speedStatForPoints(PlayerData.getSpeedPoints(player))
+end
+
+function PlayerData.getWalkSpeed(player: Player): number
+	return Config.walkSpeedForPoints(PlayerData.getSpeedPoints(player))
 end
 
 --------------------------------------------------------------------------------
@@ -224355,10 +224445,9 @@ function PlayerData.replicate(player: Player)
 
 	PlayerData.replicateCash(player)
 	player:SetAttribute("Income", session.Income)
-	player:SetAttribute("SpeedLevel", profile.SpeedLevel)
-	player:SetAttribute("SpeedXP", profile.SpeedXP)
-	player:SetAttribute("SpeedXPNeeded", Config.xpForLevel(profile.SpeedLevel))
-	player:SetAttribute("SpeedMaxed", profile.SpeedLevel >= Config.Speed.MaxLevel)
+	player:SetAttribute("SpeedPoints", profile.SpeedPoints)
+	player:SetAttribute("SpeedProgress", profile.SpeedPoints - math.floor(profile.SpeedPoints))
+	player:SetAttribute("Speed", Config.speedStatForPoints(profile.SpeedPoints))
 	player:SetAttribute("WalkSpeed", PlayerData.getWalkSpeed(player))
 	for _, upgrade in Config.Upgrades do
 		player:SetAttribute("Level_" .. upgrade.Id, profile.Levels[upgrade.Id])
@@ -224375,7 +224464,7 @@ function PlayerData.replicate(player: Player)
 	local stats = session.Leaderstats
 	if stats then
 		stats.Stolen.Value = profile.TotalStolen
-		stats.Speed.Value = PlayerData.getWalkSpeed(player)
+		stats.Speed.Value = Config.speedStatForPoints(profile.SpeedPoints)
 	end
 end
 
@@ -224461,35 +224550,23 @@ function PlayerData.applyWalkSpeed(player: Player)
 	end
 end
 
--- Adds treadmill XP. Returns how many speed levels were gained.
-function PlayerData.addSpeedXP(player: Player, amount: number): number
+-- Adds treadmill training. Returns how many whole speed points were gained.
+function PlayerData.addSpeed(player: Player, points: number): number
 	local session = sessions[player]
-	if not session then
+	if not session or points <= 0 then
 		return 0
 	end
 	local profile = session.Profile
-	if profile.SpeedLevel >= Config.Speed.MaxLevel then
-		profile.SpeedXP = 0
-		return 0
-	end
-	profile.SpeedXP += amount
-	local gained = 0
-	while profile.SpeedLevel < Config.Speed.MaxLevel and profile.SpeedXP >= Config.xpForLevel(profile.SpeedLevel) do
-		profile.SpeedXP -= Config.xpForLevel(profile.SpeedLevel)
-		profile.SpeedLevel += 1
-		gained += 1
-	end
-	if profile.SpeedLevel >= Config.Speed.MaxLevel then
-		profile.SpeedXP = 0
-	end
-	player:SetAttribute("SpeedLevel", profile.SpeedLevel)
-	player:SetAttribute("SpeedXP", profile.SpeedXP)
-	player:SetAttribute("SpeedXPNeeded", Config.xpForLevel(profile.SpeedLevel))
-	player:SetAttribute("SpeedMaxed", profile.SpeedLevel >= Config.Speed.MaxLevel)
-	if gained > 0 then
+	local before = math.floor(profile.SpeedPoints)
+	profile.SpeedPoints += points
+	local after = math.floor(profile.SpeedPoints)
+	player:SetAttribute("SpeedPoints", profile.SpeedPoints)
+	player:SetAttribute("SpeedProgress", profile.SpeedPoints - after)
+	player:SetAttribute("Speed", Config.speedStatForPoints(profile.SpeedPoints))
+	if after > before then
 		PlayerData.applyWalkSpeed(player)
 	end
-	return gained
+	return after - before
 end
 
 --------------------------------------------------------------------------------
@@ -224557,8 +224634,7 @@ function PlayerData.save(player: Player): boolean
 		SavedAt = os.time(),
 		Cash = profile.Cash,
 		Levels = table.clone(profile.Levels),
-		SpeedLevel = profile.SpeedLevel,
-		SpeedXP = profile.SpeedXP,
+		SpeedPoints = profile.SpeedPoints,
 		Stored = table.clone(profile.Stored),
 		Trunk = table.clone(profile.Trunk),
 		TotalStolen = profile.TotalStolen,
@@ -225177,17 +225253,19 @@ return Plots
 	character starts running by itself: there are no keys to hold, so you can
 	go AFK and keep getting faster. ESCAPE (or Space) hops you off.
 
-	Every speed level adds +1 walk speed, which is how you outrun the faster
-	security drones in the fancier houses. Instead of buying better treadmills,
-	you upgrade your own: the "Treadmill" upgrade (in the shop, or the prompt on
-	the treadmill's console) raises how much speed XP it gives per second.
+	Training hands out "speed" (see Config.Speed): every point is +4 studs/s of
+	walk speed, which is how you outrun the faster security drones in the fancier
+	houses. It never stops paying off - there is no speed cap - but you upgrade
+	the treadmill itself (in the shop, or the prompt on its console) to train
+	faster: every level doubles the speed gained and halves the wait between
+	gains, so each level is four times as fast as the last.
 
 	How a run works:
 	  client  walks onto their own belt -> Remotes.Treadmill:InvokeServer("Start")
 	  server  checks it's their treadmill and that they're standing on it, sets
-	          the player's "Training" attribute and awards XP every tick. No input
-	          is needed, so AFK works. Training stops if they wander off, die, sit
-	          down, lose their warehouse or leave.
+	          the player's "Training" attribute and trains them every tick. No
+	          input is needed, so AFK works. Training stops if they wander off,
+	          die, sit down, lose their warehouse or leave.
 	  client  ESCAPE / Space -> Remotes.Treadmill:InvokeServer("Stop")
 
 	Map layout expected: Workspace.Map.Warehouses.Plot<N>.Treadmill (Model)
@@ -225226,7 +225304,7 @@ type Treadmill = {
 type Trainer = {
 	Treadmill: Treadmill,
 	AwayTime: number, -- seconds spent too far from the belt
-	PendingLevels: number, -- speed levels gained since the last "Speed up!" toast
+	PendingPoints: number, -- speed gained since the last "Speed up!" toast
 	LastToast: number,
 }
 
@@ -225235,7 +225313,7 @@ local TICK = 0.25
 -- server sees the character a little behind where the player's own screen has it.
 local START_DISTANCE = 20
 local AWAY_GRACE = 2 -- seconds you may spend off the belt before training stops
-local TOAST_INTERVAL = 3 -- at most one "Speed up!" toast this often
+local TOAST_INTERVAL = 8 -- at most one "Speed up!" toast this often
 
 local Treadmills = {}
 
@@ -225301,9 +225379,9 @@ local function refreshDisplay(treadmill: Treadmill)
 		part.Color = color
 	end
 
-	local xpPerSecond = Config.getUpgradeValue("Treadmill", level)
+	local rate = Config.treadmillText(level)
 	if treadmill.LevelLabel then
-		treadmill.LevelLabel.Text = if owner then string.format("LV %d\n⚡ %d XP/s", level, xpPerSecond) else "EMPTY"
+		treadmill.LevelLabel.Text = if owner then string.format("LV %d\n⚡ %s", level, rate) else "EMPTY"
 	end
 	if treadmill.OwnerLabel then
 		treadmill.OwnerLabel.Text = if owner then string.upper(owner.DisplayName) .. "'S TREADMILL" else "TREADMILL"
@@ -225314,24 +225392,29 @@ local function refreshDisplay(treadmill: Treadmill)
 		local upgrade = Config.UpgradesById.Treadmill
 		local maxed = level >= #upgrade.Costs
 		prompt:SetAttribute("OwnerUserId", ownerId)
-		prompt.ObjectText = string.format("Treadmill Lv %d (%d XP/s)", level, xpPerSecond)
+		prompt.ObjectText = string.format("Treadmill Lv %d (%s)", level, rate)
 		prompt.ActionText = if maxed then "Maxed out!" else "Upgrade: " .. Format.money(upgrade.Costs[level + 1])
 		prompt.Enabled = owner ~= nil and not maxed
 	end
 end
 
 local function sendSpeedToast(player: Player, trainer: Trainer)
-	local gained = trainer.PendingLevels
+	local gained = trainer.PendingPoints
 	if gained <= 0 then
 		return
 	end
-	trainer.PendingLevels = 0
+	trainer.PendingPoints = 0
 	trainer.LastToast = os.clock()
-	local walkSpeed = PlayerData.getWalkSpeed(player)
-	local text = if gained == 1
-		then string.format("⚡ Speed up! Your walk speed is now %d", walkSpeed)
-		else string.format("⚡ Speed up! +%d levels, your walk speed is now %d", gained, walkSpeed)
-	Notify.send(player, text, "level")
+	Notify.send(
+		player,
+		string.format(
+			"⚡ Speed up! +%d — Speed %s (%s studs/s)",
+			gained,
+			Format.commas(PlayerData.getSpeedStat(player)),
+			Format.commas(PlayerData.getWalkSpeed(player))
+		),
+		"level"
+	)
 end
 
 local function setTrainer(player: Player, trainer: Trainer?)
@@ -225366,7 +225449,7 @@ function Treadmills.start(player: Player): (boolean, string)
 	if distance > START_DISTANCE then
 		return false, "Walk onto your treadmill to train!"
 	end
-	setTrainer(player, { Treadmill = treadmill, AwayTime = 0, PendingLevels = 0, LastToast = 0 })
+	setTrainer(player, { Treadmill = treadmill, AwayTime = 0, PendingPoints = 0, LastToast = 0 })
 	return true, ""
 end
 
@@ -225406,24 +225489,15 @@ local function train(player: Player, trainer: Trainer, dt: number)
 		return
 	end
 	trainer.AwayTime = 0
-	if player:GetAttribute("SpeedMaxed") == true then
-		return
-	end
 
-	local gained = PlayerData.addSpeedXP(player, PlayerData.getUpgradeValue(player, "Treadmill") * dt)
+	-- The treadmill's level sets how fast it trains: "amount every interval",
+	-- doubling the amount and halving the interval with every level.
+	local level = PlayerData.getUpgradeLevel(player, "Treadmill")
+	local gained = PlayerData.addSpeed(player, Config.treadmillRate(level) * dt)
 	if gained > 0 then
-		trainer.PendingLevels += gained
-		if player:GetAttribute("SpeedMaxed") == true then
-			trainer.PendingLevels = 0
-			trainer.LastToast = os.clock()
-			Notify.send(
-				player,
-				string.format("⚡ MAX SPEED! Walk speed %d is as fast as it gets. Go rob the Mansion!", PlayerData.getWalkSpeed(player)),
-				"level"
-			)
-		end
+		trainer.PendingPoints += gained
 	end
-	if trainer.PendingLevels > 0 and os.clock() - trainer.LastToast >= TOAST_INTERVAL then
+	if trainer.PendingPoints > 0 and os.clock() - trainer.LastToast >= TOAST_INTERVAL then
 		sendSpeedToast(player, trainer)
 	end
 end
@@ -225433,7 +225507,7 @@ local function loop()
 	while true do
 		task.wait(TICK)
 		local now = os.clock()
-		local dt = math.min(now - last, 1) -- don't hand out a burst of XP after a server hitch
+		local dt = math.min(now - last, 1) -- don't hand out a burst of speed after a server hitch
 		last = now
 		for player, trainer in trainers do
 			if player.Parent then
@@ -226739,7 +226813,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 	local bagValue = makeStatRow(statsPanel, 1, "🎒", "Loot Bag")
 	local trunkValue = makeStatRow(statsPanel, 2, "🧳", "Car Trunk")
 	local storageValue = makeStatRow(statsPanel, 3, "📦", "Warehouse")
-	local speedValue = makeStatRow(statsPanel, 4, "👟", "Walk Speed")
+	local speedValue = makeStatRow(statsPanel, 4, "👟", "Speed")
 
 	----------------------------------------------------------------------------
 	-- Buttons
@@ -226888,7 +226962,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		Name = "Title",
 		BackgroundTransparency = 1,
 		Position = UDim2.fromOffset(12, 4),
-		Size = UDim2.new(1, -140, 0, 24),
+		Size = UDim2.new(1, -200, 0, 24),
 		Font = Theme.TitleFont,
 		Text = "",
 		TextColor3 = Theme.Cyan,
@@ -226901,7 +226975,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		AnchorPoint = Vector2.new(1, 0),
 		BackgroundTransparency = 1,
 		Position = UDim2.new(1, -12, 0, 4),
-		Size = UDim2.fromOffset(130, 24),
+		Size = UDim2.fromOffset(180, 24),
 		Font = Theme.BoldFont,
 		Text = "",
 		TextColor3 = Theme.Gold,
@@ -226916,6 +226990,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		Parent = trainingPanel,
 	}, { UI.corner(8) })
 	local barFill: Frame = UI.new("Frame", {
+		Name = "Fill",
 		BackgroundColor3 = Theme.Cyan,
 		Size = UDim2.fromScale(0, 1),
 		Parent = barBack,
@@ -226973,7 +227048,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		local stored, storage = getNumber("StoredCount", 0), getNumber("StorageCapacity", 10)
 		storageValue.Text = string.format("%d / %d", stored, storage)
 		storageValue.TextColor3 = if stored >= storage then Theme.Orange else Theme.Text
-		speedValue.Text = tostring(getNumber("WalkSpeed", 16))
+		speedValue.Text = Config.speedStatForPoints(getNumber("SpeedPoints", 0))
 	end
 
 	local function updateObjective()
@@ -227016,21 +227091,12 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		local training = player:GetAttribute("Training") == true
 		trainingPanel.Visible = training
 		if training then
-			local level = getNumber("SpeedLevel", 0)
 			local treadmillLevel = getNumber("Level_Treadmill", 1)
-			trainingRate.Text = string.format("Lv %d · ⚡ %d XP/s", treadmillLevel, Config.getUpgradeValue("Treadmill", treadmillLevel))
-			if player:GetAttribute("SpeedMaxed") == true then
-				trainingTitle.Text = string.format("🏃 MAX SPEED (%d)", Config.walkSpeedForLevel(level))
-				UI.tween(barFill, 0.2, { Size = UDim2.fromScale(1, 1) })
-			else
-				local xp, needed = getNumber("SpeedXP", 0), math.max(getNumber("SpeedXPNeeded", 1), 1)
-				trainingTitle.Text = string.format(
-					"🏃 Speed %d ➜ %d",
-					Config.walkSpeedForLevel(level),
-					Config.walkSpeedForLevel(level + 1)
-				)
-				UI.tween(barFill, 0.2, { Size = UDim2.fromScale(math.clamp(xp / needed, 0, 1), 1) })
-			end
+			local speed = Config.speedStatForPoints(getNumber("SpeedPoints", 0))
+			trainingRate.Text = string.format("Lv %d · ⚡ %s", treadmillLevel, Config.treadmillText(treadmillLevel))
+			trainingTitle.Text = string.format("🏃 Speed %d (%s studs/s)", speed, Format.short(getNumber("WalkSpeed", 16)))
+			-- The bar fills up to the next whole speed point.
+			UI.tween(barFill, 0.2, { Size = UDim2.fromScale(math.clamp(getNumber("SpeedProgress", 0), 0, 1), 1) })
 		end
 	end
 
@@ -227068,7 +227134,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		updateObjective()
 	end)
 	player:GetAttributeChangedSignal("Training"):Connect(updateObjective)
-	for _, name in { "Training", "SpeedXP", "SpeedLevel", "SpeedXPNeeded", "SpeedMaxed", "Level_Treadmill" } do
+	for _, name in { "Training", "SpeedPoints", "SpeedProgress", "Level_Treadmill" } do
 		player:GetAttributeChangedSignal(name):Connect(updateTraining)
 	end
 	player:GetAttributeChangedSignal("Cash"):Connect(function()
@@ -228160,8 +228226,8 @@ local function getNumber(name: string, default: number): number
 	return if type(value) == "number" then value else default
 end
 
-local function describeValue(upgrade: Config.Upgrade, value: number): string
-	return string.format(upgrade.Format, value)
+local function describeValue(upgrade: Config.Upgrade, level: number): string
+	return Config.describeUpgrade(upgrade.Id, level)
 end
 
 local function refreshCard(card: Card)
@@ -228172,12 +228238,12 @@ local function refreshCard(card: Card)
 
 	card.Level.Text = string.format("LV %d / %d", level, maxLevel)
 	if level >= maxLevel then
-		card.Value.Text = describeValue(upgrade, upgrade.Values[level]) .. "  (max)"
+		card.Value.Text = describeValue(upgrade, level) .. "  (max)"
 	else
 		card.Value.Text = string.format(
 			"%s  ➜  %s",
-			describeValue(upgrade, upgrade.Values[level]),
-			describeValue(upgrade, upgrade.Values[level + 1])
+			describeValue(upgrade, level),
+			describeValue(upgrade, level + 1)
 		)
 	end
 
@@ -228821,7 +228887,7 @@ return Storage
 	Your personal treadmill (outside your warehouse), client side:
 	  * Walk onto the belt and your character starts running by itself. You're
 	    held in place on the belt, your movement keys are switched off and the
-	    run animation loops, so you can go AFK. The server hands out the XP.
+	    run animation loops, so you can go AFK. The server hands out the speed.
 	  * The ESCAPE button (keybind: Space, or A on a gamepad) hops you off
 	    beside the treadmill. Walk back on to start running again.
 	  * A floating "YOUR TREADMILL" sign helps you find it.

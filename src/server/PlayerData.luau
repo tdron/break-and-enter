@@ -8,7 +8,7 @@
 	Important numbers are mirrored onto Player attributes so the client UI can
 	react to them without any extra remotes:
 	  Cash, Income, Carried, CarriedList, BagCapacity, TrunkCount, TrunkCapacity,
-	  StoredCount, StorageCapacity, SpeedLevel, SpeedXP, SpeedXPNeeded,
+	  StoredCount, StorageCapacity, Speed, SpeedPoints, SpeedProgress,
 	  WalkSpeed, Level_<UpgradeId>, Discovered (comma-separated item ids for
 	  the Loot Index)
 
@@ -25,8 +25,7 @@ local Items = require(ReplicatedStorage.Shared.Items)
 export type Profile = {
 	Cash: number,
 	Levels: { [string]: number },
-	SpeedLevel: number,
-	SpeedXP: number,
+	SpeedPoints: number, -- trained speed; the Speed stat is its whole part (see Config.Speed)
 	Stored: { string },
 	Trunk: { string },
 	TotalStolen: number,
@@ -85,8 +84,7 @@ local function defaultProfile(): Profile
 	return {
 		Cash = Config.Economy.StartingCash,
 		Levels = levels,
-		SpeedLevel = 0,
-		SpeedXP = 0,
+		SpeedPoints = 0,
 		Stored = {},
 		Trunk = {},
 		TotalStolen = 0,
@@ -138,8 +136,10 @@ local function sanitize(raw: any): Profile
 			end
 		end
 	end
-	profile.SpeedLevel = math.floor(readNumber(raw.SpeedLevel, 0, 0, Config.Speed.MaxLevel))
-	profile.SpeedXP = readNumber(raw.SpeedXP, 0, 0, 1e9)
+	-- Speed used to be stored as whole levels (+1 walk speed each) plus leftover XP;
+	-- turn that back into the same speed. (New saves store SpeedPoints directly.)
+	local legacyLevel = readNumber(raw.SpeedLevel, 0, 0, 1e9)
+	profile.SpeedPoints = readNumber(raw.SpeedPoints, legacyLevel / Config.Speed.SpeedDivisor, 0, 1e15)
 	profile.Stored = readItemList(raw.Stored, Config.getUpgradeValue("Storage", profile.Levels.Storage))
 	profile.Trunk = readItemList(raw.Trunk, Config.getUpgradeValue("Trunk", profile.Levels.Trunk))
 	profile.TotalStolen = math.floor(readNumber(raw.TotalStolen, 0, 0, 1e12))
@@ -204,10 +204,20 @@ function PlayerData.getUpgradeValue(player: Player, upgradeId: string): number
 	return Config.getUpgradeValue(upgradeId, PlayerData.getUpgradeLevel(player, upgradeId))
 end
 
-function PlayerData.getWalkSpeed(player: Player): number
+-- Trained speed points (a float: the treadmill trickles them in).
+function PlayerData.getSpeedPoints(player: Player): number
 	local session = sessions[player]
-	local level = if session then session.Profile.SpeedLevel else 0
-	return Config.walkSpeedForLevel(level)
+	return if session then session.Profile.SpeedPoints else 0
+end
+
+-- The Speed stat the HUD, the leaderboard and the treadmill quote (a quarter of
+-- the speed the player moves at).
+function PlayerData.getSpeedStat(player: Player): number
+	return Config.speedStatForPoints(PlayerData.getSpeedPoints(player))
+end
+
+function PlayerData.getWalkSpeed(player: Player): number
+	return Config.walkSpeedForPoints(PlayerData.getSpeedPoints(player))
 end
 
 --------------------------------------------------------------------------------
@@ -234,10 +244,9 @@ function PlayerData.replicate(player: Player)
 
 	PlayerData.replicateCash(player)
 	player:SetAttribute("Income", session.Income)
-	player:SetAttribute("SpeedLevel", profile.SpeedLevel)
-	player:SetAttribute("SpeedXP", profile.SpeedXP)
-	player:SetAttribute("SpeedXPNeeded", Config.xpForLevel(profile.SpeedLevel))
-	player:SetAttribute("SpeedMaxed", profile.SpeedLevel >= Config.Speed.MaxLevel)
+	player:SetAttribute("SpeedPoints", profile.SpeedPoints)
+	player:SetAttribute("SpeedProgress", profile.SpeedPoints - math.floor(profile.SpeedPoints))
+	player:SetAttribute("Speed", Config.speedStatForPoints(profile.SpeedPoints))
 	player:SetAttribute("WalkSpeed", PlayerData.getWalkSpeed(player))
 	for _, upgrade in Config.Upgrades do
 		player:SetAttribute("Level_" .. upgrade.Id, profile.Levels[upgrade.Id])
@@ -254,7 +263,7 @@ function PlayerData.replicate(player: Player)
 	local stats = session.Leaderstats
 	if stats then
 		stats.Stolen.Value = profile.TotalStolen
-		stats.Speed.Value = PlayerData.getWalkSpeed(player)
+		stats.Speed.Value = Config.speedStatForPoints(profile.SpeedPoints)
 	end
 end
 
@@ -340,35 +349,23 @@ function PlayerData.applyWalkSpeed(player: Player)
 	end
 end
 
--- Adds treadmill XP. Returns how many speed levels were gained.
-function PlayerData.addSpeedXP(player: Player, amount: number): number
+-- Adds treadmill training. Returns how many whole speed points were gained.
+function PlayerData.addSpeed(player: Player, points: number): number
 	local session = sessions[player]
-	if not session then
+	if not session or points <= 0 then
 		return 0
 	end
 	local profile = session.Profile
-	if profile.SpeedLevel >= Config.Speed.MaxLevel then
-		profile.SpeedXP = 0
-		return 0
-	end
-	profile.SpeedXP += amount
-	local gained = 0
-	while profile.SpeedLevel < Config.Speed.MaxLevel and profile.SpeedXP >= Config.xpForLevel(profile.SpeedLevel) do
-		profile.SpeedXP -= Config.xpForLevel(profile.SpeedLevel)
-		profile.SpeedLevel += 1
-		gained += 1
-	end
-	if profile.SpeedLevel >= Config.Speed.MaxLevel then
-		profile.SpeedXP = 0
-	end
-	player:SetAttribute("SpeedLevel", profile.SpeedLevel)
-	player:SetAttribute("SpeedXP", profile.SpeedXP)
-	player:SetAttribute("SpeedXPNeeded", Config.xpForLevel(profile.SpeedLevel))
-	player:SetAttribute("SpeedMaxed", profile.SpeedLevel >= Config.Speed.MaxLevel)
-	if gained > 0 then
+	local before = math.floor(profile.SpeedPoints)
+	profile.SpeedPoints += points
+	local after = math.floor(profile.SpeedPoints)
+	player:SetAttribute("SpeedPoints", profile.SpeedPoints)
+	player:SetAttribute("SpeedProgress", profile.SpeedPoints - after)
+	player:SetAttribute("Speed", Config.speedStatForPoints(profile.SpeedPoints))
+	if after > before then
 		PlayerData.applyWalkSpeed(player)
 	end
-	return gained
+	return after - before
 end
 
 --------------------------------------------------------------------------------
@@ -436,8 +433,7 @@ function PlayerData.save(player: Player): boolean
 		SavedAt = os.time(),
 		Cash = profile.Cash,
 		Levels = table.clone(profile.Levels),
-		SpeedLevel = profile.SpeedLevel,
-		SpeedXP = profile.SpeedXP,
+		SpeedPoints = profile.SpeedPoints,
 		Stored = table.clone(profile.Stored),
 		Trunk = table.clone(profile.Trunk),
 		TotalStolen = profile.TotalStolen,

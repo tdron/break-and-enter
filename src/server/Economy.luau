@@ -68,7 +68,7 @@ function Economy.purchase(player: Player, upgradeId: any): (boolean, string)
 			upgrade.Icon,
 			upgrade.DisplayName,
 			level + 1,
-			string.format(upgrade.Format, upgrade.Values[level + 1])
+			Config.describeUpgrade(upgradeId, level + 1)
 		)
 end
 

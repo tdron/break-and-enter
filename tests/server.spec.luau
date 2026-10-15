@@ -323,8 +323,14 @@ step("AFK training on your own treadmill", function()
 	local mark = #Mock.remoteLog
 	local treadmill = plot.Treadmill
 	local request = Remotes.Treadmill.OnServerInvoke
+	local console = treadmill.Console:FindFirstChild("TreadmillText", true)
+	local session = moduleOf("PlayerData").get(thief)
+	session.Profile.Levels.Treadmill = 1 -- back to a stock treadmill for the rate checks
 	eq(treadmill:GetAttribute("OwnerUserId"), 101, "treadmill knows its owner")
 	eq(treadmill:GetAttribute("Running"), false, "belt idle")
+	eq(thief:GetAttribute("SpeedPoints"), 0, "no speed trained yet")
+	eq(thief:GetAttribute("Speed"), 4, "Speed starts at a quarter of the 16 studs/s you walk at")
+	eq(humanoid.WalkSpeed, 16, "walking at the Roblox default")
 
 	-- You have to actually be on it.
 	root.CFrame = CFrame.new(-140, 3, -40)
@@ -341,30 +347,48 @@ step("AFK training on your own treadmill", function()
 	eq(thief:GetAttribute("Training"), true, "training attribute")
 	eq(treadmill:GetAttribute("Running"), true, "belt runs while you train")
 	eq(request(thief, "Start").Ok, true, "starting twice is harmless")
-	Mock.advance(10)
-	local level = thief:GetAttribute("SpeedLevel")
-	check(level >= 2, "speed level after 10 AFK seconds on a level 2 treadmill: " .. tostring(level))
-	eq(humanoid.WalkSpeed, 16 + level, "walk speed applied")
-	check(sawMessage(thief, mark, "Speed up"), "no level-up message")
+	Mock.advance(0.3)
+	check(string.find(console.Text, "+1 speed / 4s", 1, true), "console shows the level 1 rate: " .. console.Text)
+
+	-- Level 1 hands out one speed every 4 seconds: +1 Speed, which is +4 studs/s.
+	Mock.advance(5)
+	eq(thief:GetAttribute("Speed"), 5, "one speed after the first 4 seconds")
+	eq(humanoid.WalkSpeed, 20, "and you really do move 4 studs/s faster")
+	check(sawMessage(thief, mark, "Speed up"), "no speed-up message")
+	Mock.advance(8)
+	eq(thief:GetAttribute("Speed"), 7, "a speed point every 4 seconds (3 of them in 12 seconds)")
+	eq(humanoid.WalkSpeed, 28, "walk speed is 4x the Speed stat")
 	eq(thief:GetAttribute("Training"), true, "still training")
 
-	-- A maxed treadmill levels you up several times a second; the toasts get batched.
-	local session = moduleOf("PlayerData").get(thief)
+	-- Level 2 doubles the gain and halves the wait: four times the speed per second.
+	moduleOf("PlayerData").addCash(thief, 5000)
+	eq(Remotes.Purchase.OnServerInvoke(thief, "Treadmill").Ok, true, "treadmill upgrade")
+	eq(thief:GetAttribute("Level_Treadmill"), 2, "treadmill level 2")
+	Mock.advance(0.3)
+	check(string.find(console.Text, "+2 speed / 2s", 1, true), "console rate for level 2: " .. console.Text)
+	local before = thief:GetAttribute("Speed")
+	Mock.advance(5)
+	check(thief:GetAttribute("Speed") >= before + 4, "level 2 should train 4x faster than level 1")
+	check(thief:GetAttribute("Speed") <= before + 6, "level 2 shouldn't be faster than that")
+
+	-- A maxed treadmill pours speed on; the toasts get batched.
 	session.Profile.Levels.Treadmill = #Config.UpgradesById.Treadmill.Values
 	local burstMark = #Mock.remoteLog
-	local before = thief:GetAttribute("SpeedLevel")
+	before = thief:GetAttribute("Speed")
 	Mock.advance(3)
-	check(thief:GetAttribute("SpeedLevel") >= before + 4, "a maxed treadmill should level you up fast")
-	check(speedToasts(thief, burstMark) <= 2, "level-up toasts should be batched, got " .. speedToasts(thief, burstMark))
+	check(thief:GetAttribute("Speed") >= before + 8000, "a maxed treadmill should pour on the speed")
+	check(speedToasts(thief, burstMark) <= 2, "speed toasts should be batched, got " .. speedToasts(thief, burstMark))
+	eq(thief:GetAttribute("SpeedMaxed"), nil, "there is no speed cap")
 	session.Profile.Levels.Treadmill = 2
+	Mock.advance(0.3)
 
 	-- ESCAPE / Space sends "Stop".
 	eq(request(thief, "Stop").Ok, true, "stop")
 	eq(thief:GetAttribute("Training"), false, "stopped training")
 	eq(treadmill:GetAttribute("Running"), false, "belt stops")
-	local xp = thief:GetAttribute("SpeedXP")
+	local points = thief:GetAttribute("SpeedPoints")
 	Mock.advance(2)
-	eq(thief:GetAttribute("SpeedXP"), xp, "no XP after stopping")
+	eq(thief:GetAttribute("SpeedPoints"), points, "no speed after stopping")
 
 	-- Wandering off (e.g. being moved) stops training after a short grace period.
 	eq(request(thief, "Start").Ok, true, "start again")
@@ -394,7 +418,7 @@ step("AFK training on your own treadmill", function()
 	eq(thief:GetAttribute("Level_Treadmill"), 3, "console upgrade bought")
 	check(sawMessage(thief, upgradeMark, "Treadmill upgraded to level 3"), "no upgrade message")
 	eq(treadmill:GetAttribute("Level"), 3, "treadmill level 3")
-	check(string.find(treadmill.Console:FindFirstChild("TreadmillText", true).Text, "5 XP/s", 1, true), "console XP/s")
+	check(string.find(console.Text, "+4 speed / 1s", 1, true), "console rate for level 3: " .. console.Text)
 end)
 
 local car
@@ -706,6 +730,7 @@ step("progress saves on leave and loads on rejoin", function()
 	eq(saved.Levels.Bag, 2, "saved bag level")
 	eq(saved.Levels.Engine, 3, "saved engine level")
 	eq(saved.Levels.Treadmill, 3, "saved treadmill level")
+	check(type(saved.SpeedPoints) == "number" and saved.SpeedPoints > 0, "trained speed is saved")
 	check(type(saved.Discovered) == "table" and #saved.Discovered >= 2, "the Loot Index is saved")
 	eq(plot:FindFirstChild("OwnerText", true).Text, "EMPTY WAREHOUSE", "plot released")
 	eq(#plot.Display:GetChildren(), 0, "shelves cleared")
@@ -723,7 +748,9 @@ step("progress saves on leave and loads on rejoin", function()
 	eq(returning:GetAttribute("Level_Bag"), 2, "upgrade restored")
 	check(returning:GetAttribute("Cash") >= cash, "cash restored")
 	eq(#plot.Display:GetChildren(), #stored, "shelves rebuilt")
-	check(returning:GetAttribute("SpeedLevel") >= 1, "speed restored")
+	check(returning:GetAttribute("SpeedPoints") >= 1, "trained speed restored")
+	check(returning:GetAttribute("Speed") >= 5, "Speed stat restored")
+	eq(returning:GetAttribute("WalkSpeed"), 4 * returning:GetAttribute("Speed"), "walk speed is 4x the Speed stat")
 	eq(returning:GetAttribute("Level_Treadmill"), 3, "treadmill level restored")
 	local discovered = string.split(returning:GetAttribute("Discovered"), ",")
 	eq(#discovered, #saved.Discovered, "Loot Index restored")
@@ -735,6 +762,7 @@ step("old saves with gym treadmill unlocks become treadmill levels", function()
 	local store = Mock.dataStores.StealAnItem_PlayerData_v1
 	store.Player_303 = { Cash = 10, Levels = { Bag = 2, ProTreadmill = 2, EliteTreadmill = 2 }, Stored = { "Toaster", "Laptop" } }
 	store.Player_404 = { Cash = 10, Levels = { ProTreadmill = 2, EliteTreadmill = 1 } }
+	store.Player_505 = { Cash = 10, SpeedLevel = 8, SpeedXP = 3 }
 	local elite = newPlayer(303, "EliteRunner")
 	local pro = newPlayer(404, "ProRunner")
 	Mock.advance(0.5)
@@ -742,7 +770,16 @@ step("old saves with gym treadmill unlocks become treadmill levels", function()
 	eq(elite:GetAttribute("Level_Bag"), 2, "other upgrades kept")
 	eq(elite:GetAttribute("Discovered"), "Toaster,Laptop", "items you already own count as discovered")
 	eq(pro:GetAttribute("Level_Treadmill"), 3, "pro unlock -> treadmill level 3")
-	for _, player in { elite, pro } do
+
+	-- Speed used to be saved as whole levels worth +1 walk speed each: an old save
+	-- with 8 levels must come back at exactly the same walk speed (16 + 8 = 24).
+	local legacy = newPlayer(505, "LegacyRunner")
+	Mock.advance(0.5)
+	eq(legacy:GetAttribute("SpeedPoints"), 2, "8 old speed levels -> 2 speed points")
+	eq(legacy:GetAttribute("Speed"), 6, "which is Speed 6 at a quarter of the speed")
+	eq(legacy:GetAttribute("WalkSpeed"), 24, "and the same walk speed they had before")
+
+	for _, player in { elite, pro, legacy } do
 		player.Parent = nil
 		Players.PlayerRemoving:Fire(player)
 	end

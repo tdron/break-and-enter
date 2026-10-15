@@ -18,6 +18,9 @@ export type Upgrade = {
 	Costs: { number },
 	-- string.format pattern used to display a value, e.g. "%d items"
 	Format: string,
+	-- Optional: write the value out yourself (the treadmill uses this for its
+	-- "+2 speed / 2s" rates). Falls back to string.format(Format, value).
+	Describe: ((level: number, value: number) -> string)?,
 }
 
 export type HouseTier = {
@@ -52,6 +55,8 @@ export type LightingPreset = {
 	AtmosphereColor: Color3,
 	AtmosphereDecay: Color3,
 }
+
+local Format = require(script.Parent.Format)
 
 local Config = {}
 
@@ -114,9 +119,16 @@ Config.Upgrades = {
 		DisplayName = "Treadmill",
 		Icon = "🏃",
 		Description = "Your warehouse treadmill trains faster (AFK works!)",
-		Values = { 2, 3, 5, 8, 12, 17, 24, 34 },
-		Costs = { 0, 300, 1200, 4000, 12000, 35000, 90000, 220000 },
-		Format = "%d XP/s",
+		-- Speed handed out per tick of training. Every level doubles it and halves
+		-- the wait between ticks (see Config.treadmillTick), so each level trains
+		-- four times as fast as the last.
+		Values = { 1, 2, 4, 8, 16, 32, 64, 128 },
+		-- Exponential: every level costs 4x the last, in step with the treadmill.
+		Costs = { 0, 300, 1200, 4800, 19200, 76800, 307200, 1228800 },
+		Format = "+%s speed",
+		Describe = function(level: number): string
+			return Config.treadmillText(level)
+		end,
 	},
 } :: { Upgrade }
 
@@ -138,24 +150,36 @@ end
 
 --------------------------------------------------------------------------------
 -- Speed training
+--
+-- The "Speed" stat (the HUD, the leaderboard and the treadmill all quote it) is
+-- a quarter of the speed you actually move at:
+--
+--     Speed 4  =  16 studs/s   (what you start with)
+--     Speed 5  =  20 studs/s   (one speed point = four studs/s)
+--
+-- There is no ceiling: the longer you run, the faster you get.
 --------------------------------------------------------------------------------
 Config.Speed = {
 	BaseWalkSpeed = 16, -- Roblox default walk speed
-	SpeedPerLevel = 1,
-	MaxLevel = 50, -- max walk speed = 16 + 50 = 66
+	SpeedDivisor = 4, -- the speed you move at is the Speed stat times this
+	-- Speed is uncapped; set a number here if you ever want a ceiling back.
+	MaxWalkSpeed = math.huge,
 }
 
--- Training XP needed to go from `level` to `level + 1`.
-function Config.xpForLevel(level: number): number
-	return 8 + level * 2
+-- The Speed stat for a number of trained speed points (it starts at BaseWalkSpeed / SpeedDivisor).
+function Config.speedStatForPoints(points: number): number
+	local base = math.floor(Config.Speed.BaseWalkSpeed / Config.Speed.SpeedDivisor)
+	return base + math.max(0, math.floor(points))
 end
 
-function Config.walkSpeedForLevel(level: number): number
-	return Config.Speed.BaseWalkSpeed + level * Config.Speed.SpeedPerLevel
+-- The speed you move at: always exactly SpeedDivisor times the Speed stat.
+function Config.walkSpeedForPoints(points: number): number
+	local walkSpeed = Config.speedStatForPoints(points) * Config.Speed.SpeedDivisor
+	return math.min(walkSpeed, Config.Speed.MaxWalkSpeed)
 end
 
 -- Every warehouse has its own treadmill out front. Walk onto yours and you
--- run by yourself (AFK is fine) earning the "Treadmill" upgrade's XP/s.
+-- run by yourself (AFK is fine), earning the "Treadmill" upgrade's speed/s.
 Config.Treadmill = {
 	-- Training stops if your character ends up further than this (studs) from the middle of the belt.
 	MaxDistance = 4,
@@ -166,6 +190,12 @@ Config.Treadmill = {
 	BeltSpeedPerLevel = 1.5,
 	RunAnimSpeedBase = 1,
 	RunAnimSpeedPerLevel = 0.08,
+	-- Speed training in two numbers: at level 1 the treadmill hands you
+	-- `BaseAmount` speed every `BaseInterval` seconds. Every level doubles the
+	-- amount and halves the interval, so level 8 gives 128 speed every 1/32 s.
+	-- (Config.treadmillTick turns a level into those two numbers.)
+	BaseAmount = 1,
+	BaseInterval = 4,
 	-- The treadmill's trim gets flashier with every upgrade level.
 	LevelColors = {
 		Color3.fromRGB(200, 205, 215), -- 1 silver
@@ -178,6 +208,46 @@ Config.Treadmill = {
 		Color3.fromRGB(255, 205, 40), -- 8 gold
 	},
 }
+
+-- How much speed a treadmill of this level hands out and how long you wait for it:
+-- (amount, interval) in seconds. Level 1 is (1, 4), level 2 (2, 2), level 8 (128, 1/32).
+function Config.treadmillTick(level: number): (number, number)
+	local settings = Config.Treadmill
+	local amount = math.max(Config.getUpgradeValue("Treadmill", level), 1e-9)
+	local interval = settings.BaseInterval * (settings.BaseAmount / amount)
+	return amount, interval
+end
+
+-- Speed per second a treadmill of this level trains you at: the first level gives
+-- 0.25, and every level after that is four times faster.
+function Config.treadmillRate(level: number): number
+	local amount, interval = Config.treadmillTick(level)
+	return amount / interval
+end
+
+-- The treadmill's rate in words: "+2 speed / 2s" while a tick takes a second or
+-- longer, "64 speed/s" once the ticks come faster than that.
+function Config.treadmillText(level: number): string
+	local amount, interval = Config.treadmillTick(level)
+	if interval >= 1 then
+		return string.format("+%s speed / %ss", Format.decimal(amount, 3), Format.decimal(interval, 3))
+	end
+	return string.format("%s speed/s", Format.commas(Config.treadmillRate(level)))
+end
+
+-- Writes an upgrade's value the way the shop and the purchase toasts show it.
+function Config.describeUpgrade(upgradeId: string, level: number): string
+	local upgrade = upgradesById[upgradeId]
+	if not upgrade then
+		return tostring(level)
+	end
+	local index = math.clamp(math.floor(level), 1, #upgrade.Values)
+	local value = upgrade.Values[index]
+	if upgrade.Describe then
+		return upgrade.Describe(index, value)
+	end
+	return string.format(upgrade.Format, value)
+end
 
 -- Treadmill trim colour for an upgrade level.
 function Config.treadmillColor(level: number): Color3

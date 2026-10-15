@@ -39,8 +39,8 @@ local function getNumber(name: string, default: number): number
 	return if type(value) == "number" then value else default
 end
 
-local function describeValue(upgrade: Config.Upgrade, value: number): string
-	return string.format(upgrade.Format, value)
+local function describeValue(upgrade: Config.Upgrade, level: number): string
+	return Config.describeUpgrade(upgrade.Id, level)
 end
 
 local function refreshCard(card: Card)
@@ -51,12 +51,12 @@ local function refreshCard(card: Card)
 
 	card.Level.Text = string.format("LV %d / %d", level, maxLevel)
 	if level >= maxLevel then
-		card.Value.Text = describeValue(upgrade, upgrade.Values[level]) .. "  (max)"
+		card.Value.Text = describeValue(upgrade, level) .. "  (max)"
 	else
 		card.Value.Text = string.format(
 			"%s  ➜  %s",
-			describeValue(upgrade, upgrade.Values[level]),
-			describeValue(upgrade, upgrade.Values[level + 1])
+			describeValue(upgrade, level),
+			describeValue(upgrade, level + 1)
 		)
 	end
 

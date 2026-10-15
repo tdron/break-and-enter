@@ -189,7 +189,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 	local bagValue = makeStatRow(statsPanel, 1, "🎒", "Loot Bag")
 	local trunkValue = makeStatRow(statsPanel, 2, "🧳", "Car Trunk")
 	local storageValue = makeStatRow(statsPanel, 3, "📦", "Warehouse")
-	local speedValue = makeStatRow(statsPanel, 4, "👟", "Walk Speed")
+	local speedValue = makeStatRow(statsPanel, 4, "👟", "Speed")
 
 	----------------------------------------------------------------------------
 	-- Buttons
@@ -338,7 +338,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		Name = "Title",
 		BackgroundTransparency = 1,
 		Position = UDim2.fromOffset(12, 4),
-		Size = UDim2.new(1, -140, 0, 24),
+		Size = UDim2.new(1, -200, 0, 24),
 		Font = Theme.TitleFont,
 		Text = "",
 		TextColor3 = Theme.Cyan,
@@ -351,7 +351,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		AnchorPoint = Vector2.new(1, 0),
 		BackgroundTransparency = 1,
 		Position = UDim2.new(1, -12, 0, 4),
-		Size = UDim2.fromOffset(130, 24),
+		Size = UDim2.fromOffset(180, 24),
 		Font = Theme.BoldFont,
 		Text = "",
 		TextColor3 = Theme.Gold,
@@ -366,6 +366,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		Parent = trainingPanel,
 	}, { UI.corner(8) })
 	local barFill: Frame = UI.new("Frame", {
+		Name = "Fill",
 		BackgroundColor3 = Theme.Cyan,
 		Size = UDim2.fromScale(0, 1),
 		Parent = barBack,
@@ -423,7 +424,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		local stored, storage = getNumber("StoredCount", 0), getNumber("StorageCapacity", 10)
 		storageValue.Text = string.format("%d / %d", stored, storage)
 		storageValue.TextColor3 = if stored >= storage then Theme.Orange else Theme.Text
-		speedValue.Text = tostring(getNumber("WalkSpeed", 16))
+		speedValue.Text = Config.speedStatForPoints(getNumber("SpeedPoints", 0))
 	end
 
 	local function updateObjective()
@@ -466,21 +467,12 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		local training = player:GetAttribute("Training") == true
 		trainingPanel.Visible = training
 		if training then
-			local level = getNumber("SpeedLevel", 0)
 			local treadmillLevel = getNumber("Level_Treadmill", 1)
-			trainingRate.Text = string.format("Lv %d · ⚡ %d XP/s", treadmillLevel, Config.getUpgradeValue("Treadmill", treadmillLevel))
-			if player:GetAttribute("SpeedMaxed") == true then
-				trainingTitle.Text = string.format("🏃 MAX SPEED (%d)", Config.walkSpeedForLevel(level))
-				UI.tween(barFill, 0.2, { Size = UDim2.fromScale(1, 1) })
-			else
-				local xp, needed = getNumber("SpeedXP", 0), math.max(getNumber("SpeedXPNeeded", 1), 1)
-				trainingTitle.Text = string.format(
-					"🏃 Speed %d ➜ %d",
-					Config.walkSpeedForLevel(level),
-					Config.walkSpeedForLevel(level + 1)
-				)
-				UI.tween(barFill, 0.2, { Size = UDim2.fromScale(math.clamp(xp / needed, 0, 1), 1) })
-			end
+			local speed = Config.speedStatForPoints(getNumber("SpeedPoints", 0))
+			trainingRate.Text = string.format("Lv %d · ⚡ %s", treadmillLevel, Config.treadmillText(treadmillLevel))
+			trainingTitle.Text = string.format("🏃 Speed %d (%s studs/s)", speed, Format.short(getNumber("WalkSpeed", 16)))
+			-- The bar fills up to the next whole speed point.
+			UI.tween(barFill, 0.2, { Size = UDim2.fromScale(math.clamp(getNumber("SpeedProgress", 0), 0, 1), 1) })
 		end
 	end
 
@@ -518,7 +510,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		updateObjective()
 	end)
 	player:GetAttributeChangedSignal("Training"):Connect(updateObjective)
-	for _, name in { "Training", "SpeedXP", "SpeedLevel", "SpeedXPNeeded", "SpeedMaxed", "Level_Treadmill" } do
+	for _, name in { "Training", "SpeedPoints", "SpeedProgress", "Level_Treadmill" } do
 		player:GetAttributeChangedSignal(name):Connect(updateTraining)
 	end
 	player:GetAttributeChangedSignal("Cash"):Connect(function()

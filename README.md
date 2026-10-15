@@ -124,7 +124,7 @@ Anything **Epic or Legendary** glows in the colour of its rarity — Epic items 
 | 🏎️ Getaway Engine | 45 → 110 mph | Faster car, plus new paint, a spoiler, racing stripes and underglow |
 | 🧳 Trunk Space | 4 → 25 items | Bigger car trunk |
 | 📦 Warehouse Space | 10 → 50 slots | More shelves means more passive income |
-| 🏃 Treadmill | 2 → 34 XP/s | Your treadmill trains you faster (see below) |
+| 🏃 Treadmill | +1 speed / 4 s → 4,096 speed/s | Your own treadmill trains you faster (see below) |
 
 If your warehouse is full, depositing better loot automatically sells your cheapest item to make room. You can also sell — or take back — any shelf item yourself in **📦 STORAGE** (hold E on it).
 
@@ -134,14 +134,18 @@ Every garage has its own treadmill out front, to the left of the loading dock. A
 
 - **Walk onto the belt** and your character starts running by itself. Your movement keys switch off, so you can go AFK and keep getting faster.
 - Press **ESCAPE**, **Space**, or **A** on a gamepad to hop off beside it. Walk back on to run again.
-- Each speed level adds **+1 walk speed**, from 16 up to 66 at max level.
+- A treadmill hands out **speed**: level 1 gives **+1 speed every 4 seconds**. Every upgrade **doubles the amount** and **halves the wait**, so each level trains you exactly **four times faster**: by level 8 you're getting 128 speed every 1/32 of a second, which is **4,096 a second**.
+- One speed point is **+1 Speed** on your HUD — and your Speed is **a quarter of the speed you actually move**. A fresh player is *Speed 4* at the usual 16 studs/s, and *Speed 4 ➜ 5* really is 16 ➜ 20 studs/s.
+- **There is no speed cap.** Keep running and you'll leave cats, dogs and drones in the dust — the Mansion's drones fly at 34 studs/s, which is only Speed 8.5.
 - You upgrade the treadmill itself, either at the market stall in the yard or by holding **E** at its console. Its trim gets flashier with every level, and only you can use or upgrade yours.
+- Prices climb the same way the treadmill does: every level costs **four times** the last one.
 
 | Treadmill level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
 |---|---|---|---|---|---|---|---|---|
-| Speed XP per second | 2 | 3 | 5 | 8 | 12 | 17 | 24 | 34 |
-| Price | free | $300 | $1,200 | $4,000 | $12,000 | $35,000 | $90,000 | $220,000 |
-| Walk speed 16 → 66 from scratch | ~24 min | ~16 min | ~10 min | ~6 min | ~4 min | ~3 min | ~2 min | ~1.4 min |
+| Speed per tick | +1 | +2 | +4 | +8 | +16 | +32 | +64 | +128 |
+| Time you wait for it | 4 s | 2 s | 1 s | ½ s | ¼ s | ⅛ s | 1/16 s | 1/32 s |
+| Speed per second | 0.25 | 1 | 4 | 16 | 64 | 256 | 1,024 | 4,096 |
+| Price | free | $300 | $1,200 | $4,800 | $19,200 | $76,800 | $307,200 | $1,228,800 |
 
 ![A warehouse treadmill](docs/preview-treadmill.png)
 
@@ -164,7 +168,7 @@ Unpublished, the game still runs normally and shows a small "progress won't be s
 
 ## 🛠️ Customizing
 
-Every number lives in **[`src/shared/Config.luau`](src/shared/Config.luau)**: upgrade prices and values (including the treadmill's XP per second), guard speeds, lockpick times, how long the night and daytime last (and the sky colours), income rate, car handling and sounds.
+Every number lives in **[`src/shared/Config.luau`](src/shared/Config.luau)**: upgrade prices and values (including the treadmill's speed curve), guard speeds, lockpick times, how long the night and daytime last (and the sky colours), income rate, car handling and sounds.
 
 - **The street:** `Config.Houses` lists every house in order, with its name, difficulty tier and guard. `Config.Guards` names the guards. The map builder reads both, so rebuild after changing them.
 - **Add or change loot:** [`src/shared/Items.luau`](src/shared/Items.luau). Each item belongs to one house and is a small model built from parts, so no uploads are needed.

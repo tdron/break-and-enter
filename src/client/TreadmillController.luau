@@ -5,7 +5,7 @@
 	Your personal treadmill (outside your warehouse), client side:
 	  * Walk onto the belt and your character starts running by itself. You're
 	    held in place on the belt, your movement keys are switched off and the
-	    run animation loops, so you can go AFK. The server hands out the XP.
+	    run animation loops, so you can go AFK. The server hands out the speed.
 	  * The ESCAPE button (keybind: Space, or A on a gamepad) hops you off
 	    beside the treadmill. Walk back on to start running again.
 	  * A floating "YOUR TREADMILL" sign helps you find it.

@@ -102,9 +102,9 @@ for name, value in {
 	StoredCount = 0,
 	StorageCapacity = 10,
 	WalkSpeed = 16,
-	SpeedLevel = 0,
-	SpeedXP = 0,
-	SpeedXPNeeded = 8,
+	SpeedPoints = 0,
+	SpeedProgress = 0,
+	Speed = 4,
 	Level_Bag = 1,
 	Level_Engine = 1,
 	Level_Trunk = 1,
@@ -434,8 +434,9 @@ step("walking onto your treadmill makes you run by yourself", function()
 	check(findText(escape, "SPACE"), "Space key hint")
 	local training = hud:FindFirstChild("Training", true)
 	eq(training.Visible, true, "training bar shown")
-	check(findText(training, "Speed 16 ➜ 17"), "training progress text")
-	check(findText(training, "2 XP/s"), "training rate")
+	check(findText(training, "Speed 4 (16 studs/s)"), "training bar shows the Speed stat and the real studs/s")
+	check(findText(training, "+1 speed / 4s"), "training rate: the treadmill's own rate")
+	check(findText(training, "Lv 1"), "training bar shows the treadmill level")
 	check(findText(hud, "go AFK"), "objective should say AFK is fine")
 	eq(belt.MyTreadmillSign.Enabled, false, "sign hidden while you run")
 
@@ -446,7 +447,22 @@ step("walking onto your treadmill makes you run by yourself", function()
 	player:SetAttribute("Level_Treadmill", 4)
 	Mock.advance(0.1)
 	check(track.Speed > 1, "legs move faster on an upgraded treadmill")
-	check(findText(training, "Lv 4"), "training bar shows the treadmill level")
+	check(findText(training, "Lv 4"), "training bar follows the treadmill level")
+	check(findText(training, "16 speed/s"), "level 4 rate: 8 speed every half second, said per second")
+
+	-- Two and a half speed points in: Speed 6, a quarter of the 26 studs/s you now move at.
+	player:SetAttribute("SpeedPoints", 2.5)
+	player:SetAttribute("Speed", 6)
+	player:SetAttribute("WalkSpeed", 26)
+	player:SetAttribute("SpeedProgress", 0.5)
+	Mock.advance(0.1)
+	check(findText(training, "Speed 6 (26 studs/s)"), "training bar follows your Speed stat")
+	check(findText(hud, "👟"), "the stat panel has a speed row")
+
+	-- The bar fills up to the next whole speed point.
+	local barFill = training:FindFirstChild("Fill", true)
+	check(barFill, "training bar has a fill")
+	eq(barFill.Size.X.Scale, 0.5, "half a point in, the bar is half full")
 end)
 
 step("Space hops you off the treadmill", function()
