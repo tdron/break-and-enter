@@ -56,6 +56,13 @@
        ]
       },
       {
+       "name": "Guards",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/shared/Guards.luau"
+       ]
+      },
+      {
        "name": "ItemModels",
        "className": "ModuleScript",
        "filePaths": [
@@ -110,6 +117,13 @@
       "src/server/init.server.luau"
      ],
      "children": [
+      {
+       "name": "DayNight",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/server/DayNight.luau"
+       ]
+      },
       {
        "name": "Economy",
        "className": "ModuleScript",
@@ -193,10 +207,24 @@
          ]
         },
         {
+         "name": "DayNight",
+         "className": "ModuleScript",
+         "filePaths": [
+          "src/client/DayNight.luau"
+         ]
+        },
+        {
          "name": "Hud",
          "className": "ModuleScript",
          "filePaths": [
           "src/client/Hud.luau"
+         ]
+        },
+        {
+         "name": "LootIndex",
+         "className": "ModuleScript",
+         "filePaths": [
+          "src/client/LootIndex.luau"
          ]
         },
         {

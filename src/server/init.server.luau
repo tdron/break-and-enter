@@ -7,7 +7,8 @@
 	  PlayerData  saving/loading + attributes the UI reads
 	  Inventory   loot you're carrying and loot in your trunk
 	  Plots       personal warehouses (storage = passive income)
-	  Houses      lockpicking, loot, alarms, security drones, lasers
+	  DayNight    the 4-minute heist clock (night = steal, daytime = houses closed + restock)
+	  Houses      lockpicking, loot, alarms, guard cats/dogs/drones, lasers
 	  Vehicles    the getaway car
 	  Treadmills  each warehouse's personal (AFK-able, upgradable) treadmill
 	  Economy     income ticks + the upgrade shop
@@ -15,6 +16,7 @@
 
 local Players = game:GetService("Players")
 
+local DayNight = require(script.DayNight)
 local Economy = require(script.Economy)
 local Houses = require(script.Houses)
 local Inventory = require(script.Inventory)
@@ -25,6 +27,7 @@ local Treadmills = require(script.Treadmills)
 local Vehicles = require(script.Vehicles)
 
 Plots.init()
+DayNight.init()
 Houses.init()
 Vehicles.init()
 Treadmills.init()

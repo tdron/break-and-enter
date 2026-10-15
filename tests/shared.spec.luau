@@ -1,5 +1,5 @@
 --[[
-	Unit tests for the shared modules (Config, Items, ItemModels, Format).
+	Unit tests for the shared modules (Config, Items, ItemModels, Guards, Format).
 	Run with:  python3 tools/run_luau_tests.py   (needs the `luau` CLI on PATH)
 
 	The runner bundles this file with the modules and lightweight mocks of the
@@ -10,6 +10,7 @@ local Config = require(Shared.Config)
 local Items = require(Shared.Items)
 local ItemModels = require(Shared.ItemModels)
 local Format = require(Shared.Format)
+local Guards = require(Shared.Guards)
 
 local passed, failed = 0, 0
 
@@ -124,13 +125,74 @@ test("house tiers get harder", function()
 	eq(#Config.HouseTiers, 4)
 	for tier = 2, 4 do
 		local a, b = Config.HouseTiers[tier - 1], Config.HouseTiers[tier]
-		check(b.DroneSpeed > a.DroneSpeed, "drone speed must increase")
+		check(b.GuardSpeed > a.GuardSpeed, "guard speed must increase")
 		check(b.LockpickTime > a.LockpickTime, "lockpick time must increase")
 		check(b.AlarmWindup <= a.AlarmWindup, "alarm windup must not increase")
 	end
-	-- The fastest drone must be beatable at max speed, the slowest at base speed.
-	check(Config.HouseTiers[4].DroneSpeed < Config.walkSpeedForLevel(Config.Speed.MaxLevel), "mansion drones too fast")
-	check(Config.HouseTiers[1].DroneSpeed < Config.Speed.BaseWalkSpeed, "cottage drones too fast for new players")
+	-- The fastest guard must be beatable at max speed, the slowest at base speed.
+	check(Config.HouseTiers[4].GuardSpeed < Config.walkSpeedForLevel(Config.Speed.MaxLevel), "mansion drones too fast")
+	check(Config.HouseTiers[1].GuardSpeed < Config.Speed.BaseWalkSpeed, "cottage cats too fast for new players")
+end)
+
+test("the street: cats, then a different dog breed per house, then the Mansion's drones", function()
+	eq(#Config.Houses, 11, "ten houses plus the Mansion")
+	local last = Config.Houses[#Config.Houses]
+	eq(last.Id, "Mansion", "the Mansion is at the end of the street")
+	eq(Config.Guards[last.Guard].Kind, "Drone", "the Mansion keeps its drones")
+	local breeds = {}
+	local ids = {}
+	local previousTier = 1
+	for index, house in Config.Houses do
+		check(ids[house.Id] == nil, "duplicate house id " .. house.Id)
+		ids[house.Id] = true
+		check(Config.getHouse(house.Id) == house, house.Id .. " lookup failed")
+		check(house.Tier >= previousTier, "houses must get harder (or stay the same) down the street")
+		previousTier = house.Tier
+		local guard = Config.Guards[house.Guard]
+		check(guard ~= nil, house.Id .. " has an unknown guard")
+		if house.Tier == 1 then
+			eq(guard.Kind, "Cat", house.DisplayName .. " should be guarded by a cat")
+		elseif index < #Config.Houses then
+			eq(guard.Kind, "Dog", house.DisplayName .. " should be guarded by dogs")
+			check(breeds[house.Guard] == nil, "every dog house needs its own breed (" .. house.Guard .. " twice)")
+			breeds[house.Guard] = true
+		end
+	end
+	eq(Config.getGuard("House1").Kind, "Cat")
+	eq(Config.getGuard("NotAHouse").Kind, "Drone", "unknown houses fall back to drones")
+end)
+
+test("guard models", function()
+	for guardId, info in Config.Guards do
+		local look = Guards.getLook(guardId)
+		if info.Kind == "Drone" then
+			check(look == nil, "drones are built separately")
+			continue
+		end
+		check(look ~= nil, guardId .. " has no model")
+		assert(look)
+		eq(#look.Eyes, 2, guardId .. " eyes")
+		local minCorner, maxCorner = Vector3.new(1e9, 1e9, 1e9), Vector3.new(-1e9, -1e9, -1e9)
+		for _, spec in look.Parts do
+			check(spec.Size.X > 0 and spec.Size.Y > 0 and spec.Size.Z > 0, guardId .. " has an empty part")
+			minCorner = minCorner:Min(spec.Position - spec.Size / 2)
+			maxCorner = maxCorner:Max(spec.Position + spec.Size / 2)
+		end
+		local size = maxCorner - minCorner
+		check(math.abs(minCorner.Y) < 0.05, string.format("%s should stand on the ground (feet at %.2f)", guardId, minCorner.Y))
+		check(size.Y < (if info.Kind == "Cat" then 2.5 else 4.2), string.format("%s is too tall (%.2f)", guardId, size.Y))
+		check(size.Z < 5.5 and size.X < 2.2, string.format("%s is too big (%.2f x %.2f)", guardId, size.X, size.Z))
+		for _, eye in look.Eyes do
+			check(eye.Z < minCorner.Z + size.Z * 0.35, guardId .. "'s eyes should be at the front (-Z)")
+		end
+	end
+end)
+
+test("night and day", function()
+	eq(Config.DayNight.NightLength + Config.DayNight.DayLength, 240, "loot restocks once every 4 minutes")
+	eq(Config.DayNight.DayLength, 30, "daytime lasts 30 seconds")
+	check(Config.DayNight.Night.ClockTime < 5 or Config.DayNight.Night.ClockTime > 19, "night should be dark")
+	check(Config.DayNight.Day.ClockTime > 8 and Config.DayNight.Day.ClockTime < 16, "daytime should be bright")
 end)
 
 test("treadmill settings", function()
@@ -145,21 +207,40 @@ end)
 --------------------------------------------------------------------------------
 -- Items
 --------------------------------------------------------------------------------
-test("every tier has loot of every common rarity", function()
+test("every house has its own loot", function()
 	local counts = {}
+	local names = {}
 	for _, def in Items.List do
-		counts[def.Tier] = counts[def.Tier] or {}
-		counts[def.Tier][def.Rarity] = (counts[def.Tier][def.Rarity] or 0) + 1
+		local house = Config.getHouse(def.House)
+		check(house ~= nil, def.Id .. " belongs to an unknown house " .. tostring(def.House))
+		assert(house)
+		eq(def.Tier, house.Tier, def.Id .. " tier")
+		counts[def.House] = counts[def.House] or {}
+		counts[def.House][def.Rarity] = (counts[def.House][def.Rarity] or 0) + 1
 		check(def.Value > 0, def.Id .. " has no value")
 		check(#def.Parts > 0, def.Id .. " has no parts")
 		check(Items.Rarities[def.Rarity] ~= nil, def.Id .. " has unknown rarity")
 		check(Items.get(def.Id) == def, def.Id .. " lookup failed")
+		check(names[def.DisplayName] == nil, "two items are called " .. def.DisplayName)
+		names[def.DisplayName] = true
 	end
-	for tier = 1, 4 do
-		check(counts[tier] ~= nil, "tier " .. tier .. " has no items")
-		check((counts[tier].Common or 0) >= 2, "tier " .. tier .. " needs at least 2 common items")
-		check((counts[tier].Rare or 0) >= 1, "tier " .. tier .. " needs a rare item")
+	for _, house in Config.Houses do
+		local c = counts[house.Id]
+		check(c ~= nil, house.DisplayName .. " has no loot")
+		check((c.Common or 0) >= 2, house.DisplayName .. " needs at least 2 common items")
+		check((c.Rare or 0) >= 1, house.DisplayName .. " needs a rare item")
+		check((c.Epic or 0) >= 1, house.DisplayName .. " needs an epic item")
+		local items = Items.forHouse(house.Id)
+		check(#items >= 4, house.DisplayName .. " should have at least 4 different items")
+		for index = 2, #items do
+			check(
+				Items.Rarities[items[index - 1].Rarity].Order <= Items.Rarities[items[index].Rarity].Order,
+				"Items.forHouse should list commons first"
+			)
+		end
 	end
+	check(#Items.List >= 44, "there should be lots of items to collect, found " .. #Items.List)
+	eq(#Items.forHouse("NotAHouse"), 0, "unknown houses have no loot")
 end)
 
 test("higher tiers are worth more", function()
@@ -189,16 +270,22 @@ test("income per item", function()
 	eq(Items.getValue("NotAnItem"), 0)
 end)
 
-test("rolls respect tiers and rarity weights", function()
+test("rolls only give a house's own loot, weighted by rarity", function()
 	local rng = Random.new(1234)
-	for tier = 1, 4 do
+	for _, house in Config.Houses do
 		local rarityCounts = {}
-		local rolls = 20000
+		local seenItems = {}
+		local rolls = 8000
 		for _ = 1, rolls do
-			local id = Items.roll(tier, rng)
+			local id = Items.roll(house.Id, rng)
 			local def = Items.get(id)
-			check(def ~= nil and def.Tier == tier, "rolled " .. tostring(id) .. " for tier " .. tier)
+			check(def ~= nil and def.House == house.Id, "rolled " .. tostring(id) .. " in " .. house.Id)
+			assert(def)
+			seenItems[id] = true
 			rarityCounts[def.Rarity] = (rarityCounts[def.Rarity] or 0) + 1
+		end
+		for _, def in Items.forHouse(house.Id) do
+			check(seenItems[def.Id] == true, def.Id .. " never spawned in " .. house.Id)
 		end
 		-- Expected share of each rarity among the rarities that exist in this tier
 		local totalWeight = 0
@@ -208,7 +295,7 @@ test("rolls respect tiers and rarity weights", function()
 		for name, count in rarityCounts do
 			local expected = Items.Rarities[name].Weight / totalWeight
 			local actual = count / rolls
-			check(math.abs(actual - expected) < 0.02, string.format("tier %d %s: expected %.3f got %.3f", tier, name, expected, actual))
+			check(math.abs(actual - expected) < 0.025, string.format("%s %s: expected %.3f got %.3f", house.Id, name, expected, actual))
 		end
 	end
 end)

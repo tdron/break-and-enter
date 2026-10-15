@@ -2,7 +2,7 @@
 
 …actually called **Steal an Item** 🦝
 
-A complete Roblox heist game. Break into houses, grab the loot, outrun the security drones, and stash everything in your warehouse, where it earns you cash every second. Spend the money on a faster getaway car, a bigger loot bag and trunk, more warehouse space and a better treadmill. Your treadmill sits outside your warehouse and trains you even while you're AFK, until you're fast enough to rob the Mansion.
+A complete Roblox heist game. Sneak down a canyon street of houses at night, pick the locks, grab the loot and outrun the guards: cats in the cottages, a different dog breed in every other house, and security drones at the Grand Mansion. Stash everything in your warehouse, where it earns you cash every second. Spend the money on a faster getaway car, a bigger loot bag and trunk, more warehouse space and a better treadmill. Your treadmill sits outside your warehouse and trains you even while you're AFK, until you're fast enough to rob the Mansion. Every house has its own loot, and the **📖 Loot Index** shows how many of the 48 items you've collected.
 
 ![Overview of the town](docs/preview-overview.png)
 
@@ -21,27 +21,65 @@ Everything is inside that one file: the town, all the scripts and the UI. Nothin
 | Step | What to do |
 |---|---|
 | 1 | You spawn in **your own warehouse** (your name is on the sign). Press **🚗 CAR** to get your getaway car. |
-| 2 | Drive east to the neighborhood. Walk up to a front door and **hold E to pick the lock**. |
+| 2 | Drive east down the street. Walk up to a front door and **hold E to pick the lock** (only at night!). |
 | 3 | Walk up to loot and **hold E to steal** it. Your bag fills up and a loot sack appears on your back. |
-| 4 | **Stealing trips the alarm!** After a short warning, security drones chase you. Get past the property's fence line to escape. If a drone catches you, you're **BUSTED** and lose everything you're carrying. |
+| 4 | **Stealing trips the alarm!** After a short warning, the house's guards wake up and chase you. Get past the front fence to escape. If a guard catches you, you're **BUSTED** and lose everything you're carrying. |
 | 5 | Put loot in your car with **Load Trunk [F]**, or carry it home. |
 | 6 | Step on the **green DEPOSIT pad** in your warehouse, or park on the **yellow LOADING DOCK** to unload the trunk. |
 | 7 | Items on your shelves **earn cash every second**. Buy upgrades at the **🛒 SHOP**. Walk onto **your treadmill** outside the warehouse to get faster (AFK works). |
 
 **Controls:** WASD / arrow keys to walk and drive (W/S throttle, A/D steer). **E** to interact, **F** for the trunk, **Space** to jump, leave the car or hop off the treadmill. Mobile and gamepad use the standard Roblox controls.
 
-### The neighborhood
+### The street
 
-| House | Count | Lockpick | Drone speed | Loot |
+All ten houses are the same roomy design (living room, kitchen, bedroom, study and a display pedestal at the end of the hall), painted differently and alternating sides of the road. Each one backs onto a rocky cliff made of different-sized cubes, so the street feels like a canyon. The further east you go, the tougher the guards and the better the loot. The Grand Mansion closes off the end of the road.
+
+| Houses | Guards | Lockpick | Guard speed | Loot |
 |---|---|---|---|---|
-| 🏡 Cottage | 4 | 0.6 s | 11 (you start at 16, so easy) | Toasters, teddy bears, piggy banks… $25–$400 |
-| 🏠 Suburban House | 4 | 1.2 s | 18 | Laptops, guitars, TVs, gold watches… $160–$1,500 |
-| 🏢 Modern Villa (has lasers!) | 2 | 2.0 s | 26 | Gaming PCs, modern art, trophies, diamond necklaces… $1,400–$22,000 |
-| 🏰 Grand Mansion (laser vault!) | 1 | 3.0 s | 34 | Gold bars, crowns, masterpieces, a giant diamond… $12,000–$120,000 |
+| 🏡 1–4: Maple, Willow, Rose & Daisy Cottage | 🐱 one cat each: ginger, tuxedo, Siamese, grey tabby | 0.6 s | 11 (you start at 16, so easy) | $25–$420 |
+| 🏠 5–8: Blue Oak, Cedar, Elm Street & Birch House | 🐶 two dogs each: Chihuahuas, Pugs, Corgis, Dalmatians | 1.2 s | 18 | $160–$1,600 |
+| 🏠 9–10: Pine Ridge & Aspen House (lasers!) | 🐕 two German Shepherds / two Dobermans | 2.0 s | 26 | $1,400–$22,000 |
+| 🏰 Grand Mansion (laser vault!) | 🤖 four security drones | 3.0 s | 34 | $12,000–$120,000 |
 
-Loot comes in Common, Rare, Epic and Legendary rarities and restocks after a while. Villas and the Mansion have **blinking laser tripwires**: time your run, or jump the low beams.
+Cats and dogs sleep in their pet beds until the alarm goes off, then run along the floor after the nearest thief (their eyes turn red). The drones still fly. Each house's sign shows its guard and speed. The two hardest houses and the Mansion have **blinking laser tripwires**: time your run, or jump the low beams.
 
-![Houses](docs/preview-houses.png)
+Every house has **its own loot** (4 to 6 different items): two Commons, a Rare and an Epic, plus Legendaries in the hardest houses.
+
+<details>
+<summary>Spoilers: every item, house by house</summary>
+
+| House | Common | Rare | Epic | Legendary |
+|---|---|---|---|---|
+| Maple Cottage | Toaster, Yarn Basket | Coffee Maker | Grandma's Jewels | |
+| Willow Cottage | Desk Lamp, Teddy Bear | Cuckoo Clock | Silver Tea Set | |
+| Rose Cottage | Old Radio, Cookie Jar | Piggy Bank | Antique Music Box | |
+| Daisy Cottage | Snow Globe, Hair Dryer | Record Player | Crystal Cat Statue | |
+| Blue Oak House | Microwave, Blender | Electric Guitar | Golden Watch | |
+| Cedar House | Laptop, Smart Speaker | Flatscreen TV | Diamond Dog Collar | |
+| Elm Street House | Game Console, Retro Camera | Telescope | Royal Corgi Portrait | |
+| Birch House | Boombox, Vintage Fire Helmet | Saxophone | Ruby Ring | |
+| Pine Ridge House | Espresso Machine, Gaming PC | Modern Art | Jewelry Box | Diamond Necklace |
+| Aspen House | Robot Dog, VR Headset | Golden Trophy | Limited Sneakers | Sapphire Tiara |
+| Grand Mansion | Gold Bars, Ancient Vase | Masterpiece Painting | Royal Crown | Giant Diamond, Pharaoh Mask |
+
+</details>
+
+![The street](docs/preview-houses.png)
+
+![Inside a house](docs/preview-interior.png)
+
+### 🌙 Night and ☀️ Daytime
+
+Heists happen at night. Every **4 minutes** the clock at the top of the screen runs through:
+
+- **🌙 Night, 3½ minutes.** Every house is open for business.
+- **☀️ Daytime, 30 seconds.** The owners come home. Every house locks up, alarms stop, lasers switch off, and anyone still on a property is shown out to the pavement (you keep whatever you're carrying). Then **every house restocks all of its loot**.
+
+Daytime is the only time loot comes back, so a house you've emptied stays empty until the next sunrise. Use the daytime to unload, upgrade or train.
+
+### 📖 Loot Index
+
+Press **📖 LOOT INDEX** to see every item in the game, grouped by house, each with a little 3D picture. Items you haven't stolen yet are black silhouettes marked **???**. Steal one and it's unlocked for good: it's saved with your progress, and a toast announces each new discovery. A red badge on the button counts discoveries you haven't looked at yet, and completed houses get a ✅.
 
 ### Upgrades (shop)
 
@@ -78,7 +116,7 @@ Every warehouse has its own treadmill out front, to the left of the loading dock
 
 ## 💾 Saving progress
 
-Progress saves with DataStores: cash, upgrades, speed, warehouse items and trunk contents. Loot you're *carrying* doesn't save, so stash it!
+Progress saves with DataStores: cash, upgrades, speed, warehouse items, trunk contents and your Loot Index. Loot you're *carrying* doesn't save, so stash it! (Saves from before the Loot Index start with the items they already own unlocked.)
 
 DataStores only work in a **published** game:
 
@@ -91,9 +129,12 @@ Unpublished, the game still runs normally and shows a small "progress won't be s
 
 ## 🛠️ Customizing
 
-Every number lives in **[`src/shared/Config.luau`](src/shared/Config.luau)**: upgrade prices and values (including the treadmill's XP per second), drone speeds, lockpick times, restock times, income rate, car handling and sounds.
+Every number lives in **[`src/shared/Config.luau`](src/shared/Config.luau)**: upgrade prices and values (including the treadmill's XP per second), guard speeds, lockpick times, how long the night and daytime last (and the sky colours), income rate, car handling and sounds.
 
-- **Add or change loot:** [`src/shared/Items.luau`](src/shared/Items.luau). Each item is a small model built from parts, so no uploads are needed.
+- **The street:** `Config.Houses` lists every house in order, with its name, difficulty tier and guard. `Config.Guards` names the guards. The map builder reads both, so rebuild after changing them.
+- **Add or change loot:** [`src/shared/Items.luau`](src/shared/Items.luau). Each item belongs to one house and is a small model built from parts, so no uploads are needed.
+- **Guard looks:** [`src/shared/Guards.luau`](src/shared/Guards.luau) builds the cats and dogs from parts. Every dog breed is the same builder with different proportions, ears, tail and markings.
+- **Skip to daytime while testing:** during Play, switch the command bar to the server and run `require(game.ServerScriptService.Server.DayNight).advance()`.
 - **Change the town:** the map is generated by [`tools/map_builder.py`](tools/map_builder.py). You can also edit the map directly in Studio and save the place. Just don't rebuild afterwards, because rebuilding regenerates it.
 - **Sounds:** the game uses sounds that ship with Roblox so they always work. Swap in your own `rbxassetid://` IDs in `Config.Sounds`.
 
@@ -115,7 +156,8 @@ src/
     PlayerData.luau          saving/loading, attributes the UI reads, leaderstats
     Inventory.luau           carried loot, trunk, loot sack on your back
     Plots.luau               personal warehouses, shelves, deposit pad, selling
-    Houses.luau              doors, loot, alarms, security drones, lasers, busting
+    DayNight.luau            the 4-minute clock: 3½ min night, 30 s daytime (houses close + restock)
+    Houses.luau              doors, per-house loot, alarms, guard cats/dogs/drones, lasers, busting
     Vehicles.luau            getaway car (hover physics, seats, trunk, dock unloading)
     Treadmills.luau          personal treadmills: AFK speed training, console upgrades
     Economy.luau             income ticks + upgrade purchases
@@ -123,14 +165,16 @@ src/
   client/                  → StarterPlayerScripts.Client
     init.client.luau         builds the UI, listens to the server
     Hud / Shop / Notifications / BustedScreen / UI.luau
+    LootIndex.luau           the collection book (3D pictures, ??? until stolen)
+    DayNight.luau            fades the sky between night and daytime
     VehicleController.luau   driving
     TreadmillController.luau auto-running on your treadmill, ESCAPE / Space to hop off
     WorldEffects.luau        sirens, treadmill belts, "your warehouse" marker
   shared/                  → ReplicatedStorage.Shared
-    Config.luau  Items.luau  ItemModels.luau  Format.luau
+    Config.luau  Items.luau  ItemModels.luau  Guards.luau  Format.luau
 tools/
   build_place.py           builds StealAnItem.rbxlx from src/ + the generated map
-  map_builder.py           procedural town (houses, warehouses + treadmills, shop, roads)
+  map_builder.py           procedural town (the house design, cube cliffs, Mansion, warehouses, shop, roads)
   rbxlx.py                 Roblox XML place writer
   validate_place.py        checks the place file (structure + Roblox API)
   run_luau_tests.py        runs the Luau test suites
@@ -146,11 +190,11 @@ The scripts are written in strict-mode Luau and checked against the real Roblox 
 ```bash
 python3 tools/build_place.py                                   # build the place
 python3 tools/validate_place.py --database database.json      # check every class/property/enum
-python3 tools/run_luau_tests.py --database database.json      # 54 tests (needs the `luau` CLI)
+python3 tools/run_luau_tests.py --database database.json      # 62 tests (needs the `luau` CLI)
 luau-lsp analyze --settings .vscode/settings.json --platform roblox \
   --sourcemap sourcemap.json --definitions=@roblox=globalTypes.d.luau src   # type-check
 ```
 
 - `database.json` is Rojo's API dump ([rbx-dom](https://github.com/rojo-rbx/rbx-dom/blob/master/rbx_dom_lua/src/database.json)). `luau` and `luau-lsp` come from their GitHub releases.
-- The integration tests run the real server and client scripts against a small mock of the Roblox engine. That mock loads the real generated map and rejects invalid properties, just like Roblox does. They play through joining, lockpicking, stealing, getting busted, escaping, depositing, earning, upgrading, AFK treadmill training (including hopping off with Space), driving, selling, and saving then loading.
+- The integration tests run the real server and client scripts against a small mock of the Roblox engine. That mock loads the real generated map and rejects invalid properties, just like Roblox does. They play through joining, lockpicking, stealing (and discovering items), getting busted by a cat, escaping, depositing, earning, upgrading, AFK treadmill training (including hopping off with Space), driving, selling, a full daytime (houses locking, everyone shown out, every house restocking), the Loot Index UI, and saving then loading.
 - **Rojo (optional):** open `StealAnItem.rbxlx` in Studio, run `rojo serve`, and connect the Rojo plugin to live-sync `src/` while you edit.

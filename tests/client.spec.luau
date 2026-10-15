@@ -69,6 +69,18 @@ Mock.setRaw(camera, "ViewportSize", Vector2.new(1280, 720))
 camera.Parent = workspace
 workspace.CurrentCamera = camera
 
+-- Lighting as saved in the place file, and the heist clock the server publishes (night, 3:30 left)
+local Lighting = Mock.service("Lighting")
+local Config = require(SharedFolder.Config)
+Lighting.ClockTime = 14.2
+Lighting.Brightness = 2.6
+Lighting.ExposureCompensation = 0
+Lighting.Ambient = Color3.fromRGB(92, 92, 104)
+Lighting.OutdoorAmbient = Color3.fromRGB(138, 138, 150)
+Lighting.FogColor = Color3.fromRGB(192, 192, 192)
+workspace:SetAttribute("Daytime", false)
+workspace:SetAttribute("PhaseEndsAt", workspace:GetServerTimeNow() + 210)
+
 -- Attributes the server would replicate
 for name, value in {
 	Cash = 0,
@@ -161,6 +173,9 @@ end)
 step("client boots and builds the HUD", function()
 	task.spawn(RunClient)
 	Mock.advance(0.5)
+	-- Your saved Loot Index arrives with the rest of your data (it isn't "new")
+	player:SetAttribute("Discovered", "OldRadio")
+	Mock.advance(0.1)
 	hud = playerGui:FindFirstChild("StealAnItemHUD")
 	check(hud, "no HUD ScreenGui")
 	eq(hud.ResetOnSpawn, false, "HUD survives respawns")
@@ -175,6 +190,7 @@ step("HUD shows cash, income and stats", function()
 	player:SetAttribute("Carried", 2)
 	player:SetAttribute("DataLoaded", true)
 	Mock.advance(2)
+	eq(findButton(hud, "📖 LOOT INDEX"):FindFirstChild("NewBadge").Visible, false, "saved discoveries don't count as new")
 	check(findText(hud, "$12,345"), "cash label not updated")
 	check(findText(hud, "+$42 / sec"), "income label not updated")
 	check(findText(hud, "2 / 2"), "bag label not updated")
@@ -201,6 +217,13 @@ step("alarm banner and objective react to being chased", function()
 	local banner = hud:FindFirstChild("AlarmBanner", true)
 	eq(banner.Visible, true, "banner visible")
 	check(findText(banner, "MAPLE COTTAGE"), "banner should name the house")
+	check(findText(banner, "before the guards catch you"), "generic guard hint")
+	player:SetAttribute("AlarmGuard", "the Ginger Cat")
+	player:SetAttribute("AlarmHouse", "")
+	Mock.advance(0.1)
+	player:SetAttribute("AlarmHouse", "Maple Cottage")
+	Mock.advance(0.1)
+	check(findText(banner, "before the Ginger Cat catches you"), "the hint should name the cat")
 	check(findText(hud, "Escape the property"), "objective should say escape")
 	player:SetAttribute("AlarmHouse", "")
 	Mock.advance(0.3)
@@ -208,11 +231,12 @@ step("alarm banner and objective react to being chased", function()
 end)
 
 step("busted screen", function()
-	Remotes.Busted.OnClientEvent:Fire(3, 450, "Maple Cottage")
+	Remotes.Busted.OnClientEvent:Fire(3, 450, "Maple Cottage", "The Ginger Cat")
 	Mock.advance(0.2)
 	local busted = hud:FindFirstChild("Busted")
 	eq(busted.Visible, true, "busted overlay shown")
 	check(findText(busted, "3 items worth $450"), "busted text")
+	check(findText(busted, "The Ginger Cat at the Maple Cottage caught you"), "busted text names the guard")
 	Mock.advance(4)
 	eq(busted.Visible, false, "busted overlay hidden again")
 end)
@@ -498,7 +522,7 @@ step("respawning while running resets everything", function()
 end)
 
 step("sirens flash while a house alarm is active", function()
-	local house = Map.Houses.Cottage1
+	local house = Map.Houses.House1
 	local siren = house.Sirens:GetChildren()[1]
 	local light = siren:FindFirstChildOfClass("PointLight")
 	check(light, "siren light missing")
@@ -527,6 +551,109 @@ step("owner-only prompts are hidden from other players", function()
 	mine:SetAttribute("OwnerUserId", 7)
 	Mock.service("ProximityPromptService").PromptShown:Fire(mine)
 	eq(mine.Enabled, true, "your own prompt stays visible")
+end)
+
+--------------------------------------------------------------------------------
+-- Night & day
+--------------------------------------------------------------------------------
+step("the clock counts down the night and the sky fades to daytime", function()
+	local clock = hud:FindFirstChild("Clock")
+	check(clock, "no clock")
+	check(findText(clock, "NIGHT"), "it starts at night")
+	check(Lighting.ClockTime < 5 or Lighting.ClockTime > 19, "the sky should be dark at night, ClockTime " .. Lighting.ClockTime)
+	local title = clock:FindFirstChild("Title")
+	local minutes, seconds = string.match(title.Text, "(%d+):(%d%d)")
+	check(minutes, "no countdown in " .. title.Text)
+	local left = tonumber(minutes) * 60 + tonumber(seconds)
+	local expected = workspace:GetAttribute("PhaseEndsAt") - workspace:GetServerTimeNow()
+	check(math.abs(left - expected) <= 1.5, string.format("countdown %d vs %.1f", left, expected))
+
+	player:SetAttribute("Carried", 0) -- (a full bag would take priority in the objective)
+	player:SetAttribute("StoredCount", 3)
+	workspace:SetAttribute("PhaseEndsAt", workspace:GetServerTimeNow() + 30)
+	workspace:SetAttribute("Daytime", true)
+	Mock.advance(0.2)
+	check(findText(clock, "DAYTIME · 0:30") or findText(clock, "DAYTIME · 0:29"), "daytime countdown: " .. title.Text)
+	check(findText(clock, "Houses closed"), "the clock says the houses are closed")
+	check(findText(hud, "owners are home"), "the objective explains daytime")
+	Mock.advance(Config.DayNight.FadeTime + 0.5)
+	check(math.abs(Lighting.ClockTime - Config.DayNight.Day.ClockTime) < 0.01, "sunrise should end at the daytime ClockTime, got " .. Lighting.ClockTime)
+	eq(Lighting.Brightness, Config.DayNight.Day.Brightness, "daytime brightness")
+
+	-- Halfway through the sunset the sun is going down in the west (clock past 18:00), not rewinding.
+	workspace:SetAttribute("PhaseEndsAt", workspace:GetServerTimeNow() + 210)
+	workspace:SetAttribute("Daytime", false)
+	Mock.advance(Config.DayNight.FadeTime / 2)
+	check(Lighting.ClockTime > 16, "the clock should move forward into the evening, got " .. Lighting.ClockTime)
+	Mock.advance(Config.DayNight.FadeTime)
+	check(math.abs(Lighting.ClockTime - Config.DayNight.Night.ClockTime) < 0.01, "night ClockTime, got " .. Lighting.ClockTime)
+	check(findText(clock, "NIGHT"), "night again")
+end)
+
+--------------------------------------------------------------------------------
+-- Loot Index
+--------------------------------------------------------------------------------
+step("the loot index lists every item by house, locked until you steal it", function()
+	local Items = require(SharedFolder.Items)
+	local index = hud:FindFirstChild("LootIndex")
+	check(index, "no LootIndex window")
+	eq(index.Visible, false, "closed at first")
+	findButton(hud, "📖 LOOT INDEX").Activated:Fire()
+	Mock.advance(0.3)
+	eq(index.Visible, true, "the HUD button opens it")
+	local list = index:FindFirstChild("List")
+	local sections = 0
+	for _, child in list:GetChildren() do
+		if child:IsA("Frame") then
+			sections += 1
+		end
+	end
+	eq(sections, #Config.Houses, "one section per house")
+	check(findText(index, "MAPLE COTTAGE"), "house names are shown")
+	check(findText(index, "guarded by a Ginger Cat"), "the guard is shown")
+	check(findText(index, "guarded by 2 Pugs"), "dog houses show their breed")
+	check(findText(index, string.format("1 / %d found", #Items.List)), "progress includes your saved discoveries")
+	check(findText(list.House3, "1/4"), "Old Radio counts for Rose Cottage")
+	local card = list.House1.Items.Toaster
+	local picture = card:FindFirstChild("Picture")
+	check(picture and picture:IsA("ViewportFrame"), "every card has a 3D picture")
+	check(picture.CurrentCamera and picture.CurrentCamera.Parent == picture, "the picture has its own camera")
+	check(picture:FindFirstChild("Toaster"), "the item model is in the picture")
+	eq(card.ItemName.Text, "???", "locked items are hidden")
+	eq(picture.ImageColor3, Color3.new(0, 0, 0), "locked items are silhouettes")
+	-- Steal one (the server adds it to the Discovered attribute)
+	player:SetAttribute("Discovered", "OldRadio,Toaster")
+	Mock.advance(0.1)
+	eq(card.ItemName.Text, "Toaster", "unlocked")
+	eq(picture.ImageColor3, Color3.new(1, 1, 1), "unlocked items are in full colour")
+	check(findText(card, "$25"), "unlocked items show their value")
+	check(findText(index, string.format("2 / %d found", #Items.List)), "progress updated")
+	check(findText(list.House1, "1/4"), "per-house progress")
+	index.Close.Activated:Fire()
+	Mock.advance(0.1)
+	eq(index.Visible, false, "closes")
+end)
+
+step("new discoveries light up the index button until you look", function()
+	local button = findButton(hud, "📖 LOOT INDEX")
+	local badge = button:FindFirstChild("NewBadge")
+	check(badge, "no badge")
+	eq(badge.Visible, false, "nothing new yet")
+	player:SetAttribute("Discovered", "OldRadio,Toaster,YarnBasket,CoffeeMaker,GrandmasJewels")
+	Mock.advance(0.1)
+	eq(badge.Visible, true, "badge shows new items")
+	eq(badge.Text, "3", "three new items")
+	button.Activated:Fire()
+	Mock.advance(0.2)
+	eq(badge.Visible, false, "opening the index clears the badge")
+	check(findText(hud.LootIndex.List.House1, "✅ 4/4"), "a completed house is ticked off")
+	-- The shop and the index never overlap
+	findButton(hud, "🛒 SHOP").Activated:Fire()
+	Mock.advance(0.2)
+	eq(hud.LootIndex.Visible, false, "opening the shop closes the index")
+	eq(hud.Shop.Visible, true, "shop open")
+	hud.Shop.Close.Activated:Fire()
+	Mock.advance(0.1)
 end)
 
 step("no warnings were logged", function()

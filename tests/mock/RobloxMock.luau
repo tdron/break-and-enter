@@ -300,12 +300,21 @@ Mock.isCFrame = function(v)
 	return getmetatable(v) == CFMeta
 end
 
+local Color3Meta = {}
+Color3Meta.__index = Color3Meta
+local function color3(r, g, b)
+	return setmetatable({ R = r or 0, G = g or 0, B = b or 0 }, Color3Meta)
+end
+function Color3Meta:Lerp(other, alpha)
+	return color3(self.R + (other.R - self.R) * alpha, self.G + (other.G - self.G) * alpha, self.B + (other.B - self.B) * alpha)
+end
+Color3Meta.__eq = function(a, b)
+	return a.R == b.R and a.G == b.G and a.B == b.B
+end
 Color3 = {
-	new = function(r, g, b)
-		return { R = r or 0, G = g or 0, B = b or 0 }
-	end,
+	new = color3,
 	fromRGB = function(r, g, b)
-		return { R = (r or 0) / 255, G = (g or 0) / 255, B = (b or 0) / 255 }
+		return color3((r or 0) / 255, (g or 0) / 255, (b or 0) / 255)
 	end,
 }
 UDim = {
@@ -1091,6 +1100,9 @@ function InstanceMethods:Raycast(origin, direction)
 end
 function InstanceMethods:GetPartBoundsInBox()
 	return {}
+end
+function InstanceMethods:GetServerTimeNow()
+	return 1700000000 + now
 end
 
 --------------------------------------------------------------------------------

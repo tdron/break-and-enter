@@ -9,7 +9,8 @@
 	react to them without any extra remotes:
 	  Cash, Income, Carried, CarriedList, BagCapacity, TrunkCount, TrunkCapacity,
 	  StoredCount, StorageCapacity, SpeedLevel, SpeedXP, SpeedXPNeeded,
-	  WalkSpeed, Level_<UpgradeId>
+	  WalkSpeed, Level_<UpgradeId>, Discovered (comma-separated item ids for
+	  the Loot Index)
 
 	Saving uses DataStoreService. When the place is unpublished or Studio API
 	access is off, the game still works but progress is session-only.
@@ -30,6 +31,7 @@ export type Profile = {
 	Trunk: { string },
 	TotalStolen: number,
 	TotalEarned: number,
+	Discovered: { string }, -- every item this player has ever stolen (the Loot Index)
 }
 
 export type Leaderstats = {
@@ -89,6 +91,7 @@ local function defaultProfile(): Profile
 		Trunk = {},
 		TotalStolen = 0,
 		TotalEarned = 0,
+		Discovered = {},
 	}
 end
 
@@ -141,6 +144,16 @@ local function sanitize(raw: any): Profile
 	profile.Trunk = readItemList(raw.Trunk, Config.getUpgradeValue("Trunk", profile.Levels.Trunk))
 	profile.TotalStolen = math.floor(readNumber(raw.TotalStolen, 0, 0, 1e12))
 	profile.TotalEarned = math.floor(readNumber(raw.TotalEarned, 0, 0, 1e18))
+	-- Saves from before the Loot Index count the items they already own as discovered.
+	local discovered = if type(raw.Discovered) == "table" then raw.Discovered else nil
+	local source = discovered or table.move(profile.Trunk, 1, #profile.Trunk, #profile.Stored + 1, table.clone(profile.Stored))
+	local seen: { [string]: boolean } = {}
+	for _, itemId in readItemList(source, #Items.List * 4) do
+		if not seen[itemId] then
+			seen[itemId] = true
+			table.insert(profile.Discovered, itemId)
+		end
+	end
 	return profile
 end
 
@@ -236,6 +249,7 @@ function PlayerData.replicate(player: Player)
 	player:SetAttribute("CarriedList", table.concat(session.Carried, ","))
 	player:SetAttribute("TrunkCount", #profile.Trunk)
 	player:SetAttribute("StoredCount", #profile.Stored)
+	player:SetAttribute("Discovered", table.concat(profile.Discovered, ","))
 
 	local stats = session.Leaderstats
 	if stats then
@@ -293,6 +307,22 @@ function PlayerData.addStolen(player: Player, count: number)
 	if stats then
 		stats.Stolen.Value = session.Profile.TotalStolen
 	end
+end
+
+-- Records a stolen item in the player's Loot Index. Returns true the first time.
+function PlayerData.discover(player: Player, itemId: string): boolean
+	local session = sessions[player]
+	if not session or not Items.get(itemId) or table.find(session.Profile.Discovered, itemId) then
+		return false
+	end
+	table.insert(session.Profile.Discovered, itemId)
+	player:SetAttribute("Discovered", table.concat(session.Profile.Discovered, ","))
+	return true
+end
+
+function PlayerData.getDiscoveredCount(player: Player): number
+	local session = sessions[player]
+	return if session then #session.Profile.Discovered else 0
 end
 
 function PlayerData.applyWalkSpeed(player: Player)
@@ -412,6 +442,7 @@ function PlayerData.save(player: Player): boolean
 		Trunk = table.clone(profile.Trunk),
 		TotalStolen = profile.TotalStolen,
 		TotalEarned = profile.TotalEarned,
+		Discovered = table.clone(profile.Discovered),
 	}
 	local ok, err = pcall(function()
 		dataStore:UpdateAsync(dataKey(player), function(_old: any)

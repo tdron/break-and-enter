@@ -2,7 +2,8 @@
 --[[
 	Steal an Item — client entry point
 	==================================
-	Builds the HUD, shop and effects, and listens to the server's remotes.
+	Builds the HUD, shop, loot index and effects, follows the day/night clock and
+	listens to the server's remotes.
 ]]
 
 local Players = game:GetService("Players")
@@ -24,7 +25,9 @@ for _, name in { "Notify", "Busted", "Purchase", "SpawnCar", "Treadmill" } do
 end
 
 local BustedScreen = require(script.BustedScreen)
+local DayNight = require(script.DayNight)
 local Hud = require(script.Hud)
+local LootIndex = require(script.LootIndex)
 local Notifications = require(script.Notifications)
 local Shop = require(script.Shop)
 local TreadmillController = require(script.TreadmillController)
@@ -68,13 +71,23 @@ local function requestCar()
 end
 
 Notifications.init(screen)
+DayNight.init()
 Shop.init(screen)
-Hud.init(screen, {
-	OnShop = Shop.toggle,
+LootIndex.init(screen)
+local hud = Hud.init(screen, {
+	OnShop = function()
+		LootIndex.close()
+		Shop.toggle()
+	end,
 	OnSpawnCar = function()
 		task.spawn(requestCar)
 	end,
+	OnIndex = function()
+		Shop.close()
+		LootIndex.toggle()
+	end,
 })
+LootIndex.attachBadge(hud.IndexButton)
 BustedScreen.init(screen)
 VehicleController.init()
 TreadmillController.init(screen)
@@ -90,13 +103,15 @@ Remotes.Notify.OnClientEvent:Connect(function(text: string, kind: string?)
 	Notifications.show(text, kind)
 end)
 
-Remotes.Busted.OnClientEvent:Connect(function(lostCount: number, lostValue: number, houseName: string)
+Remotes.Busted.OnClientEvent:Connect(function(lostCount: number, lostValue: number, houseName: string, catcher: string?)
 	Shop.close()
-	BustedScreen.show(lostCount, lostValue, houseName)
+	LootIndex.close()
+	BustedScreen.show(lostCount, lostValue, houseName, catcher)
 end)
 
 ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt, who: Player)
 	if who == player and prompt.Name == "OpenShopPrompt" then
+		LootIndex.close()
 		Shop.open()
 	end
 end)

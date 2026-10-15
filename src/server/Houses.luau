@@ -4,18 +4,22 @@
 	------
 	The heist part of the game:
 	  * Locked doors you open with a "Pick Lock" prompt (harder houses take longer).
-	  * Loot spawns on furniture, rolled from the house tier's item pool.
-	  * Stealing anything trips the alarm: after a short wind-up, security drones
-	    chase the nearest thief on the property. Get caught = BUSTED (you drop
+	  * Every house has its own set of loot (see Items) that spawns on furniture.
+	  * Stealing anything trips the alarm: after a short wind-up the house's
+	    guards chase the nearest thief on the property. A cat guards each
+	    cottage, a different dog breed guards every other house and the Grand
+	    Mansion has flying security drones. Get caught = BUSTED (you drop
 	    everything you're carrying and get sent back to your warehouse).
-	  * Leave the property (the fenced lot) and the drones give up.
-	  * Villas and the Mansion also have blinking laser tripwires.
+	  * Leave the property (the lot) and the guards give up.
+	  * The hardest houses also have blinking laser tripwires.
+	  * DAYTIME (see DayNight): houses lock up, anyone inside is shown the door
+	    and every house restocks. That's the only time loot comes back.
 
-	Map layout expected (built by tools/build_place.py):
-	  Workspace.Map.Houses.<House>   (Model, attributes Tier & DisplayName)
+	Map layout expected (built by tools/map_builder.py):
+	  Workspace.Map.Houses.<HouseId>  (Model named after its Config.Houses id; attributes Tier & DisplayName)
 	    Zone        Part covering the whole property (invisible)
 	    ItemSpots   Folder of Parts marking where loot appears
-	    DroneDocks  Folder of Parts where drones rest
+	    GuardDocks  Folder of Parts where the guards rest (pet beds / drone pads)
 	    Doors       Folder of Models: a "Hinge" part + door parts (attribute OpenAngle)
 	    Lasers      Folder of Parts (attribute Phase)
 ]]
@@ -28,8 +32,10 @@ local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
+local Guards = require(ReplicatedStorage.Shared.Guards)
 local ItemModels = require(ReplicatedStorage.Shared.ItemModels)
 local Items = require(ReplicatedStorage.Shared.Items)
+local DayNight = require(script.Parent.DayNight)
 local Inventory = require(script.Parent.Inventory)
 local Notify = require(script.Parent.Notify)
 local PlayerData = require(script.Parent.PlayerData)
@@ -41,22 +47,19 @@ type Spot = {
 	Part: BasePart,
 	Item: Model?,
 	ItemId: string?,
-	RespawnAt: number,
 }
 
-type Drone = {
-	Model: Model,
-	Body: BasePart,
-	Eye: BasePart,
-	Light: PointLight,
+type Guard = {
+	Look: Guards.GuardModel,
+	Root: BasePart,
 	AlignPosition: AlignPosition,
 	AlignOrientation: AlignOrientation,
-	Home: CFrame,
+	Home: CFrame, -- where the root rests
+	Flying: boolean,
 	State: string, -- "Idle" | "Windup" | "Chase"
 	ActivateAt: number,
+	Bob: number, -- phase offset for the trotting bounce
 }
-
-type DoorPiece = { Part: BasePart, Offset: CFrame }
 
 type Door = {
 	Model: Model,
@@ -69,14 +72,18 @@ type Door = {
 
 type House = {
 	Model: Model,
+	Id: string,
 	Name: string,
+	LootHouse: string, -- whose loot table to roll from (normally Id)
 	Tier: number,
 	Settings: Config.HouseTier,
+	GuardId: string,
+	GuardInfo: Config.GuardInfo,
 	ZoneCFrame: CFrame,
 	ZoneHalfSize: Vector3,
 	Loot: Folder,
 	Spots: { Spot },
-	Drones: { Drone },
+	Guards: { Guard },
 	Doors: { Door },
 	Lasers: { BasePart },
 	AlarmActive: boolean,
@@ -86,8 +93,10 @@ type House = {
 
 type Thief = { Player: Player, Root: BasePart, Humanoid: Humanoid }
 
-local EYE_IDLE = Color3.fromRGB(70, 200, 255)
-local EYE_ALERT = Color3.fromRGB(255, 40, 40)
+local FEET_BELOW_ROOT = 3 -- a standard character's HumanoidRootPart floats this high above its feet
+local CATCH_HEIGHT = 7 -- guards can't reach thieves this far above/below them
+local SLEEPING = "💤"
+local ALERT = "❗"
 
 local Houses = {}
 
@@ -125,6 +134,12 @@ local function isImmune(player: Player, now: number): boolean
 	return (bustedUntil[player] or 0) > now
 end
 
+-- "the Ginger Cat" / "the Pugs"
+local function guardPhrase(house: House): string
+	local name = house.GuardInfo.DisplayName
+	return if #house.Guards == 1 then "the " .. name else "the " .. name .. "s"
+end
+
 -- Is this position on any house's property? (Used to stop cars spawning inside.)
 function Houses.isOnProperty(position: Vector3): boolean
 	for _, house in houses do
@@ -141,21 +156,33 @@ end
 local function triggerAlarm(house: House, culprit: Player?)
 	local now = os.clock()
 	house.LastOccupiedAt = now
-	if house.AlarmActive then
+	if house.AlarmActive or DayNight.isDaytime() then
 		return
 	end
 	house.AlarmActive = true
 	house.Model:SetAttribute("AlarmActive", true)
-	for _, drone in house.Drones do
-		drone.State = "Windup"
-		drone.ActivateAt = now + house.Settings.AlarmWindup
-		drone.Eye.Color = EYE_ALERT
-		drone.Light.Enabled = true
-		-- Rise up a little during the wind-up so players can see them coming.
-		drone.AlignPosition.Position = drone.Home.Position + Vector3.new(0, 1.5, 0)
+	for _, guard in house.Guards do
+		guard.State = "Windup"
+		guard.ActivateAt = now + house.Settings.AlarmWindup
+		Guards.setAlert(guard.Look, house.GuardId, true)
+		guard.Look.Status.Text = ALERT
+		-- Drones rise up and animals jump out of bed during the wind-up, so players see them coming.
+		guard.AlignPosition.Position = guard.Home.Position + Vector3.new(0, if guard.Flying then 1.5 else 0.6, 0)
 	end
 	if culprit then
-		Notify.send(culprit, "🚨 ALARM! Security drones are waking up — get off the property!", "warning")
+		local single = #house.Guards == 1
+		local phrase = guardPhrase(house)
+		Notify.send(
+			culprit,
+			string.format(
+				"🚨 ALARM! %s%s woke up! Get off the property before %s catch%s you!",
+				string.upper(string.sub(phrase, 1, 1)),
+				string.sub(phrase, 2),
+				if single then "it" else "they",
+				if single then "es" else ""
+			),
+			"warning"
+		)
 	end
 end
 
@@ -163,6 +190,7 @@ local function clearIntruder(player: Player, house: House)
 	house.Intruders[player] = nil
 	if player.Parent and player:GetAttribute("AlarmHouse") == house.Name then
 		player:SetAttribute("AlarmHouse", "")
+		player:SetAttribute("AlarmGuard", "")
 	end
 end
 
@@ -172,13 +200,13 @@ local function endAlarm(house: House)
 	for player in house.Intruders do
 		clearIntruder(player, house)
 	end
-	for _, drone in house.Drones do
-		drone.State = "Idle"
-		drone.AlignPosition.Position = drone.Home.Position
-		drone.AlignPosition.MaxVelocity = Config.Alarm.DroneReturnSpeed
-		drone.AlignOrientation.CFrame = drone.Home.Rotation
-		drone.Eye.Color = EYE_IDLE
-		drone.Light.Enabled = false
+	for _, guard in house.Guards do
+		guard.State = "Idle"
+		guard.AlignPosition.Position = guard.Home.Position
+		guard.AlignPosition.MaxVelocity = Config.Alarm.GuardReturnSpeed
+		guard.AlignOrientation.CFrame = guard.Home.Rotation
+		Guards.setAlert(guard.Look, house.GuardId, false)
+		guard.Look.Status.Text = if guard.Flying then "" else SLEEPING
 	end
 end
 
@@ -195,7 +223,8 @@ local function bust(player: Player, house: House)
 	for _, itemId in lost do
 		lostValue += Items.getValue(itemId)
 	end
-	BustedEvent:FireClient(player, #lost, lostValue, house.Name)
+	local catcher = (if #house.Guards == 1 then "The " else "A ") .. house.GuardInfo.DisplayName
+	BustedEvent:FireClient(player, #lost, lostValue, house.Name, catcher)
 
 	local character = player.Character
 	local humanoid = if character then character:FindFirstChildOfClass("Humanoid") else nil
@@ -216,6 +245,18 @@ local function bust(player: Player, house: House)
 	end
 end
 
+-- Where a guard heads to catch this thief.
+local function aimAt(guard: Guard, thief: Thief, now: number): Vector3
+	local position = thief.Root.Position
+	if guard.Flying then
+		return position + Vector3.new(0, Config.Alarm.DroneAimHeight, 0)
+	end
+	-- Animals run along the floor the thief is standing on, with a little trotting bounce.
+	local feet = position.Y - FEET_BELOW_ROOT
+	local bounce = math.abs(math.sin(now * 14 + guard.Bob)) * 0.35
+	return Vector3.new(position.X, feet + guard.Look.RootHeight + bounce, position.Z)
+end
+
 local function updateAlarm(house: House, thieves: { Thief }, now: number)
 	local intruders: { Thief } = {}
 	for _, thief in thieves do
@@ -230,6 +271,7 @@ local function updateAlarm(house: House, thieves: { Thief }, now: number)
 		present[thief.Player] = true
 		if not house.Intruders[thief.Player] then
 			house.Intruders[thief.Player] = true
+			thief.Player:SetAttribute("AlarmGuard", guardPhrase(house))
 			thief.Player:SetAttribute("AlarmHouse", house.Name)
 		end
 	end
@@ -249,29 +291,31 @@ local function updateAlarm(house: House, thieves: { Thief }, now: number)
 		return
 	end
 
-	for _, drone in house.Drones do
-		if drone.State == "Windup" and now >= drone.ActivateAt then
-			drone.State = "Chase"
+	for _, guard in house.Guards do
+		if guard.State == "Windup" and now >= guard.ActivateAt then
+			guard.State = "Chase"
 		end
-		if drone.State == "Chase" then
+		if guard.State == "Chase" then
 			local target: Thief? = nil
 			local bestDistance = math.huge
+			local from = guard.Root.Position
 			for _, thief in intruders do
-				local distance = (thief.Root.Position - drone.Body.Position).Magnitude
+				local offset = thief.Root.Position - from
+				local distance = Vector3.new(offset.X, 0, offset.Z).Magnitude
 				if distance < bestDistance then
 					target, bestDistance = thief, distance
 				end
 			end
 			if target then
-				local aim = target.Root.Position + Vector3.new(0, Config.Alarm.DroneAimHeight, 0)
-				drone.AlignPosition.Position = clampToZone(house, aim)
-				drone.AlignPosition.MaxVelocity = house.Settings.DroneSpeed
-				local from = drone.Body.Position
+				local aim = aimAt(guard, target, now)
+				guard.AlignPosition.Position = clampToZone(house, aim)
+				guard.AlignPosition.MaxVelocity = house.Settings.GuardSpeed
 				local flat = Vector3.new(aim.X - from.X, 0, aim.Z - from.Z)
 				if flat.Magnitude > 0.1 then
-					drone.AlignOrientation.CFrame = CFrame.lookAt(Vector3.zero, flat.Unit)
+					guard.AlignOrientation.CFrame = CFrame.lookAt(Vector3.zero, flat.Unit)
 				end
-				if bestDistance <= Config.Alarm.CatchRadius then
+				local height = math.abs(target.Root.Position.Y - from.Y)
+				if bestDistance <= Config.Alarm.CatchRadius and height <= CATCH_HEIGHT then
 					bust(target.Player, house)
 				end
 			end
@@ -279,8 +323,7 @@ local function updateAlarm(house: House, thieves: { Thief }, now: number)
 	end
 end
 
-local function onHeartbeat()
-	local now = os.clock()
+local function getThieves(): { Thief }
 	local thieves: { Thief } = {}
 	for _, player in Players:GetPlayers() do
 		local character = player.Character
@@ -292,9 +335,16 @@ local function onHeartbeat()
 			end
 		end
 	end
+	return thieves
+end
+
+local function onHeartbeat()
+	local now = os.clock()
+	local thieves: { Thief }? = nil
 	for _, house in houses do
 		if house.AlarmActive then
-			updateAlarm(house, thieves, now)
+			thieves = thieves or getThieves()
+			updateAlarm(house, thieves :: { Thief }, now)
 		end
 	end
 end
@@ -338,8 +388,17 @@ end
 
 local onSteal: (house: House, spot: Spot, model: Model, player: Player) -> ()
 
+local function setStealable(spot: Spot, stealable: boolean)
+	local model = spot.Item
+	local root = if model then model.PrimaryPart else nil
+	local prompt = if root then root:FindFirstChild("StealPrompt") else nil
+	if prompt and prompt:IsA("ProximityPrompt") then
+		prompt.Enabled = stealable
+	end
+end
+
 local function spawnItem(house: House, spot: Spot)
-	local itemId = Items.roll(house.Tier, rng)
+	local itemId = Items.roll(house.LootHouse, rng)
 	local def = Items.get(itemId)
 	local model = ItemModels.build(itemId)
 	if not def or not model then
@@ -356,6 +415,7 @@ local function spawnItem(house: House, spot: Spot)
 		prompt.HoldDuration = Config.Stealing.HoldDuration
 		prompt.MaxActivationDistance = Config.Stealing.PromptDistance
 		prompt.RequiresLineOfSight = false
+		prompt.Enabled = not DayNight.isDaytime()
 		prompt.Parent = root
 		prompt.Triggered:Connect(function(player: Player)
 			onSteal(house, spot, model, player)
@@ -366,12 +426,25 @@ local function spawnItem(house: House, spot: Spot)
 	spot.ItemId = itemId
 end
 
+-- Fresh loot on every spot (the old leftovers are taken away).
+local function restock(house: House)
+	for _, spot in house.Spots do
+		local old = spot.Item
+		if old then
+			old:Destroy()
+		end
+		spot.Item = nil
+		spot.ItemId = nil
+		spawnItem(house, spot)
+	end
+end
+
 onSteal = function(house: House, spot: Spot, model: Model, player: Player)
 	local itemId = spot.ItemId
 	if spot.Item ~= model or not itemId or not model.Parent then
 		return
 	end
-	if isImmune(player, os.clock()) then
+	if DayNight.isDaytime() or isImmune(player, os.clock()) then
 		return
 	end
 	local ok, reason = Inventory.addCarried(player, itemId)
@@ -381,7 +454,6 @@ onSteal = function(house: House, spot: Spot, model: Model, player: Player)
 	end
 	spot.Item = nil
 	spot.ItemId = nil
-	spot.RespawnAt = os.clock() + house.Settings.RestockTime
 	model:Destroy()
 	PlayerData.addStolen(player, 1)
 
@@ -398,112 +470,73 @@ onSteal = function(house: House, spot: Spot, model: Model, player: Player)
 			),
 			"steal"
 		)
+		if PlayerData.discover(player, itemId) then
+			Notify.send(
+				player,
+				string.format(
+					"📖 New item discovered: %s! (%d/%d in your Loot Index)",
+					def.DisplayName,
+					PlayerData.getDiscoveredCount(player),
+					#Items.List
+				),
+				"level"
+			)
+		end
 	end
 	triggerAlarm(house, player)
 end
 
 --------------------------------------------------------------------------------
--- Drones
+-- Guards
 --------------------------------------------------------------------------------
-local function buildDrone(house: House, dock: BasePart): Drone
-	local home = CFrame.new(dock.Position + Vector3.new(0, Config.Alarm.DroneDockHeight, 0)) * dock.CFrame.Rotation
-	local model = Instance.new("Model")
-	model.Name = "SecurityDrone"
-
-	local function piece(name: string, shape: Enum.PartType, size: Vector3, offset: CFrame, color: Color3, material: Enum.Material): Part
-		local part = Instance.new("Part")
-		part.Name = name
-		part.Shape = shape
-		part.Size = size
-		part.CFrame = home * offset
-		part.Color = color
-		part.Material = material
-		part.TopSurface = Enum.SurfaceType.Smooth
-		part.BottomSurface = Enum.SurfaceType.Smooth
-		part.CanCollide = false
-		part.CanTouch = false
-		part.CanQuery = false
-		part.Massless = true
-		part.Parent = model
-		return part
-	end
-
-	local body = piece("Body", Enum.PartType.Ball, Vector3.new(2.2, 2.2, 2.2), CFrame.new(), Color3.fromRGB(46, 48, 56), Enum.Material.Metal)
-	body.Massless = false
-	local eye = piece("Eye", Enum.PartType.Ball, Vector3.new(0.95, 0.95, 0.95), CFrame.new(0, 0, -0.75), EYE_IDLE, Enum.Material.Neon)
-	piece(
-		"Ring",
-		Enum.PartType.Cylinder,
-		Vector3.new(0.25, 3.7, 3.7),
-		CFrame.new(0, 0.35, 0) * CFrame.Angles(0, 0, math.rad(90)),
-		Color3.fromRGB(28, 28, 32),
-		Enum.Material.Metal
-	)
-	for _, offset in { Vector3.new(1.3, 0.75, 1.3), Vector3.new(-1.3, 0.75, 1.3), Vector3.new(1.3, 0.75, -1.3), Vector3.new(-1.3, 0.75, -1.3) } do
-		piece(
-			"Rotor",
-			Enum.PartType.Cylinder,
-			Vector3.new(0.12, 1.4, 1.4),
-			CFrame.new(offset) * CFrame.Angles(0, 0, math.rad(90)),
-			Color3.fromRGB(205, 205, 215),
-			Enum.Material.SmoothPlastic
-		)
-	end
-	piece("Antenna", Enum.PartType.Block, Vector3.new(0.12, 0.9, 0.12), CFrame.new(0, 1.35, 0.35), Color3.fromRGB(28, 28, 32), Enum.Material.Metal)
-
-	local light = Instance.new("PointLight")
-	light.Color = EYE_ALERT
-	light.Range = 14
-	light.Brightness = 3
-	light.Enabled = false
-	light.Parent = eye
-
-	for _, part in model:GetChildren() do
-		if part:IsA("BasePart") and part ~= body then
-			local weld = Instance.new("WeldConstraint")
-			weld.Part0 = body
-			weld.Part1 = part
-			weld.Parent = part
-		end
-	end
+local function buildGuard(house: House, dock: BasePart): Guard
+	local flying = house.GuardInfo.Kind == "Drone"
+	local base = if flying
+		then CFrame.new(dock.Position + Vector3.new(0, Config.Alarm.DroneDockHeight, 0)) * dock.CFrame.Rotation
+		else CFrame.new(dock.Position + Vector3.new(0, dock.Size.Y / 2, 0)) * dock.CFrame.Rotation
+	local look = Guards.build(house.GuardId, base)
+	local model = look.Model
+	model:SetAttribute("Kind", house.GuardInfo.Kind)
+	model:SetAttribute("Breed", house.GuardInfo.DisplayName)
+	local root = look.Root
+	look.Status.Text = if flying then "" else SLEEPING
 
 	local attachment = Instance.new("Attachment")
-	attachment.Name = "DroneAttachment"
-	attachment.Parent = body
+	attachment.Name = "GuardAttachment"
+	attachment.Parent = root
 
 	local alignPosition = Instance.new("AlignPosition")
 	alignPosition.Mode = Enum.PositionAlignmentMode.OneAttachment
 	alignPosition.Attachment0 = attachment
-	alignPosition.Position = home.Position
+	alignPosition.Position = root.Position
 	alignPosition.MaxForce = 1000000
-	alignPosition.MaxVelocity = Config.Alarm.DroneReturnSpeed
+	alignPosition.MaxVelocity = Config.Alarm.GuardReturnSpeed
 	alignPosition.Responsiveness = 80
-	alignPosition.Parent = body
+	alignPosition.Parent = root
 
 	local alignOrientation = Instance.new("AlignOrientation")
 	alignOrientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
 	alignOrientation.Attachment0 = attachment
-	alignOrientation.CFrame = home.Rotation
+	alignOrientation.CFrame = root.CFrame.Rotation
 	alignOrientation.MaxTorque = 1000000
 	alignOrientation.Responsiveness = 40
-	alignOrientation.Parent = body
+	alignOrientation.Parent = root
 
-	model.PrimaryPart = body
 	model.Parent = house.Model
 	pcall(function()
-		body:SetNetworkOwner(nil)
+		root:SetNetworkOwner(nil)
 	end)
 
 	return {
-		Model = model,
-		Body = body,
-		Eye = eye,
-		Light = light,
+		Look = look,
+		Root = root,
 		AlignPosition = alignPosition,
 		AlignOrientation = alignOrientation,
-		Home = home,
+		Home = root.CFrame,
+		Flying = flying,
 		State = "Idle",
 		ActivateAt = 0,
+		Bob = rng:NextNumber() * math.pi * 2,
 	}
 end
 
@@ -523,7 +556,7 @@ local function setDoorOpen(door: Door, open: boolean)
 			Value = 0,
 		}):Play()
 		task.delay(0.9, function()
-			if not door.IsOpen then
+			if not door.IsOpen and not DayNight.isDaytime() then
 				door.Prompt.Enabled = true
 			end
 		end)
@@ -537,7 +570,7 @@ local function setupDoor(house: House, doorModel: Model): Door?
 		return nil
 	end
 	local hingeCFrame = hinge.CFrame
-	local pieces: { DoorPiece } = {}
+	local pieces: { { Part: BasePart, Offset: CFrame } } = {}
 	local panel: BasePart? = nil
 	for _, descendant in doorModel:GetDescendants() do
 		if descendant:IsA("BasePart") and descendant ~= hinge then
@@ -570,6 +603,7 @@ local function setupDoor(house: House, doorModel: Model): Door?
 	prompt.HoldDuration = house.Settings.LockpickTime
 	prompt.MaxActivationDistance = 9
 	prompt.RequiresLineOfSight = false
+	prompt.Enabled = not DayNight.isDaytime()
 	prompt.Parent = panel
 
 	local door: Door = {
@@ -582,6 +616,10 @@ local function setupDoor(house: House, doorModel: Model): Door?
 	}
 	prompt.Triggered:Connect(function(player: Player)
 		if door.IsOpen then
+			return
+		end
+		if DayNight.isDaytime() then
+			Notify.send(player, "☀️ The owners are home! Come back when it's dark.", "error")
 			return
 		end
 		setDoorOpen(door, true)
@@ -608,7 +646,7 @@ local function setupLaser(house: House, laser: BasePart)
 	laser.CanCollide = false
 	laser.CanQuery = false
 	laser.Touched:Connect(function(hit: BasePart)
-		if laser.Transparency >= 1 then
+		if laser.Transparency >= 1 or DayNight.isDaytime() then
 			return
 		end
 		local player = playerFromHit(hit)
@@ -621,7 +659,17 @@ local function setupLaser(house: House, laser: BasePart)
 		end
 		laserCooldown[player] = now + 2
 		if not house.AlarmActive then
-			Notify.send(player, "🔴 You tripped a laser! The drones are awake!", "warning")
+			local phrase = guardPhrase(house)
+			Notify.send(
+				player,
+				string.format(
+					"🔴 You tripped a laser! %s%s %s awake!",
+					string.upper(string.sub(phrase, 1, 1)),
+					string.sub(phrase, 2),
+					if #house.Guards == 1 then "is" else "are"
+				),
+				"warning"
+			)
 			triggerAlarm(house, nil)
 		end
 	end)
@@ -631,17 +679,75 @@ end
 local function updateLasers()
 	local cycle = Config.Lasers.OnTime + Config.Lasers.OffTime
 	local now = os.clock()
+	local daytime = DayNight.isDaytime()
 	for _, house in houses do
 		for _, laser in house.Lasers do
 			local phase = laser:GetAttribute("Phase")
 			local offset = if type(phase) == "number" then phase else 0
-			local on = (now + offset) % cycle < Config.Lasers.OnTime
+			local on = not daytime and (now + offset) % cycle < Config.Lasers.OnTime
 			local transparency = if on then 0.2 else 1
 			if laser.Transparency ~= transparency then
 				laser.Transparency = transparency
 				laser.CanTouch = on
 			end
 		end
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Daytime: lock up, show everyone out, restock
+--------------------------------------------------------------------------------
+-- A spot on the pavement just outside the property, facing the street.
+local function exitCFrame(house: House): CFrame
+	local half = house.ZoneHalfSize
+	local front = house.ZoneCFrame * CFrame.new(0, -half.Y + FEET_BELOW_ROOT, half.Z + 6)
+	return front * CFrame.Angles(0, math.pi, 0)
+end
+
+local function showEveryoneOut()
+	for _, thief in getThieves() do
+		local seated = thief.Humanoid.SeatPart ~= nil
+		for _, house in houses do
+			if not seated and isInZone(house, thief.Root.Position) then
+				local character = thief.Player.Character
+				if character then
+					character:PivotTo(exitCFrame(house))
+				end
+				Notify.send(thief.Player, "☀️ The owners came home! You slipped out just in time (and kept your loot).", "warning")
+				break
+			end
+		end
+	end
+end
+
+local function onDaytime()
+	showEveryoneOut()
+	for _, house in houses do
+		if house.AlarmActive then
+			endAlarm(house)
+		end
+		for _, door in house.Doors do
+			door.Prompt.Enabled = false
+			if door.IsOpen then
+				setDoorOpen(door, false)
+			end
+		end
+		restock(house)
+		house.Model:SetAttribute("Open", false)
+	end
+end
+
+local function onNightfall()
+	for _, house in houses do
+		for _, door in house.Doors do
+			if not door.IsOpen then
+				door.Prompt.Enabled = true
+			end
+		end
+		for _, spot in house.Spots do
+			setStealable(spot, true)
+		end
+		house.Model:SetAttribute("Open", true)
 	end
 end
 
@@ -654,9 +760,26 @@ local function setupHouse(model: Model)
 		warn("[Houses] " .. model:GetFullName() .. " has no Zone part, skipping")
 		return
 	end
+	local info = Config.getHouse(model.Name)
 	local tierAttribute = model:GetAttribute("Tier")
-	local tier = math.clamp(if type(tierAttribute) == "number" then tierAttribute else 1, 1, #Config.HouseTiers)
+	local tier = math.clamp(
+		if info then info.Tier elseif type(tierAttribute) == "number" then tierAttribute else 1,
+		1,
+		#Config.HouseTiers
+	)
 	local displayName = model:GetAttribute("DisplayName")
+	local guardId = if info then info.Guard else "Drone"
+
+	-- Houses added by hand in Studio borrow the loot of a listed house of the same tier.
+	local lootHouse = model.Name
+	if #Items.forHouse(lootHouse) == 0 then
+		for _, other in Config.Houses do
+			if other.Tier == tier then
+				lootHouse = other.Id
+				break
+			end
+		end
+	end
 
 	local loot = Instance.new("Folder")
 	loot.Name = "Loot"
@@ -664,14 +787,18 @@ local function setupHouse(model: Model)
 
 	local house: House = {
 		Model = model,
-		Name = if type(displayName) == "string" then displayName else model.Name,
+		Id = model.Name,
+		Name = if type(displayName) == "string" then displayName elseif info then info.DisplayName else model.Name,
+		LootHouse = lootHouse,
 		Tier = tier,
 		Settings = Config.HouseTiers[tier],
+		GuardId = guardId,
+		GuardInfo = Config.Guards[guardId],
 		ZoneCFrame = zone.CFrame,
 		ZoneHalfSize = zone.Size / 2,
 		Loot = loot,
 		Spots = {},
-		Drones = {},
+		Guards = {},
 		Doors = {},
 		Lasers = {},
 		AlarmActive = false,
@@ -679,23 +806,24 @@ local function setupHouse(model: Model)
 		Intruders = {},
 	}
 	model:SetAttribute("AlarmActive", false)
+	model:SetAttribute("Open", not DayNight.isDaytime())
 
 	local spots = model:FindFirstChild("ItemSpots")
 	if spots then
 		for _, part in spots:GetChildren() do
 			if part:IsA("BasePart") then
-				local spot: Spot = { Part = part, Item = nil, ItemId = nil, RespawnAt = 0 }
+				local spot: Spot = { Part = part, Item = nil, ItemId = nil }
 				table.insert(house.Spots, spot)
 				spawnItem(house, spot)
 			end
 		end
 	end
 
-	local docks = model:FindFirstChild("DroneDocks")
+	local docks = model:FindFirstChild("GuardDocks")
 	if docks then
 		for _, dock in docks:GetChildren() do
 			if dock:IsA("BasePart") then
-				table.insert(house.Drones, buildDrone(house, dock))
+				table.insert(house.Guards, buildGuard(house, dock))
 			end
 		end
 	end
@@ -724,16 +852,11 @@ local function setupHouse(model: Model)
 	table.insert(houses, house)
 end
 
-local function maintenanceLoop()
+local function doorLoop()
 	while true do
 		task.wait(1)
 		local now = os.clock()
 		for _, house in houses do
-			for _, spot in house.Spots do
-				if spot.Item == nil and now >= spot.RespawnAt then
-					spawnItem(house, spot)
-				end
-			end
 			for _, door in house.Doors do
 				if door.IsOpen and now >= door.CloseAt then
 					if anyoneOnProperty(house) then
@@ -763,9 +886,16 @@ function Houses.init()
 			setupHouse(model)
 		end
 	end
+	DayNight.onChanged(function(isDaytime: boolean)
+		if isDaytime then
+			onDaytime()
+		else
+			onNightfall()
+		end
+	end)
 	RunService.Heartbeat:Connect(onHeartbeat)
 	RunService.Heartbeat:Connect(updateLasers)
-	task.spawn(maintenanceLoop)
+	task.spawn(doorLoop)
 end
 
 return Houses

@@ -283,7 +283,7 @@ function Shop.init(screen: ScreenGui)
 		Position = UDim2.new(0, 20, 1, -10),
 		Size = UDim2.new(1, -40, 0, 30),
 		Font = Theme.BodyFont,
-		Text = "💡 Stored items earn cash every second. Run on your warehouse treadmill (even AFK!) to outrun faster drones.",
+		Text = "💡 Stored items earn cash every second. Run on your warehouse treadmill (even AFK!) to outrun faster guard dogs.",
 		TextColor3 = Theme.SubText,
 		TextSize = 15,
 		TextWrapped = true,

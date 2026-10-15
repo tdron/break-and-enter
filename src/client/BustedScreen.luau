@@ -2,7 +2,7 @@
 --[[
 	BustedScreen
 	------------
-	The big red "BUSTED!" flash when a security drone catches you.
+	The big red "BUSTED!" flash when a house guard (cat, dog or drone) catches you.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -59,7 +59,7 @@ function BustedScreen.init(screen: ScreenGui)
 	overlay = frame
 end
 
-function BustedScreen.show(lostCount: number, lostValue: number, houseName: string)
+function BustedScreen.show(lostCount: number, lostValue: number, houseName: string, catcher: string?)
 	local frame, titleLabel, subtitleLabel = overlay, title, subtitle
 	if not frame or not titleLabel or not subtitleLabel then
 		return
@@ -67,15 +67,17 @@ function BustedScreen.show(lostCount: number, lostValue: number, houseName: stri
 	showId += 1
 	local myId = showId
 
+	local who = catcher or "A guard"
 	subtitleLabel.Text = if lostCount > 0
 		then string.format(
-			"A drone at the %s caught you! You dropped %d item%s worth %s.",
+			"%s at the %s caught you! You dropped %d item%s worth %s.",
+			who,
 			houseName,
 			lostCount,
 			if lostCount == 1 then "" else "s",
 			Format.money(lostValue)
 		)
-		else string.format("A drone at the %s caught you! Good thing your bag was empty.", houseName)
+		else string.format("%s at the %s caught you! Good thing your bag was empty.", who, houseName)
 
 	frame.Visible = true
 	frame.BackgroundTransparency = 0.25

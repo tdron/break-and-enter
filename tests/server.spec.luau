@@ -3,10 +3,11 @@
 	inside the RobloxMock engine with the real generated map, then plays
 	through the game loop:
 
-	  join -> spawn at your warehouse -> pick a lock -> steal -> alarm ->
-	  get busted by a drone -> steal again and escape -> deposit -> earn
-	  income -> buy upgrades -> AFK-train on your own treadmill -> spawn the car ->
-	  load the trunk -> unload at the dock -> sell -> leave (save) -> rejoin (load)
+	  join -> spawn at your warehouse -> pick a lock -> steal (and discover) ->
+	  alarm -> get busted by the house cat -> steal again and escape -> deposit ->
+	  earn income -> buy upgrades -> AFK-train on your own treadmill -> spawn the
+	  car -> load the trunk -> unload at the dock -> sell -> daytime (houses lock,
+	  everyone is shown out, loot restocks) -> night -> leave (save) -> rejoin (load)
 
 	Run with:  python3 tools/run_luau_tests.py
 	(the runner provides `Mock`, `ServerScript`, `SharedFolder` and the map)
@@ -17,6 +18,7 @@ local ReplicatedStorage = Mock.service("ReplicatedStorage")
 local Remotes = ReplicatedStorage.Remotes
 local Map = workspace.Map
 local Config = require(SharedFolder.Config)
+local Items = require(SharedFolder.Items)
 
 local passed, failed = 0, 0
 local function step(name: string, fn: () -> ())
@@ -53,6 +55,16 @@ end
 local function sawMessage(player, since: number, fragment: string): boolean
 	for _, message in notificationsFor(player, since) do
 		if string.find(message, fragment, 1, true) then
+			return true
+		end
+	end
+	return false
+end
+
+local function sawBroadcast(since: number, fragment: string): boolean
+	for index = since + 1, #Mock.remoteLog do
+		local entry = Mock.remoteLog[index]
+		if entry.remote == "Notify" and entry.player == "all" and string.find(entry.args[1], fragment, 1, true) then
 			return true
 		end
 	end
@@ -110,15 +122,31 @@ step("server boots without errors or warnings", function()
 		items += #loot:GetChildren()
 	end
 	eq(items, 103, "loot spawned in houses")
-	local drones = 0
+	local kinds = { Cat = 0, Dog = 0, Drone = 0 }
 	for _, house in Map.Houses:GetChildren() do
+		local info = Config.getHouse(house.Name)
+		check(info, house.Name .. " isn't in Config.Houses")
+		local guardInfo = Config.Guards[info.Guard]
 		for _, child in house:GetChildren() do
-			if child.Name == "SecurityDrone" then
-				drones += 1
+			if child.Name == "Guard" then
+				local kind = child:GetAttribute("Kind")
+				eq(kind, guardInfo.Kind, house.Name .. " guard kind")
+				eq(child:GetAttribute("Breed"), guardInfo.DisplayName, house.Name .. " guard breed")
+				kinds[kind] += 1
 			end
 		end
+		-- Every house only ever spawns its own loot.
+		for _, item in house.Loot:GetChildren() do
+			local def = Items.get(item:GetAttribute("ItemId"))
+			check(def and def.House == house.Name, tostring(item.Name) .. " spawned in the wrong house: " .. house.Name)
+		end
 	end
-	eq(drones, 4 * 1 + 4 * 2 + 2 * 2 + 4, "security drones (cottages 1, suburbs 2, villas 2, mansion 4)")
+	eq(kinds.Cat, 4, "one cat in each of the 4 cottages")
+	eq(kinds.Dog, 6 * 2, "two dogs in each of the 6 dog houses")
+	eq(kinds.Drone, 4, "the Mansion keeps its 4 drones")
+	eq(workspace:GetAttribute("Daytime"), false, "the game starts at night")
+	local left = workspace:GetAttribute("PhaseEndsAt") - workspace:GetServerTimeNow()
+	check(math.abs(left - Config.DayNight.NightLength) < 1, "night should last 3½ minutes, got " .. left)
 end)
 
 local thief = newPlayer(101, "Thief")
@@ -142,7 +170,7 @@ step("player gets a warehouse, data and a spawn", function()
 	check(sawMessage(thief, 0, "Welcome"), "no welcome message")
 end)
 
-local cottage = Map.Houses.Cottage1
+local cottage = Map.Houses.House1 -- Maple Cottage, guarded by a ginger cat
 
 step("pick the front door lock", function()
 	local door = cottage.Doors:GetChildren()[1]
@@ -174,26 +202,40 @@ step("steal an item and trip the alarm", function()
 	eq(item.Parent, nil, "stolen item removed")
 	eq(cottage:GetAttribute("AlarmActive"), true, "alarm")
 	eq(thief:GetAttribute("AlarmHouse"), "Maple Cottage", "AlarmHouse banner")
+	eq(thief:GetAttribute("AlarmGuard"), "the Ginger Cat", "the banner names the guard")
 	check(character:FindFirstChild("LootSack"), "loot sack not shown")
 	check(sawMessage(thief, mark, "Stole"), "no steal message")
+	check(sawMessage(thief, mark, "Ginger Cat woke up"), "the alarm message should name the cat")
 	eq(#cottage.Loot:GetChildren(), 5, "loot left")
+	-- First time stealing this item: it's unlocked in the Loot Index
+	local itemId = item:GetAttribute("ItemId")
+	eq(thief:GetAttribute("Discovered"), itemId, "Discovered attribute")
+	check(sawMessage(thief, mark, "New item discovered"), "no discovery toast")
+	local cat = cottage:FindFirstChild("Guard")
+	eq(cat.Root.Status.Icon.Text, "❗", "the cat wakes up")
 end)
 
-step("standing still gets you busted by the drone", function()
+step("standing still gets you busted by the cat", function()
 	local mark = #Mock.remoteLog
-	local busted = false
-	for _ = 1, 40 do
+	local busted = nil
+	local cat = cottage:FindFirstChild("Guard")
+	local start = cat.Root.Position
+	for _ = 1, 60 do
 		Mock.advance(0.25)
 		for index = mark + 1, #Mock.remoteLog do
 			if Mock.remoteLog[index].remote == "Busted" then
-				busted = true
+				busted = Mock.remoteLog[index]
 			end
 		end
 		if busted then
 			break
 		end
+		-- Cats run along the floor; they never fly up to you like drones.
+		check(cat.Root.Position.Y < start.Y + 1.5, "the cat left the ground: " .. tostring(cat.Root.Position))
 	end
-	check(busted, "the drone never caught the thief")
+	check(busted, "the cat never caught the thief")
+	eq(busted.args[3], "Maple Cottage", "busted at")
+	eq(busted.args[4], "The Ginger Cat", "busted by")
 	eq(thief:GetAttribute("Carried"), 0, "carried loot lost")
 	eq(character:FindFirstChild("LootSack"), nil, "sack removed")
 	Mock.advance(0.5)
@@ -365,7 +407,7 @@ step("spawn the getaway car, load the trunk and unload at the dock", function()
 	eq(car:GetAttribute("MaxSpeed"), 45, "engine speed")
 	eq(Remotes.SpawnCar.OnServerInvoke(thief).Ok, false, "spawn cooldown")
 	-- steal something from another cottage and load it into the trunk
-	stealFrom(Map.Houses.Cottage2, thief, root)
+	stealFrom(Map.Houses.House2, thief, root)
 	Mock.advance(0.1)
 	root.CFrame = CFrame.new(-140, 3, -40)
 	Mock.advance(0.5)
@@ -420,7 +462,7 @@ step("a second player gets their own warehouse and can't touch yours", function(
 	check(sawMessage(rival, mark, "own warehouse"), "rival not told off")
 	car.Chassis.TrunkAttachment.TrunkPrompt.Triggered:Fire(rival)
 	check(sawMessage(rival, mark, "Only Thief"), "rival used your trunk")
-	stealFrom(Map.Houses.Cottage3, rival, rivalRoot)
+	stealFrom(Map.Houses.House3, rival, rivalRoot)
 	Mock.advance(0.1)
 	rivalRoot.CFrame = plot.DepositPad.CFrame + Vector3.new(0, 2, 0)
 	plot.DepositPad.Touched:Fire(rivalRoot)
@@ -474,8 +516,8 @@ step("full warehouse keeps your best items", function()
 	eq(#plot.Display:GetChildren(), capacity, "shelves show every item")
 end)
 
-step("lasers trip the alarm in villas", function()
-	local villa = Map.Houses.Villa1
+step("lasers trip the alarm in the hardest houses", function()
+	local villa = Map.Houses.House9 -- Pine Ridge House (German Shepherds)
 	eq(villa:GetAttribute("AlarmActive"), false, "villa calm")
 	local laser = villa.Lasers:GetChildren()[1]
 	local tripped = false
@@ -489,6 +531,64 @@ step("lasers trip the alarm in villas", function()
 		end
 	end
 	check(tripped, "laser didn't trip the alarm")
+end)
+
+step("stolen loot doesn't come back until daytime", function()
+	local before = #cottage.Loot:GetChildren()
+	check(before < 6, "the cottage should be missing some loot")
+	Mock.advance(60, 0.5)
+	eq(#cottage.Loot:GetChildren(), before, "no restocking at night")
+	eq(workspace:GetAttribute("Daytime"), false, "still night")
+end)
+
+step("daytime: houses lock up, everyone is shown out and all loot restocks", function()
+	-- Wait inside Maple Cottage with the front door open.
+	local door = cottage.Doors:GetChildren()[1]
+	if door.Panel.LockpickPrompt.Enabled then
+		door.Panel.LockpickPrompt.Triggered:Fire(thief)
+	end
+	root.CFrame = CFrame.new(cottage.Zone.Position.X, 3.7, cottage.Zone.Position.Z)
+	local carried = thief:GetAttribute("Carried")
+	local mark = #Mock.remoteLog
+	local left = workspace:GetAttribute("PhaseEndsAt") - workspace:GetServerTimeNow()
+	Mock.advance(left + 0.5, 0.25)
+	eq(workspace:GetAttribute("Daytime"), true, "daytime started on schedule")
+	check(sawBroadcast(mark, "Daytime"), "everyone is told it's daytime")
+	local endsIn = workspace:GetAttribute("PhaseEndsAt") - workspace:GetServerTimeNow()
+	check(math.abs(endsIn - 30) < 1, "daytime lasts 30 seconds, got " .. endsIn)
+	-- Shown the door
+	local zone = cottage.Zone
+	local relative = zone.CFrame:PointToObjectSpace(root.Position)
+	check(math.abs(relative.Z) > zone.Size.Z / 2, "the thief should be outside the property, at " .. tostring(root.Position))
+	check(sawMessage(thief, mark, "owners came home"), "no eviction message")
+	eq(thief:GetAttribute("Carried"), carried, "you keep what you carried out")
+	-- Locked up
+	eq(door.Panel.LockpickPrompt.Enabled, false, "lockpicking is off during the day")
+	door.Panel.LockpickPrompt.Triggered:Fire(thief)
+	check(sawMessage(thief, mark, "owners are home"), "picking a lock in daylight should be refused")
+	for _, house in Map.Houses:GetChildren() do
+		local spots = #house.ItemSpots:GetChildren()
+		eq(#house.Loot:GetChildren(), spots, house.Name .. " restocked")
+		eq(house:GetAttribute("AlarmActive"), false, house.Name .. " alarm off")
+		for _, item in house.Loot:GetChildren() do
+			eq(item.Root.StealPrompt.Enabled, false, "nothing can be stolen in daylight")
+		end
+	end
+	for _, laser in Map.Houses.House9.Lasers:GetChildren() do
+		eq(laser.Transparency, 1, "lasers are off in daylight")
+	end
+	local item = cottage.Loot:GetChildren()[1]
+	item.Root.StealPrompt.Triggered:Fire(thief)
+	eq(thief:GetAttribute("Carried"), carried, "the server refuses daytime steals too")
+
+	-- Night falls again: everything reopens
+	mark = #Mock.remoteLog
+	Mock.advance(Config.DayNight.DayLength + 0.5, 0.25)
+	eq(workspace:GetAttribute("Daytime"), false, "night again after 30 seconds")
+	check(sawBroadcast(mark, "Night falls"), "everyone is told it's night")
+	eq(door.Panel.LockpickPrompt.Enabled, true, "doors can be picked again")
+	eq(item.Root.StealPrompt.Enabled, true, "loot can be stolen again")
+	eq(#cottage.Loot:GetChildren(), 6, "still fully stocked")
 end)
 
 step("progress saves on leave and loads on rejoin", function()
@@ -506,6 +606,7 @@ step("progress saves on leave and loads on rejoin", function()
 	eq(saved.Levels.Bag, 2, "saved bag level")
 	eq(saved.Levels.Engine, 3, "saved engine level")
 	eq(saved.Levels.Treadmill, 3, "saved treadmill level")
+	check(type(saved.Discovered) == "table" and #saved.Discovered >= 2, "the Loot Index is saved")
 	eq(plot:FindFirstChild("OwnerText", true).Text, "EMPTY WAREHOUSE", "plot released")
 	eq(#plot.Display:GetChildren(), 0, "shelves cleared")
 	eq(#workspace.Cars:GetChildren(), 0, "car removed")
@@ -524,19 +625,22 @@ step("progress saves on leave and loads on rejoin", function()
 	eq(#plot.Display:GetChildren(), #stored, "shelves rebuilt")
 	check(returning:GetAttribute("SpeedLevel") >= 1, "speed restored")
 	eq(returning:GetAttribute("Level_Treadmill"), 3, "treadmill level restored")
+	local discovered = string.split(returning:GetAttribute("Discovered"), ",")
+	eq(#discovered, #saved.Discovered, "Loot Index restored")
 	Mock.advance(0.3)
 	eq(plot.Treadmill:GetAttribute("Level"), 3, "treadmill shows the restored level")
 end)
 
 step("old saves with gym treadmill unlocks become treadmill levels", function()
 	local store = Mock.dataStores.StealAnItem_PlayerData_v1
-	store.Player_303 = { Cash = 10, Levels = { Bag = 2, ProTreadmill = 2, EliteTreadmill = 2 } }
+	store.Player_303 = { Cash = 10, Levels = { Bag = 2, ProTreadmill = 2, EliteTreadmill = 2 }, Stored = { "Toaster", "Laptop" } }
 	store.Player_404 = { Cash = 10, Levels = { ProTreadmill = 2, EliteTreadmill = 1 } }
 	local elite = newPlayer(303, "EliteRunner")
 	local pro = newPlayer(404, "ProRunner")
 	Mock.advance(0.5)
 	eq(elite:GetAttribute("Level_Treadmill"), 6, "elite unlock -> treadmill level 6")
 	eq(elite:GetAttribute("Level_Bag"), 2, "other upgrades kept")
+	eq(elite:GetAttribute("Discovered"), "Toaster,Laptop", "items you already own count as discovered")
 	eq(pro:GetAttribute("Level_Treadmill"), 3, "pro unlock -> treadmill level 3")
 	for _, player in { elite, pro } do
 		player.Parent = nil

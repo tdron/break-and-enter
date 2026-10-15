@@ -129,6 +129,10 @@ class Item:
         return result
 
 
+def vector3(prop: ET.Element) -> tuple[float, float, float]:
+    return tuple(float(prop.findtext(axis) or 0) for axis in ("X", "Y", "Z"))  # type: ignore[return-value]
+
+
 class Checker:
     def __init__(self) -> None:
         self.errors: list[str] = []
@@ -172,16 +176,28 @@ def check_structure(roots: list[Item], check: Checker) -> None:
     check.expect(game_map is not None, "Workspace.Map is missing")
     if game_map is None:
         return
-    for folder in ("Ground", "Houses", "Warehouses", "Shop", "Hub", "Decor"):
+    for folder in ("Ground", "Houses", "Warehouses", "Shop", "Hub", "Decor", "Cliffs"):
         check.expect(game_map.child(folder) is not None, f"Map.{folder} is missing")
 
-    # Houses
+    # Houses: one model per Config.Houses entry, named after its id
+    import map_builder
+    expected_houses = {h["id"]: h for h in map_builder.read_houses()}
     houses = game_map.child("Houses")
     tiers = {}
     total_spots = 0
+    total_guards = 0
     if houses:
+        names = {h.name for h in houses.children}
+        check.expect(names == set(expected_houses),
+                     f"Map.Houses should match Config.Houses: missing {sorted(set(expected_houses) - names)}, "
+                     f"extra {sorted(names - set(expected_houses))}")
         for house in houses.children:
             attrs = house.attributes()
+            info = expected_houses.get(house.name)
+            if info:
+                check.expect(attrs.get("Tier") == info["tier"], f"{house.path()} Tier doesn't match Config.Houses")
+                check.expect(attrs.get("DisplayName") == info["display"], f"{house.path()} DisplayName doesn't match")
+                check.expect(attrs.get("Guard") == info["guard"]["id"], f"{house.path()} Guard doesn't match")
             tier = attrs.get("Tier")
             check.expect(isinstance(tier, float) and 1 <= tier <= 4, f"{house.path()} has bad Tier attribute")
             check.expect(isinstance(attrs.get("DisplayName"), str), f"{house.path()} has no DisplayName")
@@ -192,8 +208,10 @@ def check_structure(roots: list[Item], check: Checker) -> None:
             count = len(spots.children) if spots else 0
             total_spots += count
             check.expect(count >= 4, f"{house.path()} has only {count} item spots")
-            docks = house.child("DroneDocks")
-            check.expect(docks is not None and len(docks.children) >= 1, f"{house.path()} has no drone docks")
+            docks = house.child("GuardDocks")
+            check.expect(docks is not None and len(docks.children) >= 1, f"{house.path()} has no guard docks")
+            check.expect(house.child("DroneDocks") is None, f"{house.path()} still has an old DroneDocks folder")
+            total_guards += len(docks.children) if docks else 0
             doors = house.child("Doors")
             check.expect(doors is not None and len(doors.children) >= 1, f"{house.path()} has no doors")
             for door in doors.children if doors else []:
@@ -205,6 +223,16 @@ def check_structure(roots: list[Item], check: Checker) -> None:
             for laser in lasers.children if lasers else []:
                 check.expect("Phase" in laser.attributes(), f"{laser.path()} has no Phase attribute")
     check.expect(all(tiers.get(t, 0) >= 1 for t in (1, 2, 3, 4)), f"Expected houses of every tier, got {tiers}")
+    cliffs = game_map.child("Cliffs")
+    rocks = [d for d in cliffs.walk() if d.name == "Rock"] if cliffs else []
+    rock_sizes = [vector3(r.props["size"]) for r in rocks if "size" in r.props]
+    sizes = {round(x, 1) for x, _, _ in rock_sizes}
+    check.expect(len(rocks) > 100 and len(sizes) > 20, f"The cliffs should be lots of different-sized cubes "
+                                                         f"({len(rocks)} rocks, {len(sizes)} sizes)")
+    check.expect(all(abs(x - y) < 1e-3 and abs(x - z) < 1e-3 for x, y, z in rock_sizes),
+                 "Every cliff rock should be a cube")
+    check.expect(game_map.child("Decor") is None or all(d.name != "Park" for d in game_map.child("Decor").children),
+                 "The old park should be gone (the street runs up to the Mansion now)")
 
     # Warehouses
     warehouses = game_map.child("Warehouses")
@@ -247,7 +275,7 @@ def check_structure(roots: list[Item], check: Checker) -> None:
                      ("SpawnCar", "RemoteFunction"), ("Treadmill", "RemoteFunction")):
         check.expect(expected in found, f"Missing remote {expected}")
     shared = replicated.child("Shared") if replicated else None
-    check.expect(shared is not None and {"Config", "Items", "ItemModels", "Format"} <= {c.name for c in shared.children},
+    check.expect(shared is not None and {"Config", "Items", "ItemModels", "Format", "Guards"} <= {c.name for c in shared.children},
                  "ReplicatedStorage.Shared is incomplete")
     sss = services.get("ServerScriptService")
     server = sss.child("Server") if sss else None
@@ -262,7 +290,8 @@ def check_structure(roots: list[Item], check: Checker) -> None:
                 source = item.props.get("Source")
                 check.expect(source is not None and len(source.text or "") > 50, f"{item.path()} has no source")
 
-    print(f"  houses by tier: {dict(sorted(tiers.items()))}, total loot spots: {total_spots}")
+    print(f"  houses by tier: {dict(sorted(tiers.items()))}, total loot spots: {total_spots}, guards: {total_guards}, "
+          f"cliff cubes: {len(rocks)} in {len(sizes)} sizes")
 
 
 def check_api(roots: list[Item], database: dict, check: Checker) -> None:

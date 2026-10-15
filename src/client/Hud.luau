@@ -4,8 +4,9 @@
 	---
 	The always-on-screen interface:
 	  * Cash + income (top left), inventory stats underneath
-	  * SHOP and CAR buttons
-	  * Alarm banner while drones are chasing you
+	  * SHOP, CAR and LOOT INDEX buttons
+	  * Night/daytime clock (top centre) counting down to the next restock
+	  * Alarm banner while a house's guards are chasing you
 	  * Objective hint telling new players what to do next
 	  * Treadmill training bar (while you run on your treadmill) and car speedometer
 ]]
@@ -13,9 +14,11 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
+local DayNight = require(script.Parent.DayNight)
 local UI = require(script.Parent.UI)
 local VehicleController = require(script.Parent.VehicleController)
 
@@ -27,7 +30,15 @@ local Theme = UI.Theme
 export type Callbacks = {
 	OnShop: () -> (),
 	OnSpawnCar: () -> (),
+	OnIndex: () -> (),
 }
+
+export type Elements = {
+	IndexButton: TextButton,
+}
+
+local NIGHT_COLOR = Color3.fromRGB(34, 42, 86)
+local DAY_COLOR = Color3.fromRGB(235, 140, 30)
 
 local function getNumber(name: string, default: number): number
 	local value = player:GetAttribute(name)
@@ -100,7 +111,7 @@ local function makeButton(parent: Instance, order: number, text: string, color: 
 	return button
 end
 
-function Hud.init(screen: ScreenGui, callbacks: Callbacks)
+function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 	----------------------------------------------------------------------------
 	-- Left column (kept vertically centred so it never covers the chat window)
 	----------------------------------------------------------------------------
@@ -197,6 +208,49 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks)
 	})
 	makeButton(buttonColumn, 1, "🛒 SHOP", Color3.fromRGB(255, 176, 40), callbacks.OnShop)
 	makeButton(buttonColumn, 2, "🚗 CAR", Color3.fromRGB(60, 150, 255), callbacks.OnSpawnCar)
+	local indexButton = makeButton(column, 4, "📖 LOOT INDEX", Color3.fromRGB(170, 100, 255), callbacks.OnIndex)
+	indexButton.Size = UDim2.fromOffset(270, 46)
+	indexButton.TextSize = 21
+
+	----------------------------------------------------------------------------
+	-- Night / daytime clock
+	----------------------------------------------------------------------------
+	local clock: Frame = UI.new("Frame", {
+		Name = "Clock",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 8),
+		Size = UDim2.fromOffset(300, 52),
+		BackgroundColor3 = NIGHT_COLOR,
+		BackgroundTransparency = 0.12,
+		Parent = screen,
+	}, {
+		UI.corner(26),
+		UI.stroke(Color3.new(1, 1, 1), 2, 0.6),
+		UI.scaled(),
+	})
+	local clockTitle: TextLabel = UI.new("TextLabel", {
+		Name = "Title",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(0, 3),
+		Size = UDim2.new(1, 0, 0, 28),
+		Font = Theme.TitleFont,
+		Text = "",
+		TextColor3 = Color3.new(1, 1, 1),
+		TextSize = 24,
+		TextStrokeTransparency = 0.7,
+		Parent = clock,
+	})
+	local clockHint: TextLabel = UI.new("TextLabel", {
+		Name = "Hint",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(0, 30),
+		Size = UDim2.new(1, 0, 0, 18),
+		Font = Theme.BoldFont,
+		Text = "",
+		TextColor3 = Color3.fromRGB(225, 230, 255),
+		TextSize = 14,
+		Parent = clock,
+	})
 
 	----------------------------------------------------------------------------
 	-- Alarm banner
@@ -204,7 +258,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks)
 	local alarmBanner: Frame = UI.new("Frame", {
 		Name = "AlarmBanner",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 14),
+		Position = UDim2.new(0.5, 0, 0, 68),
 		Size = UDim2.fromOffset(560, 64),
 		BackgroundColor3 = Color3.fromRGB(200, 20, 30),
 		Visible = false,
@@ -225,13 +279,13 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks)
 		TextStrokeTransparency = 0.5,
 		Parent = alarmBanner,
 	})
-	UI.new("TextLabel", {
+	local alarmHint: TextLabel = UI.new("TextLabel", {
 		Name = "Hint",
 		BackgroundTransparency = 1,
 		Position = UDim2.fromScale(0, 0.6),
 		Size = UDim2.fromScale(1, 0.38),
 		Font = Theme.BoldFont,
-		Text = "Get off the property before a security drone catches you!",
+		Text = "Get off the property before the guards catch you!",
 		TextColor3 = Color3.fromRGB(255, 225, 225),
 		TextSize = 16,
 		Parent = alarmBanner,
@@ -373,7 +427,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks)
 		local trunk = getNumber("TrunkCount", 0)
 		local text: string
 		if getString("AlarmHouse") ~= "" then
-			text = "🚨 Escape the property! Drones can't follow you past the fence."
+			text = "🚨 Escape the property! Guards won't follow you past the front fence."
 		elseif player:GetAttribute("DataLoaded") ~= true then
 			text = "Loading your hideout..."
 		elseif player:GetAttribute("Training") == true then
@@ -384,10 +438,12 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks)
 			text = "💰 Bring your loot to the green DEPOSIT pad in your warehouse (or keep stealing!)"
 		elseif trunk > 0 then
 			text = "🧳 Park your car on your warehouse's yellow LOADING DOCK to unload the trunk."
+		elseif DayNight.isDaytime() then
+			text = "☀️ Daytime: the owners are home and every house is locked. Upgrade or train until dark!"
 		elseif getNumber("StoredCount", 0) == 0 then
 			text = "🏠 Spawn your 🚗 CAR, drive to a house, pick the lock and steal something!"
 		else
-			text = "🦝 Steal fancier loot from bigger houses. Run on your warehouse treadmill to outrun their drones!"
+			text = "🦝 Houses get harder down the street. Train on your treadmill to outrun the faster guard dogs!"
 		end
 		objective.Text = text
 	end
@@ -397,6 +453,8 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks)
 		alarmBanner.Visible = house ~= ""
 		if house ~= "" then
 			alarmText.Text = "🚨 ALARM AT THE " .. string.upper(house) .. "! 🚨"
+			local guard = getString("AlarmGuard")
+			alarmHint.Text = string.format("Get off the property before %s catch%s you!", if guard ~= "" then guard else "the guards", if guard ~= "" and string.sub(guard, -1) ~= "s" then "es" else "")
 		end
 	end
 
@@ -433,6 +491,28 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks)
 		updateObjective()
 	end)
 	player:GetAttributeChangedSignal("DataLoaded"):Connect(updateObjective)
+	local shownSeconds = -1
+	local function updateClock(force: boolean?)
+		local daytime = DayNight.isDaytime()
+		local seconds = math.ceil(DayNight.getTimeLeft())
+		if seconds == shownSeconds and not force then
+			return
+		end
+		shownSeconds = seconds
+		local countdown = string.format("%d:%02d", seconds // 60, seconds % 60)
+		if daytime then
+			clockTitle.Text = "☀️ DAYTIME · " .. countdown
+			clockHint.Text = "Houses closed · restocking loot"
+		else
+			clockTitle.Text = "🌙 NIGHT · " .. countdown
+			clockHint.Text = "Houses open · loot restocks at sunrise"
+		end
+		clock.BackgroundColor3 = if daytime then DAY_COLOR else NIGHT_COLOR
+	end
+	Workspace:GetAttributeChangedSignal("Daytime"):Connect(function()
+		updateClock(true)
+		updateObjective()
+	end)
 	player:GetAttributeChangedSignal("Training"):Connect(updateObjective)
 	for _, name in { "Training", "SpeedXP", "SpeedLevel", "SpeedXPNeeded", "SpeedMaxed", "Level_Treadmill" } do
 		player:GetAttributeChangedSignal(name):Connect(updateTraining)
@@ -445,6 +525,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks)
 	updateObjective()
 	updateAlarm()
 	updateTraining()
+	updateClock(true)
 
 	local pulse = 0
 	RunService.RenderStepped:Connect(function(dt: number)
@@ -463,6 +544,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks)
 			pulse += dt * 8
 			alarmBanner.BackgroundColor3 = Color3.fromRGB(150 + math.floor(70 * math.abs(math.sin(pulse))), 20, 30)
 		end
+		updateClock()
 		-- Speedometer
 		speedo.Visible = VehicleController.Driving
 		if VehicleController.Driving then
@@ -470,6 +552,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks)
 		end
 	end)
 	cashLabel.Text = "💰 " .. Format.money(displayedCash)
+	return { IndexButton = indexButton }
 end
 
 return Hud

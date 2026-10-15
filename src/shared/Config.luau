@@ -23,11 +23,34 @@ export type Upgrade = {
 export type HouseTier = {
 	Name: string,
 	Stars: number,
-	DroneSpeed: number, -- studs per second; compare with your walk speed!
+	GuardSpeed: number, -- studs per second; compare with your walk speed!
 	LockpickTime: number, -- seconds you must hold the prompt to open a door
-	RestockTime: number, -- seconds before a stolen item is replaced
-	AlarmWindup: number, -- seconds between the alarm going off and drones chasing
+	AlarmWindup: number, -- seconds between the alarm going off and the guards giving chase
 	Color: Color3,
+}
+
+export type HouseInfo = {
+	Id: string, -- name of the house model in Workspace.Map.Houses
+	DisplayName: string,
+	Tier: number, -- index into Config.HouseTiers
+	Guard: string, -- key into Config.Guards
+}
+
+export type GuardInfo = {
+	DisplayName: string,
+	Kind: string, -- "Cat" | "Dog" | "Drone"
+	Icon: string,
+}
+
+export type LightingPreset = {
+	ClockTime: number,
+	Brightness: number,
+	ExposureCompensation: number,
+	Ambient: Color3,
+	OutdoorAmbient: Color3,
+	FogColor: Color3,
+	AtmosphereColor: Color3,
+	AtmosphereDecay: Color3,
 }
 
 local Config = {}
@@ -168,42 +191,85 @@ end
 -- Index = the Tier attribute on each house model.
 Config.HouseTiers = {
 	{
-		Name = "Cottage",
+		Name = "Easy",
 		Stars = 1,
-		DroneSpeed = 11,
+		GuardSpeed = 11,
 		LockpickTime = 0.6,
-		RestockTime = 35,
 		AlarmWindup = 2.0,
 		Color = Color3.fromRGB(120, 220, 120),
 	},
 	{
-		Name = "Suburban House",
+		Name = "Medium",
 		Stars = 2,
-		DroneSpeed = 18,
+		GuardSpeed = 18,
 		LockpickTime = 1.2,
-		RestockTime = 50,
 		AlarmWindup = 1.6,
 		Color = Color3.fromRGB(90, 180, 255),
 	},
 	{
-		Name = "Modern Villa",
+		Name = "Hard",
 		Stars = 3,
-		DroneSpeed = 26,
+		GuardSpeed = 26,
 		LockpickTime = 2.0,
-		RestockTime = 65,
 		AlarmWindup = 1.3,
 		Color = Color3.fromRGB(190, 120, 255),
 	},
 	{
-		Name = "Mansion",
+		Name = "Extreme",
 		Stars = 4,
-		DroneSpeed = 34,
+		GuardSpeed = 34,
 		LockpickTime = 3.0,
-		RestockTime = 80,
 		AlarmWindup = 1.0,
 		Color = Color3.fromRGB(255, 190, 40),
 	},
 } :: { HouseTier }
+
+-- Every house on the street, in order from the hub to the Mansion at the end of the road.
+-- Keep one house per line: tools/map_builder.py reads this list to build the street.
+Config.Houses = {
+	{ Id = "House1", DisplayName = "Maple Cottage", Tier = 1, Guard = "GingerCat" },
+	{ Id = "House2", DisplayName = "Willow Cottage", Tier = 1, Guard = "TuxedoCat" },
+	{ Id = "House3", DisplayName = "Rose Cottage", Tier = 1, Guard = "SiameseCat" },
+	{ Id = "House4", DisplayName = "Daisy Cottage", Tier = 1, Guard = "GreyTabby" },
+	{ Id = "House5", DisplayName = "Blue Oak House", Tier = 2, Guard = "Chihuahua" },
+	{ Id = "House6", DisplayName = "Cedar House", Tier = 2, Guard = "Pug" },
+	{ Id = "House7", DisplayName = "Elm Street House", Tier = 2, Guard = "Corgi" },
+	{ Id = "House8", DisplayName = "Birch House", Tier = 2, Guard = "Dalmatian" },
+	{ Id = "House9", DisplayName = "Pine Ridge House", Tier = 3, Guard = "GermanShepherd" },
+	{ Id = "House10", DisplayName = "Aspen House", Tier = 3, Guard = "Doberman" },
+	{ Id = "Mansion", DisplayName = "Grand Mansion", Tier = 4, Guard = "Drone" },
+} :: { HouseInfo }
+
+-- Who guards each house (models live in shared/Guards). One guard per line, read by the map builder.
+Config.Guards = {
+	GingerCat = { DisplayName = "Ginger Cat", Kind = "Cat", Icon = "🐱" },
+	TuxedoCat = { DisplayName = "Tuxedo Cat", Kind = "Cat", Icon = "🐱" },
+	SiameseCat = { DisplayName = "Siamese Cat", Kind = "Cat", Icon = "🐱" },
+	GreyTabby = { DisplayName = "Grey Tabby", Kind = "Cat", Icon = "🐱" },
+	Chihuahua = { DisplayName = "Chihuahua", Kind = "Dog", Icon = "🐶" },
+	Pug = { DisplayName = "Pug", Kind = "Dog", Icon = "🐶" },
+	Corgi = { DisplayName = "Corgi", Kind = "Dog", Icon = "🐶" },
+	Dalmatian = { DisplayName = "Dalmatian", Kind = "Dog", Icon = "🐶" },
+	GermanShepherd = { DisplayName = "German Shepherd", Kind = "Dog", Icon = "🐕" },
+	Doberman = { DisplayName = "Doberman", Kind = "Dog", Icon = "🐕" },
+	Drone = { DisplayName = "Security Drone", Kind = "Drone", Icon = "🤖" },
+} :: { [string]: GuardInfo }
+
+local housesById: { [string]: HouseInfo } = {}
+for order, house in Config.Houses do
+	housesById[house.Id] = house
+	assert(Config.Guards[house.Guard], "Unknown guard " .. house.Guard .. " for " .. house.Id)
+	assert(Config.HouseTiers[house.Tier], "Unknown tier for " .. house.Id .. " (#" .. order .. ")")
+end
+
+function Config.getHouse(houseId: string): HouseInfo?
+	return housesById[houseId]
+end
+
+function Config.getGuard(houseId: string): GuardInfo
+	local house = housesById[houseId]
+	return Config.Guards[if house then house.Guard else "Drone"]
+end
 
 Config.Stealing = {
 	HoldDuration = 0.35, -- seconds to hold the Steal prompt
@@ -211,12 +277,12 @@ Config.Stealing = {
 }
 
 Config.Alarm = {
-	CatchRadius = 3.75, -- studs between a drone and your character to get BUSTED
+	CatchRadius = 3.75, -- studs (measured along the ground) between a guard and you to get BUSTED
 	CalmDownTime = 4, -- seconds with nobody on the property before the alarm resets
 	BustImmunity = 4, -- seconds you can't be caught again after getting busted
 	DroneAimHeight = 1.5, -- drones aim this far above your HumanoidRootPart
 	DroneDockHeight = 5, -- how high drones hover above their charging dock
-	DroneReturnSpeed = 16,
+	GuardReturnSpeed = 16, -- how fast guards walk/fly back to bed once the alarm calms down
 }
 
 Config.Doors = {
@@ -226,6 +292,44 @@ Config.Doors = {
 Config.Lasers = {
 	OnTime = 2.2, -- seconds a laser beam is active
 	OffTime = 1.4, -- seconds a laser beam is off
+}
+
+--------------------------------------------------------------------------------
+-- Night & day
+--------------------------------------------------------------------------------
+-- Heists happen at night. Every cycle ends with a short DAYTIME when the owners
+-- are home: all houses lock up, nothing can be stolen and every house restocks
+-- its loot. That's the only time loot comes back!
+Config.DayNight = {
+	NightLength = 210, -- seconds (3½ minutes of stealing)
+	DayLength = 30, -- seconds (houses closed, loot restocks)
+	FadeTime = 5, -- seconds the sky takes to change
+	Night = {
+		ClockTime = 0.3,
+		Brightness = 1.4,
+		ExposureCompensation = 0.35,
+		Ambient = Color3.fromRGB(78, 82, 112),
+		OutdoorAmbient = Color3.fromRGB(96, 104, 148),
+		FogColor = Color3.fromRGB(30, 36, 60),
+		AtmosphereColor = Color3.fromRGB(60, 72, 110),
+		AtmosphereDecay = Color3.fromRGB(40, 50, 90),
+	},
+	Day = {
+		ClockTime = 13.5,
+		Brightness = 2.6,
+		ExposureCompensation = 0,
+		Ambient = Color3.fromRGB(92, 92, 104),
+		OutdoorAmbient = Color3.fromRGB(138, 138, 150),
+		FogColor = Color3.fromRGB(192, 192, 192),
+		AtmosphereColor = Color3.fromRGB(205, 220, 235),
+		AtmosphereDecay = Color3.fromRGB(120, 140, 170),
+	},
+} :: {
+	NightLength: number,
+	DayLength: number,
+	FadeTime: number,
+	Night: LightingPreset,
+	Day: LightingPreset,
 }
 
 --------------------------------------------------------------------------------
