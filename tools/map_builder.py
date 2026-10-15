@@ -255,11 +255,15 @@ class HouseBuilder:
     FLOOR_Y = 0.7  # top of the interior floor (sits on a 0.5 stud foundation)
 
     def __init__(self, folder: Inst, name: str, display: str, tier: int, lot_cf: CF, lot_w: float, lot_d: float,
-                 house_w: float, house_d: float, wall_h: float, front_yard: float):
+                 house_w: float, house_d: float, wall_h: float, front_yard: float, scale: float = 1.0):
         self.lot_cf = lot_cf
         self.lot_w, self.lot_d = lot_w, lot_d
         self.W, self.D, self.H = house_w, house_d, wall_h
-        self.hz = lot_d / 2 - front_yard - house_d / 2
+        # Everything written below is in the plan's own units; `scale` blows the plan up to the size
+        # the house really is (rooms get bigger, the furniture keeps its size).
+        self.scale = scale
+        out_d = house_d * scale
+        self.hz = lot_d / 2 - front_yard - out_d / 2
         self.cf = lot_cf * CF(0, 0, self.hz)
         self.model = model(folder, name, self.cf)
         self.model.attr(Tier=tier, DisplayName=display)
@@ -283,6 +287,12 @@ class HouseBuilder:
     # -- generic placement -------------------------------------------------
     def p(self, name, size, pos, color, material="SmoothPlastic", rot=None, parent=None, frame=None, **kw) -> Inst:
         base = frame if frame is not None else self.cf
+        if frame is None and self.scale != 1.0:
+            # Plan coordinates: widen them with the house. (Anything placed inside a furniture frame
+            # or in lot coordinates is already real-world sized, so it is left alone - and stays as
+            # roomy as the bigger rooms around it.)
+            size = (size[0] * self.scale, size[1], size[2] * self.scale)
+            pos = (pos[0] * self.scale, pos[1], pos[2] * self.scale)
         cf = base * CF(*pos)
         if rot:
             cf = cf * CF.deg(*rot)
@@ -293,7 +303,10 @@ class HouseBuilder:
         return self.p(name, size, pos, color, material, rot, parent=self.yard, frame=self.lot_cf, **kw)
 
     def frame(self, x: float, z: float, facing: str, y: float | None = None) -> CF:
-        return self.cf * CF(x, self.FLOOR_Y if y is None else y, z) * CF.deg(0, YAW[facing], 0)
+        """A spot on the plan's floor, scaled up with the house: furniture and guard posts land where
+        the plan puts them, inside the bigger rooms."""
+        return self.cf * CF(x * self.scale, self.FLOOR_Y if y is None else y, z * self.scale) \
+            * CF.deg(0, YAW[facing], 0)
 
     # -- shell ---------------------------------------------------------------
     @staticmethod
@@ -822,12 +835,22 @@ def _hex(rgb) -> str:
 # Every house on the street uses this one design; only the paint changes.
 # ---------------------------------------------------------------------------
 
+# One house design, drawn in its own units (56 x 42) and then built bigger: every house on the
+# street is HOUSE_SCALE times that footprint. The plan's coordinates are what build_house() writes;
+# HouseBuilder scales them, so the layout stays in one piece.
 HOUSE_W, HOUSE_D, HOUSE_H = 56.0, 42.0, 12.0
+HOUSE_SCALE = 1.35                    # the houses are built this much bigger than the plan
+HOUSE_WALL_H = 15.0                   # ...and the rooms are this tall (12 before)
+HOUSE_SPOTS = 5                       # items a house puts out at a time (bigger houses, same loot)
+OUT_W, OUT_D = HOUSE_W * HOUSE_SCALE, HOUSE_D * HOUSE_SCALE
 FRONT_YARD = 18.0
-LOT_W, LOT_D = 72.0, HOUSE_D + FRONT_YARD
+LOT_W, LOT_D = OUT_W + 16.0, OUT_D + FRONT_YARD
 CLIFF_SETBACK = 3.0  # the cliff face sits this far behind the front of each house
 SIDEWALK_EDGE = 24.0  # |z| where the pavement ends and the front yards begin
 HOUSE_FRONT_Z = SIDEWALK_EDGE + FRONT_YARD
+# How the houses are laid out down the street: they alternate sides, harder the further east you go.
+FIRST_HOUSE_X = 30.0
+HOUSE_PITCH = 78.0  # houses alternate sides, so neighbours on the same side are 156 studs apart
 CLIFF_FACE_Z = HOUSE_FRONT_Z + CLIFF_SETBACK
 FENCE_STYLES = {1: "picket", 2: "hedge", 3: "modern"}
 PET_BEDS = {"Cat": 2.8, 1: 2.8, 2: 3.4, 3: 4.2}
@@ -855,11 +878,12 @@ def guard_posts(guard, count, tier) -> list[tuple[float, float, str]]:
 
 def build_house(folder, info, tier_info, lot_cf, palette):
     tier, guard = info["tier"], info["guard"]
-    W, D, H = HOUSE_W, HOUSE_D, HOUSE_H
-    hb = HouseBuilder(folder, info["id"], info["display"], tier, lot_cf, LOT_W, LOT_D, W, D, H, FRONT_YARD)
+    W, D, H = HOUSE_W, HOUSE_D, HOUSE_WALL_H
+    hb = HouseBuilder(folder, info["id"], info["display"], tier, lot_cf, LOT_W, LOT_D, W, D, H, FRONT_YARD,
+                      HOUSE_SCALE)
     hb.model.attr(Guard=guard["id"])
     hb.wall_color, hb.wall_material = palette["wall"], "Plaster"
-    hb.spot_budget = 6 if tier == 1 else 10  # same loot count per house as before the street was rebuilt
+    hb.spot_budget = HOUSE_SPOTS  # bigger rooms, same five items on show
     t = 0.8
     xi, zi = W / 2 - t, D / 2 - t  # interior half extents
     # The cliff hugs the sides and the back, so windows only go in the front.
@@ -875,25 +899,26 @@ def build_house(folder, info, tier_info, lot_cf, palette):
     hb.wall_z(4, -zi, zi, 0.5, H, [doorway(11, 5, 9), doorway(-9, 5, 9)], OFFWHITE, "Plaster", "InteriorWall")
     hb.wall_x(0, -xi, -4.25, 0.5, H, [doorway(-16, 8, 9)], OFFWHITE, "Plaster", "InteriorWall")
     hb.wall_x(2, 4.25, xi, 0.5, H, [], OFFWHITE, "Plaster", "InteriorWall")
-    hb.gable_roof(8, 1.4, palette["roof"])
+    hb.gable_roof(9.5, 1.4, palette["roof"])
     hb.p("Chimney", (3.0, 9, 3.0), (-17, H + 5.5, -8), (150, 82, 62), "Brick")
     hb.door("x", D / 2 - t / 2, 0, 5, 9, +1, palette["door"], step=False)
-    # Porch
+    # Porch (its roof sits just under the eaves, whatever the walls are built to)
+    porch_h = H - 2.6
     hb.p("PorchFloor", (12, 0.35, 4.6), (0, 0.175, D / 2 + 2.3), (170, 150, 120), "WoodPlanks")
     for x in (-5.4, 5.4):
-        hb.p("PorchColumn", (9.8, 0.9, 0.9), (x, 0.35 + 4.9, D / 2 + 4.1), WHITE, "SmoothPlastic", rot=(0, 0, 90),
-             shape="Cylinder")
-    hb.p("PorchRoof", (13.4, 0.6, 5.4), (0, 10.4, D / 2 + 2.5), palette["roof"], "RoofShingles")
+        hb.p("PorchColumn", (porch_h, 0.9, 0.9), (x, 0.35 + porch_h / 2, D / 2 + 4.1), WHITE, "SmoothPlastic",
+             rot=(0, 0, 90), shape="Cylinder")
+    hb.p("PorchRoof", (13.4, 0.6, 5.4), (0, 0.35 + porch_h + 0.3, D / 2 + 2.5), palette["roof"], "RoofShingles")
     porch_light = hb.p("PorchLight", (0.6, 0.9, 0.4), (3.6, 7.6, D / 2 + 0.25), (255, 222, 160), "Neon",
                        parent=hb.furniture, collide=False)
     point_light(porch_light, (255, 214, 150), 1.2, 18)
 
-    # Loot furniture, most important first: cottages (6 spots) stop after the pedestal.
+    # Loot furniture, most important first: every house stops after HOUSE_SPOTS of them (5).
     hb.tv_stand(-26.0, 10, "e")  # living room
     hb.counter(-15, -18.9, "s", length=12, spots=2)  # kitchen
+    hb.pedestal(0, -17.4, "s")  # the display at the end of the hall
     hb.nightstand(12.6, -19.0, "s")  # bedroom
     hb.desk(25.9, 11, "w")  # study
-    hb.pedestal(0, -17.4, "s")  # the display at the end of the hall
     hb.coffee_table(-19.5, 10, "e")
     hb.table(-15, -8.5, "s", width=7, depth=4, height=2.9, spots=1, chairs=True)
     hb.dresser(25.9, -6, "w", color=palette["accent"])
@@ -937,7 +962,7 @@ def build_house(folder, info, tier_info, lot_cf, palette):
     if tier >= 3:
         hb.laser((-3.6, 2.4, 0), (3.6, 2.4, 0), 0.0)  # across the hallway
         hb.laser((4, 3.4, -11.3), (4, 3.4, -6.7), 1.8)  # across the bedroom door
-    hb.siren((0, 11.4, D / 2 + 0.45))
+    hb.siren((0, H - 0.6, D / 2 + 0.45))
     hb.siren((0, H - 0.5, 6))
 
     # Front yard (lot coordinates)
@@ -1059,8 +1084,8 @@ def build_street_cliffs(parent: Inst, decor: Inst, sides: dict[int, list[float]]
                         x_end: float):
     """One continuous cliff per side of the street. `sides` maps side (-1 north, +1 south) to its house centre X."""
     folder = Inst("Folder", "Street", parent)
-    depth = 76.0
-    behind = HOUSE_D - CLIFF_SETBACK  # distance from the cliff face to the back of a house
+    depth = 88.0
+    behind = OUT_D - CLIFF_SETBACK  # distance from the cliff face to the back of a house
     for side, xs in sides.items():
         cliff = CliffBuilder(folder, 1000 + side)
         # Local frame: face at z = 0 looking at the street. South side is turned around, so local x = -world x.
@@ -1078,9 +1103,9 @@ def build_street_cliffs(parent: Inst, decor: Inst, sides: dict[int, list[float]]
         cursor = west
         gaps = []
         for hx in sorted(xs):
-            gaps.append((cursor, hx - HOUSE_W / 2))
-            cliff.fill(frame, *local(hx - HOUSE_W / 2, hx + HOUSE_W / 2), -behind, -depth, (25, 40), taper, decor)
-            cursor = hx + HOUSE_W / 2
+            gaps.append((cursor, hx - OUT_W / 2))
+            cliff.fill(frame, *local(hx - OUT_W / 2, hx + OUT_W / 2), -behind, -depth, (25, 42), taper, decor)
+            cursor = hx + OUT_W / 2
         gaps.append((cursor, x_end))
         for a, b in gaps:
             if b - a < 1:
@@ -1096,18 +1121,19 @@ def build_mansion_cliff(parent: Inst, decor: Inst, lot_cf: CF):
     """The Grand Mansion backs onto the tallest cliff, which also closes off the end of the street."""
     folder = Inst("Folder", "Mansion", parent)
     cliff = CliffBuilder(folder, 4242)
-    house_front, house_back, half_w = 25.0, -27.0, 42.0  # mansion lot coordinates (see build_mansion)
+    MS = HOUSE_SCALE
+    house_front, house_back, half_w = 25.0 * MS, -27.0 * MS, 42.0 * MS  # the estate's plan (see build_mansion)
     face_z = house_front - CLIFF_SETBACK
     frame = lot_cf * CF(0, 0, face_z)
-    back = -95.0 - face_z  # the east edge of the map
-    for a, b in ((-130.0, -half_w), (half_w, 130.0)):
+    back = -95.0 * MS - face_z  # the east edge of the map
+    for a, b in ((-130.0 * MS, -half_w), (half_w, 130.0 * MS)):
         cliff.face(frame, a, b, (30, 44))
         cliff.fill(frame, a, b, -6, back, (34, 50), None, decor)
         cliff.rubble(frame, a, b, 0.12)
     cliff.fill(frame, -half_w, half_w, house_back - face_z, back, (36, 52), None, decor)
     # Beyond the estate walls the cliff comes forward to meet the end of the street.
-    lot_front = 75.0 - face_z
-    for a, b in ((-130.0, -100.0), (100.0, 130.0)):
+    lot_front = 75.0 * MS - face_z
+    for a, b in ((-130.0 * MS, -100.0 * MS), (100.0 * MS, 130.0 * MS)):
         cliff.face(frame, a, b, (28, 40), None, z_face=lot_front)
         cliff.fill(frame, a, b, lot_front - 6, 0, (30, 44))
     return folder
@@ -1154,12 +1180,11 @@ CORRIDOR_START_X = -180.0         # where the yard's own cliffs end, at |z| = YA
 CORRIDOR_END_H = (9.0, 13.0)      # the street's cliffs are about this tall where the corridor meets them
 
 
-def build_corridor_cliffs(parent: Inst, decor: Inst):
+def build_corridor_cliffs(parent: Inst, decor: Inst, end_x: dict[int, float]):
     """The cliffs that join the yard to the houses: a canyon that curves in from the yard's mouth until it is
-    as tight as the street it runs into."""
+    as tight as the street it runs into. `end_x` is where each side's street cliffs begin (it overlaps them)."""
     folder = Inst("Folder", "Corridor", parent)
     cliff = CliffBuilder(folder, 9200)
-    end_x = {-1: -16.0, 1: 36.0}  # the street cliffs start at x = -20 on the north side and x = 30 on the south
     for side, x_end in end_x.items():
         for i in range(CORRIDOR_STEPS):
             t0, t1 = i / CORRIDOR_STEPS, (i + 1) / CORRIDOR_STEPS
@@ -1191,7 +1216,16 @@ def build_corridor_cliffs(parent: Inst, decor: Inst):
 
 
 def build_mansion(folder, info, tier_info, lot_cf):
-    hb = HouseBuilder(folder, info["id"], info["display"], 4, lot_cf, 200, 150, 84, 52, 14, 50)
+    hb = HouseBuilder(folder, info["id"], info["display"], 4, lot_cf, MANSION_LOT_W, MANSION_LOT_D,
+                      84, 52, 14, MANSION_FRONT_YARD, HOUSE_SCALE)
+    hb.spot_budget = HOUSE_SPOTS  # the museum shows five treasures at a time, like the houses
+    MS = HOUSE_SCALE  # the estate is drawn to the same plan as the houses and built just as much bigger
+
+    def ly(name, size, pos, color, material="SmoothPlastic", rot=None, **kw):
+        """A part on the mansion's grounds, in the plan's lot coordinates."""
+        return hb.y(name, (size[0] * MS, size[1], size[2] * MS), (pos[0] * MS, pos[1], pos[2] * MS),
+                    color, material, rot, **kw)
+
     hb.model.attr(Guard=info["guard"]["id"])
     wall = (232, 218, 186)
     hb.wall_color, hb.wall_material = wall, "Limestone"
@@ -1226,6 +1260,7 @@ def build_mansion(folder, info, tier_info, lot_cf):
     hb.rug(0, 9.6, 5, 29, (170, 20, 30))
     for x in (-8, 8):
         hb.pedestal(x, 14, "s")
+    hb.pedestal(-7, -12, "s", color=(60, 62, 70))  # ...and the pick of the vault (the rest wait inside)
     for x in (-11.4, 11.4):
         hb.table(x, 3, "s", width=2.6, depth=2.6, height=3.0, spots=1, color=WOOD_DARK)
         hb.plant(x, 22.6)
@@ -1258,7 +1293,7 @@ def build_mansion(folder, info, tier_info, lot_cf):
                                              ((160, 40, 40), (40, 40, 40))][i])
     hb.laser((25.5, 2.4, 0), (30.5, 2.4, 0), 0.9)
     # The vault
-    for x, z in ((-7, -12), (7, -12), (-7, -20.5), (7, -20.5)):
+    for x, z in ((7, -12), (-7, -20.5), (7, -20.5)):
         hb.pedestal(x, z, "s", color=(60, 62, 70))
     for sx in (-1, 1):
         hb.p("VaultFrame", (1.4, 10.6, 2.0), (sx * 3.7, 0.7 + 5.3, -6), (80, 82, 90), "DiamondPlate")
@@ -1279,27 +1314,27 @@ def build_mansion(folder, info, tier_info, lot_cf):
     hb.siren((0, 12.4, 26.6))
     hb.siren((0, H - 0.6, 18))
     hb.siren((0, H - 0.6, -12))
-    # Grounds (house front wall at lot z = 25)
-    hb.y("Driveway", (14, 0.14, 40.6), (0, 0.07, 54.7), (160, 150, 140), "Cobblestone")
-    hb.fence("estate", [(0, 16)], back_z=25 - CLIFF_SETBACK)
-    hb.sign(-15, 71, info["display"], tier_info, 4, info["guard"], info.get("count", 1))
+    # Grounds (house front wall at lot z = 25 in the plan, 25 * MS on the ground)
+    ly("Driveway", (14, 0.14, 40.6), (0, 0.07, 54.7), (160, 150, 140), "Cobblestone")
+    hb.fence("estate", [(0, 16 * MS)], back_z=(25 - CLIFF_SETBACK) * MS)
+    hb.sign(-15 * MS, 71 * MS, info["display"], tier_info, 4, info["guard"], info.get("count", 1))
     for sx in (-1, 1):
-        hb.y("GatePillar", (3.6, 12, 3.6), (sx * 9.6, 6, 74.4), (190, 176, 150), "Limestone")
-        lamp_part = hb.y("GateLamp", (1.6, 1.6, 1.6), (sx * 9.6, 12.8, 74.4), (255, 230, 170), "Neon", shape="Ball")
+        ly("GatePillar", (3.6, 12, 3.6), (sx * 9.6, 6, 74.4), (190, 176, 150), "Limestone")
+        lamp_part = ly("GateLamp", (1.6, 1.6, 1.6), (sx * 9.6, 12.8, 74.4), (255, 230, 170), "Neon", shape="Ball")
         point_light(lamp_part, (255, 220, 160), 1, 24)
         # Fountains on both sides of the driveway
-        fx = sx * 45
-        hb.y("FountainBasin", (1.6, 18, 18), (fx, 0.8, 52), (200, 196, 186), "Marble", rot=(0, 0, 90), shape="Cylinder")
-        hb.y("FountainWater", (0.3, 16, 16), (fx, 1.5, 52), (70, 170, 235), "Glass", rot=(0, 0, 90), shape="Cylinder",
-             transparency=0.25, collide=False, reflectance=0.2)
-        hb.y("FountainColumn", (6, 1.6, 1.6), (fx, 3.6, 52), (220, 216, 206), "Marble", rot=(0, 0, 90), shape="Cylinder")
-        hb.y("FountainBowl", (1.0, 6, 6), (fx, 6.8, 52), (220, 216, 206), "Marble", rot=(0, 0, 90), shape="Cylinder")
-        hb.y("FountainSpray", (2.4, 2.4, 2.4), (fx, 8.0, 52), (150, 210, 255), "Glass", shape="Ball", transparency=0.4,
-             collide=False)
+        fx = sx * 45 * MS
+        ly("FountainBasin", (1.6, 18, 18), (fx, 0.8, 52), (200, 196, 186), "Marble", rot=(0, 0, 90), shape="Cylinder")
+        ly("FountainWater", (0.3, 16, 16), (fx, 1.5, 52), (70, 170, 235), "Glass", rot=(0, 0, 90), shape="Cylinder",
+           transparency=0.25, collide=False, reflectance=0.2)
+        ly("FountainColumn", (6, 1.6, 1.6), (fx, 3.6, 52), (220, 216, 206), "Marble", rot=(0, 0, 90), shape="Cylinder")
+        ly("FountainBowl", (1.0, 6, 6), (fx, 6.8, 52), (220, 216, 206), "Marble", rot=(0, 0, 90), shape="Cylinder")
+        ly("FountainSpray", (2.4, 2.4, 2.4), (fx, 8.0, 52), (150, 210, 255), "Glass", shape="Ball", transparency=0.4,
+           collide=False)
         for z in (40, 50, 60, 70):
-            hb.y("Hedge", (2.4, 3.2, 7), (sx * 10.5, 1.6, z), LEAF_DARK, "LeafyGrass")
+            ly("Hedge", (2.4, 3.2, 7), (sx * 10.5, 1.6, z), LEAF_DARK, "LeafyGrass")
         for z in (38, 58):
-            street_lamp(hb.yard, lot_cf * CF(sx * 13, 0, z) * CF.deg(0, -90 * sx, 0))
+            street_lamp(hb.yard, lot_cf * CF(sx * 13 * MS, 0, z * MS) * CF.deg(0, -90 * sx, 0))
         for x, z in ((80, 60), (55, 30), (88, 34)):
             tree(hb.yard, lot_cf * CF(sx * x, 0, z), 1.3, "pine" if (x + z) % 2 else "round")
     return hb
@@ -1641,10 +1676,15 @@ def build_yard(map_folder: Inst, ground: Inst, decor: Inst):
 # Roads, decor, boundaries
 # ---------------------------------------------------------------------------
 
-ROAD_X0, ROAD_X1 = -252.0, 530.0  # the asphalt starts inside the yard's mouth and runs to the Mansion gate
+# The street is as long as the houses laid out along it need: the last house, then the Mansion's estate.
+LAST_HOUSE_X = FIRST_HOUSE_X + 9 * HOUSE_PITCH
+ROAD_X0, ROAD_X1 = -252.0, LAST_HOUSE_X + 52.0   # the asphalt runs to the Mansion's gate
 WALK_X0 = -204.0                  # the pavements start where the parking lot ends
 CROSSWALK_X = -190.0              # where the yard's drive lane empties onto the street
-MAP_X0, MAP_X1, MAP_Z = -580.0, 700.0, 215.0
+MANSION_LOT_W, MANSION_LOT_D = 200.0 * HOUSE_SCALE, 150.0 * HOUSE_SCALE
+MANSION_FRONT_YARD = 50.0 * HOUSE_SCALE
+MANSION_X = ROAD_X1 + MANSION_LOT_D / 2          # the lot's front edge meets the end of the road
+MAP_X0, MAP_X1, MAP_Z = -580.0, MANSION_X + 95.0 * HOUSE_SCALE, 215.0
 
 
 def build_roads(ground: Inst, decor: Inst, entrances: list[tuple[float, float]]):
@@ -1746,10 +1786,6 @@ HOUSE_PALETTES = [
      "sofa": (60, 62, 70), "rug": (200, 180, 140), "bed": (150, 120, 90), "bush": LEAF, "accent": (90, 60, 40),
      "pet": (130, 40, 40)},
 ]
-FIRST_HOUSE_X = 30.0
-HOUSE_PITCH = 50.0  # houses alternate sides, so neighbours on the same side are 100 studs apart
-
-
 def build_map(workspace: Inst) -> Inst:
     tiers = read_house_tiers()
     street = read_houses()
@@ -1770,29 +1806,32 @@ def build_map(workspace: Inst) -> Inst:
 
     entrances: list[tuple[float, float]] = []
 
+    # Where the street's houses stand: they alternate sides of the road, harder the further east you go.
+    sides: dict[int, list[float]] = {-1: [], 1: []}
+    for i in range(len(street)):
+        sides[-1 if i % 2 == 0 else 1].append(FIRST_HOUSE_X + i * HOUSE_PITCH)
+    starts = {side: min(xs) - HOUSE_PITCH for side, xs in sides.items()}
+
     # The yard at the west end of the street: six garages around the spawn parking lot. Each one sits a
     # hair higher than the last so the aprons that overlap in the corners never fight over one plane.
     for index, (x, z, yaw) in enumerate(YARD_PLOTS, start=1):
         build_warehouse(warehouses, ground, index, CF(x, 0.003 * index, z) * CF.deg(0, yaw, 0))
     build_yard(map_folder, ground, decor)
     build_yard_cliffs(cliffs, decor)
-    build_corridor_cliffs(cliffs, decor)
+    # The canyon joins the yard to whichever house stands nearest the corner on each side of the road.
+    build_corridor_cliffs(cliffs, decor, {side: x + 4.0 for side, x in starts.items()})
 
-    # The street: one house design, alternating sides, harder the further east you go.
-    sides: dict[int, list[float]] = {-1: [], 1: []}
     for i, info in enumerate(street):
         x = FIRST_HOUSE_X + i * HOUSE_PITCH
         side = -1 if i % 2 == 0 else 1
         lot_cf = CF(x, 0, side * (SIDEWALK_EDGE + LOT_D / 2)) * CF.deg(0, 0 if side < 0 else 180, 0)
         build_house(houses, info, tiers[info["tier"] - 1], lot_cf, HOUSE_PALETTES[i % len(HOUSE_PALETTES)])
-        sides[side].append(x)
         entrances.append((x, 4))
-    starts = {side: min(xs) - HOUSE_PITCH for side, xs in sides.items()}
     build_street_cliffs(cliffs, decor, sides, starts, ROAD_X1)
     build_frontage(decor, sides, starts)
 
-    # The Mansion at the end of the street (front faces west, toward the road)
-    mansion_cf = CF(ROAD_X1 + 75, 0, 0) * CF.deg(0, -90, 0)
+    # The Mansion (the town's museum) at the end of the street, its front facing the road
+    mansion_cf = CF(MANSION_X, 0, 0) * CF.deg(0, -90, 0)
     build_mansion(houses, mansion, tiers[3], mansion_cf)
     build_mansion_cliff(cliffs, decor, mansion_cf)
 
@@ -1816,14 +1855,17 @@ def build_frontage(decor: Inst, sides: dict[int, list[float]], starts: dict[int,
         for a, b in zip(edges[0::2], edges[1::2]):
             if b - a < 12:
                 continue
-            mid_x = (a + b) / 2
             z = side * (SIDEWALK_EDGE + (CLIFF_FACE_Z - SIDEWALK_EDGE) * 0.55)
-            tree(decor, CF(mid_x, 0, z), rng.uniform(1.0, 1.25), "pine" if rng.random() < 0.5 else "round")
-            for _ in range(3):
+            # One tree every ~26 studs of frontage (the gaps got wider with the bigger houses).
+            for step in range(max(1, round((b - a) / 26))):
+                tx = a + (b - a) * (step + 0.5) / max(1, round((b - a) / 26))
+                tree(decor, CF(tx, 0, z), rng.uniform(1.0, 1.25), "pine" if rng.random() < 0.5 else "round")
+            for _ in range(max(3, round((b - a) / 9))):
                 bx = rng.uniform(a + 3, b - 3)
                 bush(decor, CF(bx, 0, side * (CLIFF_FACE_Z - 2.2)), rng.uniform(2.2, 3.2),
                      LEAF if rng.random() < 0.5 else LEAF_DARK)
-            size = rng.uniform(2.5, 4.5)
-            part(decor, "Boulder", (size, size, size),
-                 CF(rng.uniform(a + 4, b - 4), size * 0.4, side * (CLIFF_FACE_Z - 5)) * CF.deg(0, rng.uniform(0, 90), 0),
-                 rng.choice(ROCK_COLORS), "Rock")
+            for _ in range(max(1, round((b - a) / 40))):
+                size = rng.uniform(2.5, 4.5)
+                part(decor, "Boulder", (size, size, size),
+                     CF(rng.uniform(a + 4, b - 4), size * 0.4, side * (CLIFF_FACE_Z - 5)) * CF.deg(0, rng.uniform(0, 90), 0),
+                     rng.choice(ROCK_COLORS), "Rock")

@@ -122,7 +122,7 @@ step("server boots without errors or warnings", function()
 		check(loot, house.Name .. " has no Loot folder")
 		items += #loot:GetChildren()
 	end
-	eq(items, 103, "loot spawned in houses")
+	eq(items, 55, "loot spawned in houses (five per house, however big they get)")
 	local kinds = {}
 	local total = 0
 	for _, house in Map.Houses:GetChildren() do
@@ -221,7 +221,7 @@ step("steal an item and trip the alarm", function()
 	check(sawMessage(thief, mark, "Stole"), "no steal message")
 	check(sawMessage(thief, mark, "Tuxedo Cat woke up"), "the alarm message should name the cat")
 	check(sawMessage(thief, mark, "through the gate it runs at 10 studs/s"), "the alarm warns about the gate")
-	eq(#cottage.Loot:GetChildren(), 5, "loot left")
+	eq(#cottage.Loot:GetChildren(), 4, "loot left")
 	-- First time stealing this item: it's unlocked in the Loot Index
 	local itemId = item:GetAttribute("ItemId")
 	eq(thief:GetAttribute("Discovered"), itemId, "Discovered attribute")
@@ -707,7 +707,7 @@ step("daytime: houses lock up, everyone is shown out and all loot restocks", fun
 	check(sawBroadcast(mark, "Night falls"), "everyone is told it's night")
 	eq(door.Panel.LockpickPrompt.Enabled, true, "doors can be picked again")
 	eq(item.Root.StealPrompt.Enabled, true, "loot can be stolen again")
-	eq(#cottage.Loot:GetChildren(), 6, "still fully stocked")
+	eq(#cottage.Loot:GetChildren(), 5, "still fully stocked")
 end)
 
 step("progress saves on leave and loads on rejoin", function()

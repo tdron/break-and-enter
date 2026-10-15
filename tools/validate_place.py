@@ -221,7 +221,8 @@ def check_structure(roots: list[Item], check: Checker) -> None:
             spots = house.child("ItemSpots")
             count = len(spots.children) if spots else 0
             total_spots += count
-            check.expect(count >= 4, f"{house.path()} has only {count} item spots")
+            check.expect(count == map_builder.HOUSE_SPOTS,
+                         f"{house.path()} should put {map_builder.HOUSE_SPOTS} items out, has {count} spots")
             docks = house.child("GuardDocks")
             check.expect(docks is not None and len(docks.children) >= 1, f"{house.path()} has no guard docks")
             check.expect(house.child("DroneDocks") is None, f"{house.path()} still has an old DroneDocks folder")
@@ -250,12 +251,14 @@ def check_structure(roots: list[Item], check: Checker) -> None:
         check.expect(map_builder.FIRST_HOUSE_X - 80.0 <= position[0] <= map_builder.ROAD_X1 + 200.0,
                      f"{house.path()} sits at x = {position[0]:.0f}, outside the neighbourhood")
         if int(house.attributes().get("Tier") or 0) < 4:
-            front = abs(position[2]) - map_builder.HOUSE_D / 2
+            front = abs(position[2]) - map_builder.OUT_D / 2
             check.expect(abs(front - map_builder.HOUSE_FRONT_Z) < 1.5,
                          f"{house.path()} should stand on the street with its front wall at |z| = "
                          f"{map_builder.HOUSE_FRONT_Z}, it is at {front:.0f}")
-            check.expect(abs(position[2]) + map_builder.HOUSE_D / 2 >= map_builder.CLIFF_FACE_Z,
+            check.expect(abs(position[2]) + map_builder.OUT_D / 2 >= map_builder.CLIFF_FACE_Z,
                          f"{house.path()} does not run back into the cliff")
+            check.expect(map_builder.HOUSE_PITCH > map_builder.OUT_W,
+                         "neighbouring houses would overlap: widen HOUSE_PITCH")
 
     cliffs = game_map.child("Cliffs")
     for folder in ("Street", "Mansion", "Yard", "Corridor"):
