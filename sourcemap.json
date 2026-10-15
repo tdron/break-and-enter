@@ -1,0 +1,240 @@
+{
+ "name": "StealAnItem",
+ "className": "DataModel",
+ "filePaths": [
+  "default.project.json"
+ ],
+ "children": [
+  {
+   "name": "Workspace",
+   "className": "Workspace",
+   "children": [
+    {
+     "name": "Cars",
+     "className": "Folder"
+    }
+   ]
+  },
+  {
+   "name": "Lighting",
+   "className": "Lighting",
+   "children": [
+    {
+     "name": "Atmosphere",
+     "className": "Atmosphere"
+    },
+    {
+     "name": "Bloom",
+     "className": "BloomEffect"
+    },
+    {
+     "name": "ColorCorrection",
+     "className": "ColorCorrectionEffect"
+    }
+   ]
+  },
+  {
+   "name": "ReplicatedStorage",
+   "className": "ReplicatedStorage",
+   "children": [
+    {
+     "name": "Shared",
+     "className": "Folder",
+     "children": [
+      {
+       "name": "Config",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/shared/Config.luau"
+       ]
+      },
+      {
+       "name": "Format",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/shared/Format.luau"
+       ]
+      },
+      {
+       "name": "ItemModels",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/shared/ItemModels.luau"
+       ]
+      },
+      {
+       "name": "Items",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/shared/Items.luau"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Remotes",
+     "className": "Folder",
+     "children": [
+      {
+       "name": "Notify",
+       "className": "RemoteEvent"
+      },
+      {
+       "name": "Busted",
+       "className": "RemoteEvent"
+      },
+      {
+       "name": "Purchase",
+       "className": "RemoteFunction"
+      },
+      {
+       "name": "SpawnCar",
+       "className": "RemoteFunction"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "ServerScriptService",
+   "className": "ServerScriptService",
+   "children": [
+    {
+     "name": "Server",
+     "className": "Script",
+     "filePaths": [
+      "src/server/init.server.luau"
+     ],
+     "children": [
+      {
+       "name": "Economy",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/server/Economy.luau"
+       ]
+      },
+      {
+       "name": "Houses",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/server/Houses.luau"
+       ]
+      },
+      {
+       "name": "Inventory",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/server/Inventory.luau"
+       ]
+      },
+      {
+       "name": "Notify",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/server/Notify.luau"
+       ]
+      },
+      {
+       "name": "PlayerData",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/server/PlayerData.luau"
+       ]
+      },
+      {
+       "name": "Plots",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/server/Plots.luau"
+       ]
+      },
+      {
+       "name": "Treadmills",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/server/Treadmills.luau"
+       ]
+      },
+      {
+       "name": "Vehicles",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/server/Vehicles.luau"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "StarterPlayer",
+   "className": "StarterPlayer",
+   "children": [
+    {
+     "name": "StarterPlayerScripts",
+     "className": "StarterPlayerScripts",
+     "children": [
+      {
+       "name": "Client",
+       "className": "LocalScript",
+       "filePaths": [
+        "src/client/init.client.luau"
+       ],
+       "children": [
+        {
+         "name": "BustedScreen",
+         "className": "ModuleScript",
+         "filePaths": [
+          "src/client/BustedScreen.luau"
+         ]
+        },
+        {
+         "name": "Hud",
+         "className": "ModuleScript",
+         "filePaths": [
+          "src/client/Hud.luau"
+         ]
+        },
+        {
+         "name": "Notifications",
+         "className": "ModuleScript",
+         "filePaths": [
+          "src/client/Notifications.luau"
+         ]
+        },
+        {
+         "name": "Shop",
+         "className": "ModuleScript",
+         "filePaths": [
+          "src/client/Shop.luau"
+         ]
+        },
+        {
+         "name": "UI",
+         "className": "ModuleScript",
+         "filePaths": [
+          "src/client/UI.luau"
+         ]
+        },
+        {
+         "name": "VehicleController",
+         "className": "ModuleScript",
+         "filePaths": [
+          "src/client/VehicleController.luau"
+         ]
+        },
+        {
+         "name": "WorldEffects",
+         "className": "ModuleScript",
+         "filePaths": [
+          "src/client/WorldEffects.luau"
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
