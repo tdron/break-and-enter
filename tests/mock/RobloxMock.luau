@@ -9,6 +9,8 @@
 	  * Vector3 / CFrame math, Color3, UDim2, Enum, TweenInfo, ...
 	  * A virtual clock and task scheduler (task.wait/spawn/delay/defer).
 	  * "Physics": AlignPosition moves its part toward its target at MaxVelocity.
+	  * Input: ContextActionService bindings can be triggered with Mock.pressKey().
+	  * Animations: Animator:LoadAnimation() returns tracks that remember Play/Stop/speed.
 	  * An in-memory DataStore.
 
 	This file is concatenated into the test bundle by tools/run_luau_tests.py.
@@ -496,7 +498,17 @@ local DEFAULTS = {
 		}
 	end,
 	Humanoid = function()
-		return { WalkSpeed = 16, Health = 100, MaxHealth = 100, MoveDirection = vec(0, 0, 0), Sit = false, Jump = false }
+		return {
+			WalkSpeed = 16,
+			Health = 100,
+			MaxHealth = 100,
+			MoveDirection = vec(0, 0, 0),
+			Sit = false,
+			Jump = false,
+			AutoRotate = true,
+			HipHeight = 2,
+			RigType = Enum.HumanoidRigType.R15,
+		}
 	end,
 	ProximityPrompt = function()
 		return { Enabled = true, HoldDuration = 0, MaxActivationDistance = 10 }
@@ -586,11 +598,17 @@ local function rulesFor(instance)
 end
 
 InstanceMeta.__index = function(instance, key)
+	local props = rawget(instance, "_props")
+	-- A real property value wins over a method of the same name (Humanoid.Sit is a bool,
+	-- Seat:Sit() is a method).
+	local own = props[key]
+	if own ~= nil and key ~= "Position" then
+		return own
+	end
 	local method = InstanceMethods[key]
 	if method then
 		return method
 	end
-	local props = rawget(instance, "_props")
 	if key == "Parent" then
 		return rawget(instance, "_parent")
 	elseif key == "Position" and props.CFrame then
@@ -859,10 +877,55 @@ function InstanceMethods:InvokeServer(...)
 	return handler(...)
 end
 Mock.soundsPlayed = 0
-function InstanceMethods:Play()
+function InstanceMethods:Play(_fadeTime, _weight, speed)
+	if rawget(self, "ClassName") == "AnimationTrack" then
+		Mock.setRaw(self, "IsPlaying", true)
+		if speed then
+			Mock.setRaw(self, "Speed", speed)
+		end
+		return
+	end
 	Mock.soundsPlayed += 1
 end
-function InstanceMethods:Stop() end
+function InstanceMethods:Stop()
+	if rawget(self, "ClassName") == "AnimationTrack" then
+		Mock.setRaw(self, "IsPlaying", false)
+	end
+end
+function InstanceMethods:AdjustSpeed(speed)
+	Mock.setRaw(self, "Speed", speed or 1)
+end
+
+-- Animator
+Mock.animationTracks = {}
+function InstanceMethods:LoadAnimation(animation)
+	assert(animation and rawget(animation, "ClassName") == "Animation", "LoadAnimation needs an Animation")
+	local track = Mock.newInstance("AnimationTrack")
+	Mock.setRaw(track, "Animation", animation)
+	Mock.setRaw(track, "IsPlaying", false)
+	Mock.setRaw(track, "Speed", 1)
+	Mock.setRaw(track, "Looped", false)
+	Mock.setRaw(track, "Priority", Enum.AnimationPriority.Core)
+	table.insert(Mock.animationTracks, track)
+	return track
+end
+
+-- Humanoid states
+function InstanceMethods:SetStateEnabled(state, enabled)
+	local states = rawget(self, "_states")
+	if not states then
+		states = {}
+		rawset(self, "_states", states)
+	end
+	states[state] = enabled
+end
+function InstanceMethods:GetStateEnabled(state)
+	local states = rawget(self, "_states")
+	if states and states[state] ~= nil then
+		return states[state]
+	end
+	return true
+end
 
 Instance = {
 	new = function(className, parent)
@@ -900,6 +963,8 @@ for _, name in {
 	"StarterPlayer",
 	"SoundService",
 	"ProximityPromptService",
+	"ContextActionService",
+	"UserInputService",
 } do
 	local instance = service(name)
 	instance.Parent = DataModel
@@ -933,6 +998,36 @@ function InstanceMethods:GetPlayerFromCharacter(character)
 		end
 	end
 	return nil
+end
+
+-- UserInputService: a keyboard + mouse player
+Mock.setRaw(services.UserInputService, "KeyboardEnabled", true)
+Mock.setRaw(services.UserInputService, "MouseEnabled", true)
+Mock.setRaw(services.UserInputService, "TouchEnabled", false)
+Mock.setRaw(services.UserInputService, "GamepadEnabled", false)
+
+-- ContextActionService
+Mock.boundActions = {}
+function InstanceMethods:BindActionAtPriority(name, fn, _createTouchButton, priority, ...)
+	Mock.boundActions[name] = { fn = fn, priority = priority, inputs = { ... } }
+end
+function InstanceMethods:BindAction(name, fn, _createTouchButton, ...)
+	Mock.boundActions[name] = { fn = fn, inputs = { ... } }
+end
+function InstanceMethods:UnbindAction(name)
+	Mock.boundActions[name] = nil
+end
+-- Simulates pressing a key/button. Returns true if some bound action handled it.
+function Mock.pressKey(keyCode)
+	local handled = false
+	for name, action in table.clone(Mock.boundActions) do
+		if table.find(action.inputs, keyCode) then
+			local input = { KeyCode = keyCode, UserInputState = Enum.UserInputState.Begin }
+			action.fn(name, Enum.UserInputState.Begin, input)
+			handled = true
+		end
+	end
+	return handled
 end
 
 -- RunService

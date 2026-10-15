@@ -19,7 +19,7 @@ for _, name in { "Config", "Items", "ItemModels", "Format" } do
 	sharedFolder:WaitForChild(name)
 end
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
-for _, name in { "Notify", "Busted", "Purchase", "SpawnCar" } do
+for _, name in { "Notify", "Busted", "Purchase", "SpawnCar", "Treadmill" } do
 	remotesFolder:WaitForChild(name)
 end
 
@@ -27,6 +27,7 @@ local BustedScreen = require(script.BustedScreen)
 local Hud = require(script.Hud)
 local Notifications = require(script.Notifications)
 local Shop = require(script.Shop)
+local TreadmillController = require(script.TreadmillController)
 local UI = require(script.UI)
 local VehicleController = require(script.VehicleController)
 local WorldEffects = require(script.WorldEffects)
@@ -76,6 +77,7 @@ Hud.init(screen, {
 })
 BustedScreen.init(screen)
 VehicleController.init()
+TreadmillController.init(screen)
 WorldEffects.init()
 
 updateScale()
@@ -99,7 +101,8 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 	end
 end)
 
--- Hide owner-only prompts (selling from someone else's shelves, their car trunk) for everyone else.
+-- Hide owner-only prompts (selling from someone else's shelves, their car trunk, upgrading
+-- their treadmill) for everyone else.
 ProximityPromptService.PromptShown:Connect(function(prompt: ProximityPrompt)
 	local ownerUserId = prompt:GetAttribute("OwnerUserId")
 	if ownerUserId ~= nil and ownerUserId ~= player.UserId then

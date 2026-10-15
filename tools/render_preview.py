@@ -294,6 +294,7 @@ VIEWS = {
     "top": dict(eye=(45, 900, 0.01), target=(45, 0, 0), ortho=230),
     "hub": dict(eye=(-60, 70, 140), target=(-150, 4, -10), fov=55),
     "warehouse": dict(eye=(-330, 40, 10), target=(-394, 6, -80), fov=55),
+    "treadmill": dict(eye=(-402, 13, -30), target=(-423, 3, -50), fov=50),
     "houses": dict(eye=(70, 75, 120), target=(200, 0, -40), fov=55),
     "mansion": dict(eye=(440, 90, 110), target=(600, 5, 0), fov=55),
     "cutaway": dict(eye=(545, 85, 0.01), target=(606, 0, 0), fov=66, hide=ROOF_PARTS),

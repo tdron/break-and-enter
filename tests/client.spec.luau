@@ -87,10 +87,9 @@ for name, value in {
 	Level_Engine = 1,
 	Level_Trunk = 1,
 	Level_Storage = 1,
-	Level_ProTreadmill = 1,
-	Level_EliteTreadmill = 1,
+	Level_Treadmill = 1,
 	AlarmHouse = "",
-	Training = "",
+	Training = false,
 } do
 	player:SetAttribute(name, value)
 end
@@ -105,6 +104,44 @@ Mock.invokeHandlers.SpawnCar = function()
 	carRequests += 1
 	return { Ok = true, Message = "🚗 Your getaway car pulled up!" }
 end
+-- A tiny stand-in for the server's treadmill handler.
+local treadmillRequests = {}
+local serverAcceptsTreadmill = true
+Mock.invokeHandlers.Treadmill = function(action)
+	table.insert(treadmillRequests, action)
+	if action == "Start" then
+		if not serverAcceptsTreadmill then
+			return { Ok = false, Message = "Walk onto your treadmill to train!" }
+		end
+		player:SetAttribute("Training", true)
+	else
+		player:SetAttribute("Training", false)
+	end
+	return { Ok = true, Message = "" }
+end
+
+-- The default PlayerModule, reduced to the controls API the treadmill uses.
+local controlsEnabled = true
+local playerScripts = Mock.newInstance("PlayerScripts")
+Mock.setRaw(playerScripts, "Name", "PlayerScripts")
+playerScripts.Parent = player
+local playerModule = Mock.newInstance("ModuleScript")
+playerModule.Name = "PlayerModule"
+playerModule.Parent = playerScripts
+rawset(playerModule, "_factory", function()
+	local controls = {}
+	function controls:Enable(enabled)
+		controlsEnabled = enabled ~= false
+	end
+	function controls:Disable()
+		controlsEnabled = false
+	end
+	return {
+		GetControls = function()
+			return controls
+		end,
+	}
+end)
 
 local hud
 step("mock enforces Roblox property rules", function()
@@ -214,18 +251,6 @@ step("car button requests a car", function()
 	check(findText(hud, "getaway car pulled up"), "spawn result shown")
 end)
 
-step("training bar", function()
-	player:SetAttribute("Training", "Basic Treadmill")
-	player:SetAttribute("SpeedXP", 4)
-	Mock.advance(0.3)
-	local training = hud:FindFirstChild("Training", true)
-	eq(training.Visible, true, "training bar shown")
-	check(findText(training, "Speed 16 ➜ 17"), "training text")
-	player:SetAttribute("Training", "")
-	Mock.advance(0.1)
-	eq(training.Visible, false, "training bar hidden")
-end)
-
 step("driving the car moves it and shows the speedometer", function()
 	local car = Instance.new("Model")
 	local chassis = Instance.new("Part")
@@ -277,14 +302,199 @@ step("home marker points at your warehouse", function()
 	check(marker:FindFirstChild("HomeMarker"), "no YOUR WAREHOUSE marker")
 end)
 
-step("treadmill labels show lock state", function()
-	local pro = Map.Gym.Treadmills.ProTreadmill.Belt
-	local label = pro.TreadmillLabel:FindFirstChildOfClass("TextLabel")
-	check(string.find(label.Text, "Unlock in Shop", 1, true), "pro treadmill should look locked")
-	player:SetAttribute("Level_ProTreadmill", 2)
+--------------------------------------------------------------------------------
+-- Your treadmill
+--------------------------------------------------------------------------------
+local TreadmillController = require(ClientScript.TreadmillController)
+local myTreadmill = Map.Warehouses.Plot3.Treadmill -- PlotIndex is 3 (set above)
+local belt = myTreadmill.Belt
+local character, humanoid, root, runAnimation
+
+local function spawnRunner()
+	character = Instance.new("Model")
+	character.Name = "Tester"
+	humanoid = Instance.new("Humanoid")
+	humanoid.Parent = character
+	local animator = Instance.new("Animator")
+	animator.Parent = humanoid
+	local animate = Instance.new("LocalScript")
+	animate.Name = "Animate"
+	animate.Parent = character
+	local runFolder = Instance.new("StringValue")
+	runFolder.Name = "run"
+	runFolder.Parent = animate
+	runAnimation = Instance.new("Animation")
+	runAnimation.Name = "RunAnim"
+	runAnimation.AnimationId = "rbxassetid://507767714"
+	runAnimation.Parent = runFolder
+	root = Instance.new("Part")
+	root.Name = "HumanoidRootPart"
+	root.Size = Vector3.new(2, 2, 1)
+	root.CFrame = myTreadmill.ExitPoint.CFrame
+	root.Parent = character
+	character.PrimaryPart = root
+	character.Parent = workspace
+	player.Character = character
+	player.CharacterAdded:Fire(character)
+end
+
+local function flatDistance(a: Vector3, b: Vector3): number
+	return Vector3.new(a.X - b.X, 0, a.Z - b.Z).Magnitude
+end
+
+step("your treadmill is signposted and every belt has stripes", function()
+	local sign = belt:FindFirstChild("MyTreadmillSign")
+	check(sign, "no YOUR TREADMILL sign over your treadmill")
+	eq(sign.Enabled, true, "sign visible")
+	check(Map.Warehouses.Plot1.Treadmill.Belt:FindFirstChild("MyTreadmillSign") == nil, "sign on someone else's treadmill")
+	local stripes = 0
+	for _, child in belt:GetChildren() do
+		if child.Name == "BeltStripe" then
+			stripes += 1
+		end
+	end
+	check(stripes >= 7, "belt stripes missing")
+end)
+
+step("belts only scroll while their owner is running", function()
+	local stripe = Map.Warehouses.Plot1.Treadmill.Belt:FindFirstChild("BeltStripe")
+	local other = Map.Warehouses.Plot1.Treadmill
 	Mock.advance(0.1)
-	check(string.find(label.Text, "XP / sec", 1, true), "pro treadmill should look unlocked")
-	check(#pro:GetChildren() >= 7, "belt stripes missing")
+	local resting = stripe.Position
+	Mock.advance(0.5)
+	check((stripe.Position - resting).Magnitude < 1e-6, "idle belt should not move")
+	other:SetAttribute("Level", 4)
+	other:SetAttribute("Running", true)
+	Mock.advance(0.2)
+	check((stripe.Position - resting).Magnitude > 0.01, "belt should scroll while someone runs on it")
+	other:SetAttribute("Running", false)
+end)
+
+step("walking onto your treadmill makes you run by yourself", function()
+	spawnRunner()
+	Mock.advance(0.2)
+	eq(TreadmillController.isRunning(), false, "standing beside it does nothing")
+	root.CFrame = belt.CFrame + Vector3.new(0, 3, 2)
+	Mock.advance(0.1)
+	check(TreadmillController.isRunning(), "should start running when you walk onto the belt")
+	eq(treadmillRequests[#treadmillRequests], "Start", "server told to start")
+	eq(humanoid.AutoRotate, false, "auto-rotate off while running")
+	eq(humanoid:GetStateEnabled(Enum.HumanoidStateType.Jumping), false, "no jumping on the treadmill")
+	eq(controlsEnabled, false, "movement keys switched off (AFK-proof)")
+	check(root:FindFirstChild("TreadmillHold"), "no hold constraint")
+	Mock.advance(0.5)
+	check(flatDistance(root.Position, myTreadmill.RunPoint.Position) < 0.1, "held in the middle of the belt")
+	local facing = root.CFrame.LookVector:Dot(myTreadmill.RunPoint.CFrame.LookVector)
+	check(facing > 0.99, "should face the console, dot " .. facing)
+
+	local track = Mock.animationTracks[#Mock.animationTracks]
+	check(track and track.IsPlaying, "run animation should play")
+	eq(track.Animation, runAnimation, "uses the character's own run animation")
+	eq(track.Priority, Enum.AnimationPriority.Action, "run animation priority")
+	eq(track.Looped, true, "run animation loops")
+
+	local escape = hud:FindFirstChild("TreadmillEscape", true)
+	eq(escape.Visible, true, "ESCAPE button shown")
+	check(findText(escape, "ESCAPE"), "escape label")
+	check(findText(escape, "SPACE"), "Space key hint")
+	local training = hud:FindFirstChild("Training", true)
+	eq(training.Visible, true, "training bar shown")
+	check(findText(training, "Speed 16 ➜ 17"), "training progress text")
+	check(findText(training, "2 XP/s"), "training rate")
+	check(findText(hud, "go AFK"), "objective should say AFK is fine")
+	eq(belt.MyTreadmillSign.Enabled, false, "sign hidden while you run")
+
+	-- Go AFK for a while: you keep running.
+	Mock.advance(30)
+	check(TreadmillController.isRunning(), "still running after 30 AFK seconds")
+	eq(track.IsPlaying, true, "still animating")
+	player:SetAttribute("Level_Treadmill", 4)
+	Mock.advance(0.1)
+	check(track.Speed > 1, "legs move faster on an upgraded treadmill")
+	check(findText(training, "Lv 4"), "training bar shows the treadmill level")
+end)
+
+step("Space hops you off the treadmill", function()
+	local track = Mock.animationTracks[#Mock.animationTracks]
+	check(Mock.pressKey(Enum.KeyCode.Space), "Space isn't bound while running")
+	Mock.advance(0.1)
+	eq(TreadmillController.isRunning(), false, "Space should hop you off")
+	eq(treadmillRequests[#treadmillRequests], "Stop", "server told to stop")
+	check(root:FindFirstChild("TreadmillHold") == nil, "hold constraint removed")
+	check(root:FindFirstChild("TreadmillAttachment") == nil, "attachment removed")
+	eq(humanoid.AutoRotate, true, "auto-rotate restored")
+	eq(humanoid:GetStateEnabled(Enum.HumanoidStateType.Jumping), true, "jumping restored")
+	eq(controlsEnabled, true, "movement keys back on")
+	eq(track.IsPlaying, false, "run animation stopped")
+	check(flatDistance(root.Position, myTreadmill.ExitPoint.Position) < 0.1, "stepped off beside the treadmill")
+	eq(hud:FindFirstChild("TreadmillEscape", true).Visible, false, "ESCAPE button hidden")
+	eq(hud:FindFirstChild("Training", true).Visible, false, "training bar hidden")
+	eq(belt.MyTreadmillSign.Enabled, true, "sign back")
+	check(not Mock.pressKey(Enum.KeyCode.Space), "Space should jump normally again")
+end)
+
+step("walking back on starts you running again, and the ESCAPE button works", function()
+	root.CFrame = belt.CFrame + Vector3.new(0, 3, 0)
+	Mock.advance(0.1)
+	eq(TreadmillController.isRunning(), false, "short cooldown right after hopping off")
+	root.CFrame = myTreadmill.ExitPoint.CFrame
+	Mock.advance(1)
+	root.CFrame = belt.CFrame + Vector3.new(0, 3, -2)
+	Mock.advance(0.1)
+	check(TreadmillController.isRunning(), "should run again")
+	hud:FindFirstChild("EscapeButton", true).Activated:Fire()
+	Mock.advance(0.1)
+	eq(TreadmillController.isRunning(), false, "ESCAPE button hops you off")
+	check(Mock.pressKey(Enum.KeyCode.ButtonA) == false, "gamepad A is unbound again too")
+end)
+
+step("someone else's treadmill doesn't grab you", function()
+	Mock.advance(1)
+	local other = Map.Warehouses.Plot1.Treadmill
+	root.CFrame = other.Belt.CFrame + Vector3.new(0, 3, 0)
+	Mock.advance(0.2)
+	eq(TreadmillController.isRunning(), false, "shouldn't run on another player's treadmill")
+	check(findText(hud, "someone else's treadmill"), "no hint about whose treadmill it is")
+	root.CFrame = myTreadmill.ExitPoint.CFrame
+	Mock.advance(0.2)
+end)
+
+step("the server has the final say", function()
+	-- The server ends your run (e.g. you were moved away): the client hops off too.
+	root.CFrame = belt.CFrame + Vector3.new(0, 3, 0)
+	Mock.advance(0.1)
+	check(TreadmillController.isRunning(), "running")
+	player:SetAttribute("Training", false)
+	Mock.advance(0.1)
+	eq(TreadmillController.isRunning(), false, "client follows the server stopping the run")
+	eq(controlsEnabled, true, "controls restored")
+	-- A rejected start hops you off and says why.
+	root.CFrame = myTreadmill.ExitPoint.CFrame
+	Mock.advance(1)
+	serverAcceptsTreadmill = false
+	root.CFrame = belt.CFrame + Vector3.new(0, 3, 0)
+	Mock.advance(0.1)
+	eq(TreadmillController.isRunning(), false, "rejected start")
+	check(findText(hud, "Walk onto your treadmill"), "rejection reason shown")
+	serverAcceptsTreadmill = true
+	Mock.advance(1)
+	eq(TreadmillController.isRunning(), false, "no retry loop while still standing on the belt")
+	root.CFrame = myTreadmill.ExitPoint.CFrame
+	Mock.advance(1)
+end)
+
+step("respawning while running resets everything", function()
+	root.CFrame = belt.CFrame + Vector3.new(0, 3, 0)
+	Mock.advance(0.1)
+	check(TreadmillController.isRunning(), "running")
+	local oldRoot = root
+	spawnRunner()
+	Mock.advance(0.1)
+	eq(TreadmillController.isRunning(), false, "new character isn't stuck on the treadmill")
+	eq(controlsEnabled, true, "controls enabled for the new character")
+	check(oldRoot:FindFirstChild("TreadmillHold") == nil, "old hold cleaned up")
+	root.CFrame = myTreadmill.ExitPoint.CFrame
+	Mock.advance(0.2)
 end)
 
 step("sirens flash while a house alarm is active", function()

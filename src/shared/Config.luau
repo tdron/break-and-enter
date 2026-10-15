@@ -18,8 +18,6 @@ export type Upgrade = {
 	Costs: { number },
 	-- string.format pattern used to display a value, e.g. "%d items"
 	Format: string,
-	-- "Unlock" upgrades only have two levels: locked (1) and unlocked (2)
-	Kind: string?,
 }
 
 export type HouseTier = {
@@ -29,14 +27,6 @@ export type HouseTier = {
 	LockpickTime: number, -- seconds you must hold the prompt to open a door
 	RestockTime: number, -- seconds before a stolen item is replaced
 	AlarmWindup: number, -- seconds between the alarm going off and drones chasing
-	Color: Color3,
-}
-
-export type Treadmill = {
-	DisplayName: string,
-	XPPerSecond: number,
-	BeltSpeed: number, -- how fast the belt pushes you backwards (studs/s)
-	Unlock: string?, -- upgrade Id that unlocks this treadmill (nil = free)
 	Color: Color3,
 }
 
@@ -97,24 +87,13 @@ Config.Upgrades = {
 		Format = "%d slots",
 	},
 	{
-		Id = "ProTreadmill",
-		DisplayName = "Pro Treadmill",
+		Id = "Treadmill",
+		DisplayName = "Treadmill",
 		Icon = "🏃",
-		Description = "Unlock the Pro Treadmill at the Gym (3x faster training).",
-		Values = { 0, 1 },
-		Costs = { 0, 2500 },
-		Format = "%d",
-		Kind = "Unlock",
-	},
-	{
-		Id = "EliteTreadmill",
-		DisplayName = "Elite Treadmill",
-		Icon = "⚡",
-		Description = "Unlock the Elite Treadmill at the Gym (8x faster training).",
-		Values = { 0, 1 },
-		Costs = { 0, 30000 },
-		Format = "%d",
-		Kind = "Unlock",
+		Description = "Your warehouse treadmill trains faster (AFK works!)",
+		Values = { 2, 3, 5, 8, 12, 17, 24, 34 },
+		Costs = { 0, 300, 1200, 4000, 12000, 35000, 90000, 220000 },
+		Format = "%d XP/s",
 	},
 } :: { Upgrade }
 
@@ -152,30 +131,36 @@ function Config.walkSpeedForLevel(level: number): number
 	return Config.Speed.BaseWalkSpeed + level * Config.Speed.SpeedPerLevel
 end
 
--- Keys must match the TreadmillType attribute on the treadmill models in the Gym.
-Config.Treadmills = {
-	Basic = {
-		DisplayName = "Basic Treadmill",
-		XPPerSecond = 2,
-		BeltSpeed = 8,
-		Unlock = nil,
-		Color = Color3.fromRGB(90, 200, 255),
+-- Every warehouse has its own treadmill out front. Walk onto yours and you
+-- run by yourself (AFK is fine) earning the "Treadmill" upgrade's XP/s.
+Config.Treadmill = {
+	-- Training stops if your character ends up further than this (studs) from the middle of the belt.
+	MaxDistance = 4,
+	-- Seconds after hopping off before walking onto the belt starts you running again.
+	RemountCooldown = 0.75,
+	-- How fast the belt stripes scroll (studs/s) and how fast your legs move, per level.
+	BeltSpeedBase = 8,
+	BeltSpeedPerLevel = 1.5,
+	RunAnimSpeedBase = 1,
+	RunAnimSpeedPerLevel = 0.08,
+	-- The treadmill's trim gets flashier with every upgrade level.
+	LevelColors = {
+		Color3.fromRGB(200, 205, 215), -- 1 silver
+		Color3.fromRGB(80, 220, 120), -- 2 green
+		Color3.fromRGB(70, 170, 255), -- 3 blue
+		Color3.fromRGB(170, 110, 255), -- 4 purple
+		Color3.fromRGB(255, 110, 200), -- 5 pink
+		Color3.fromRGB(255, 140, 40), -- 6 orange
+		Color3.fromRGB(255, 70, 70), -- 7 red
+		Color3.fromRGB(255, 205, 40), -- 8 gold
 	},
-	Pro = {
-		DisplayName = "Pro Treadmill",
-		XPPerSecond = 6,
-		BeltSpeed = 11,
-		Unlock = "ProTreadmill",
-		Color = Color3.fromRGB(180, 110, 255),
-	},
-	Elite = {
-		DisplayName = "Elite Treadmill",
-		XPPerSecond = 16,
-		BeltSpeed = 14,
-		Unlock = "EliteTreadmill",
-		Color = Color3.fromRGB(255, 190, 40),
-	},
-} :: { [string]: Treadmill }
+}
+
+-- Treadmill trim colour for an upgrade level.
+function Config.treadmillColor(level: number): Color3
+	local colors = Config.Treadmill.LevelColors
+	return colors[math.clamp(math.floor(level), 1, #colors)]
+end
 
 --------------------------------------------------------------------------------
 -- Houses & security

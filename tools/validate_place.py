@@ -172,7 +172,7 @@ def check_structure(roots: list[Item], check: Checker) -> None:
     check.expect(game_map is not None, "Workspace.Map is missing")
     if game_map is None:
         return
-    for folder in ("Ground", "Houses", "Warehouses", "Gym", "Shop", "Hub", "Decor"):
+    for folder in ("Ground", "Houses", "Warehouses", "Shop", "Hub", "Decor"):
         check.expect(game_map.child(folder) is not None, f"Map.{folder} is missing")
 
     # Houses
@@ -222,15 +222,20 @@ def check_structure(roots: list[Item], check: Checker) -> None:
         check.expect(indices == list(range(1, 51)), f"{plot.path()} slots should be indexed 1..50")
         labels = {d.name for d in plot.walk() if d.cls == "TextLabel"}
         check.expect({"OwnerText", "StatsText"} <= labels, f"{plot.path()} is missing OwnerText/StatsText labels")
+        treadmill = plot.child("Treadmill")
+        check.expect(treadmill is not None and treadmill.cls == "Model", f"{plot.path()} has no Treadmill model")
+        if treadmill is not None:
+            for name in ("Belt", "RunPoint", "ExitPoint", "Console"):
+                child = treadmill.child(name)
+                check.expect(child is not None and child.cls == "Part", f"{treadmill.path()}.{name} (Part) is missing")
+            treadmill_labels = {d.name for d in treadmill.walk() if d.cls == "TextLabel"}
+            check.expect({"TreadmillText", "TreadmillOwnerText"} <= treadmill_labels,
+                         f"{treadmill.path()} is missing its console labels")
+            check.expect(any(c.name.startswith("Accent") for c in treadmill.children),
+                         f"{treadmill.path()} has no Accent parts to show its level")
 
-    # Gym & shop & hub
-    gym = game_map.child("Gym")
-    treadmills = gym.child("Treadmills") if gym else None
-    kinds = set()
-    for treadmill in treadmills.children if treadmills else []:
-        kinds.add(treadmill.attributes().get("TreadmillType"))
-        check.expect(treadmill.child("Belt") is not None, f"{treadmill.path()} has no Belt")
-    check.expect(kinds == {"Basic", "Pro", "Elite"}, f"Treadmill types are {kinds}")
+    # Shop & hub
+    check.expect(game_map.child("Gym") is None, "Map.Gym is obsolete (treadmills live at the warehouses now)")
     check.expect(any(d.name == "ShopCounter" for d in game_map.walk()), "No ShopCounter part")
     check.expect(any(d.name == "HubSpawn" and d.cls == "SpawnLocation" for d in game_map.walk()), "No HubSpawn")
 
@@ -239,7 +244,7 @@ def check_structure(roots: list[Item], check: Checker) -> None:
     remotes = replicated.child("Remotes") if replicated else None
     found = {(c.name, c.cls) for c in (remotes.children if remotes else [])}
     for expected in (("Notify", "RemoteEvent"), ("Busted", "RemoteEvent"), ("Purchase", "RemoteFunction"),
-                     ("SpawnCar", "RemoteFunction")):
+                     ("SpawnCar", "RemoteFunction"), ("Treadmill", "RemoteFunction")):
         check.expect(expected in found, f"Missing remote {expected}")
     shared = replicated.child("Shared") if replicated else None
     check.expect(shared is not None and {"Config", "Items", "ItemModels", "Format"} <= {c.name for c in shared.children},

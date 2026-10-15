@@ -3,7 +3,7 @@ Procedurally builds the Steal an Item town into Workspace.Map.
 
 Layout (top-down, X = east, Z = south, the main street runs along Z = 0):
 
-    west  [Warehouses x6] -- [Hub: spawn, gym, shop] -- [Cottages] [Suburbs] [Villas] [park] [MANSION]  east
+    west  [Warehouses x6 + treadmills] -- [Hub: spawn, shop] -- [Cottages] [Suburbs] [Villas] [park] [MANSION]  east
 
 Everything the game scripts rely on is named/attributed exactly as the server
 expects (see the header comments in src/server/*.luau).
@@ -1055,32 +1055,65 @@ def build_warehouse(folder: Inst, ground: Inst, index: int, cf: CF) -> Inst:
         p("ParkingLine", (0.5, 0.06, 13), (x, 0.23, 46), WHITE, "SmoothPlastic", parent=shell, collide=False,
           query=False)
     marker(plot, "Marker", cf * CF(0, 28, 0), (1, 1, 1))
+
+    # The owner's personal treadmill, out front on the left. The runner faces the street.
+    build_treadmill(plot, cf * CF(TREADMILL_X, 0.2, TREADMILL_Z) * CF.deg(0, 180, 0))
     return plot
 
 
 # ---------------------------------------------------------------------------
-# Hub: spawn plaza, gym (treadmills), upgrade shop, signs
+# Personal treadmill (one per warehouse)
 # ---------------------------------------------------------------------------
 
-def build_treadmill(parent: Inst, name: str, kind: str, cf: CF, color) -> Inst:
-    m = model(parent, name, cf)
-    m.attr(TreadmillType=kind)
+# Where the treadmill sits in warehouse-local coordinates (+Z points at the street).
+TREADMILL_X, TREADMILL_Z = -27.0, 38.0
+TREADMILL_TRIM = (200, 205, 215)  # level 1 colour; the server recolours Accent* parts per level
+
+
+def build_treadmill(plot: Inst, tcf: CF) -> Inst:
+    """A treadmill whose runner faces local -Z (towards the console), like a part's LookVector.
+
+    The game scripts use: Belt (walk onto it to start running), RunPoint (where the runner is held),
+    ExitPoint (where ESCAPE puts you), Console (upgrade prompt), the TreadmillText/TreadmillOwnerText
+    labels and every part whose name starts with "Accent" (trim coloured by the treadmill's level).
+    """
+    m = model(plot, "Treadmill", tcf)
 
     def p(n, size, pos, col, mat="SmoothPlastic", **kw):
-        return part(m, n, size, cf * CF(*pos), col, mat, **kw)
+        return part(m, n, size, tcf * CF(*pos), col, mat, **kw)
 
-    p("Deck", (5.4, 0.35, 12), (0, 0.375, 0), DARK, "Metal")
-    p("Belt", (4.3, 0.12, 10.8), (0, 0.61, 0.1), (34, 34, 38), "Rubber")
+    p("Mat", (8, 0.06, 17), (0, 0.03, 0.4), (44, 46, 52), "Rubber", collide=False, query=False)
+    p("Deck", (5.4, 0.35, 12), (0, 0.175, 0), DARK, "Metal")
+    p("Belt", (4.3, 0.12, 10.8), (0, 0.41, 0.1), (34, 34, 38), "Rubber")
+    p("MotorHood", (5.4, 0.7, 1.2), (0, 0.35, -6.6), (40, 42, 50), "Metal")
+    p("RearStep", (5.4, 0.25, 1.2), (0, 0.125, 6.6), (60, 62, 68), "DiamondPlate")
     for sx in (-1, 1):
-        p("SideRail", (0.55, 0.5, 12), (sx * 2.45, 0.6, 0), color, "Metal")
-        p("Upright", (0.35, 4.4, 0.35), (sx * 2.3, 2.8, -5.5), (200, 200, 205), "Metal")
-        p("Handrail", (0.25, 0.25, 4.2), (sx * 2.3, 4.0, -3.6), (200, 200, 205), "Metal")
-    console = p("Console", (5.4, 1.2, 1.1), (0, 5.2, -5.7), color, "Metal")
-    surface_text(console, "Back", kind.upper(), color=(255, 255, 255), stroke=0.3, pixels_per_stud=40)
-    p("Screen", (2.6, 0.6, 0.06), (0, 5.25, -5.13), (80, 220, 255), "Neon", collide=False)
-    p("RearStep", (5.4, 0.25, 1.2), (0, 0.325, 6.6), (60, 62, 68), "DiamondPlate")
+        p("AccentRail", (0.55, 0.45, 12), (sx * 2.45, 0.575, 0), TREADMILL_TRIM, "Metal")
+        p("Upright", (0.35, 4.6, 0.35), (sx * 2.3, 2.65, -5.5), (200, 200, 205), "Metal")
+        p("Handrail", (0.25, 0.25, 4.4), (sx * 2.3, 4.0, -3.4), (200, 200, 205), "Metal")
+    console = p("Console", (5.4, 1.8, 1.0), (0, 5.4, -5.7), (40, 42, 50), "Metal")
+    surface_text(console, "Back", "WALK ON\nTO TRAIN", color=(120, 235, 255), label_name="TreadmillText",
+                 stroke=0.3, pixels_per_stud=40)
+    surface_text(console, "Front", "TREADMILL", color=(255, 255, 255), label_name="TreadmillOwnerText",
+                 stroke=0.3, pixels_per_stud=40)
+    p("AccentBar", (5.6, 0.25, 1.2), (0, 6.42, -5.7), TREADMILL_TRIM, "Neon", collide=False)
+
+    # Script markers: the runner is held at RunPoint facing its LookVector; ESCAPE drops you at ExitPoint.
+    marker(m, "RunPoint", tcf * CF(0, 3.5, -0.5), (1, 1, 1))
+    marker(m, "ExitPoint", tcf * CF(-6, 3.2, 0.5), (1, 1, 1))
+
+    # A sign on the far side so everyone knows what it is.
+    for z in (-3.0, 4.0):
+        p("SignPost", (0.4, 5, 0.4), (6.5, 2.5, z), DARK, "Metal")
+    sign = p("Sign", (0.4, 4, 8), (6.5, 6.4, 0.5), (24, 26, 34), "SmoothPlastic")
+    surface_text(sign, "Left", "🏃 TREADMILL\nWalk on to train speed.\nWorks while you're AFK!",
+                 color=(120, 230, 255), font="Builder", weight=700, stroke=None, pixels_per_stud=30)
     return m
 
+
+# ---------------------------------------------------------------------------
+# Hub: spawn plaza, upgrade shop, signs
+# ---------------------------------------------------------------------------
 
 def build_hub(map_folder: Inst, ground: Inst, cx: float):
     hub = model(map_folder, "Hub", CF(cx, 0, 0))
@@ -1117,44 +1150,22 @@ def build_hub(map_folder: Inst, ground: Inst, cx: float):
              '4. Load your trunk [F] or carry loot home\n'
              '5. Drop it on your warehouse\'s green DEPOSIT pad\n'
              '6. Stored loot earns 💰 every second!\n'
-             '7. Buy upgrades at the shop and train speed at the gym')
+             '7. Buy upgrades and run on the treadmill outside your warehouse')
     surface_text(board, "Right", howto, color=(240, 240, 250), font="Builder", weight=700, rich=True, stroke=None,
                  pixels_per_stud=34)
 
-    # Gym (north side, open to the street)
-    gx, gz = cx, -82
-    gym = model(map_folder, "Gym", CF(gx, 0, gz))
-    gw, gd, gh = 70, 40, 18
-
-    def gp(name, size, pos, color, material="SmoothPlastic", **kw):
-        return part(gym, name, size, CF(gx + pos[0], pos[1], gz + pos[2]), color, material, **kw)
-
-    gym_wall = (70, 74, 96)
-    gp("GymFloor", (gw, 0.2, gd), (0, 0.1, 0), (50, 52, 60), "Rubber")
-    gp("BackWall", (gw, gh, 1), (0, gh / 2, -gd / 2 + 0.5), gym_wall, "Concrete")
-    for sx in (-1, 1):
-        gp("SideWall", (1, gh, gd - 2), (sx * (gw / 2 - 0.5), gh / 2, 0), gym_wall, "Concrete")
-        gp("FrontWall", (10, gh, 1), (sx * 30, gh / 2, gd / 2 - 0.5), gym_wall, "Concrete")
-    gp("FrontWall", (50, 4, 1), (0, gh - 2, gd / 2 - 0.5), gym_wall, "Concrete")
-    gp("Roof", (gw + 2, 1, gd + 2), (0, gh + 0.5, 0), (40, 42, 54), "Metal")
-    gym_sign = gp("GymSign", (40, 4, 0.5), (0, gh - 2, gd / 2 + 0.05), (255, 200, 40), "SmoothPlastic")
-    surface_text(gym_sign, "Back", "⚡ SPEED GYM ⚡", color=(40, 30, 10), font="Luckiest", stroke=None, pixels_per_stud=30)
-    gp("Mirror", (60, 8, 0.2), (0, 6, -gd / 2 + 1.1), (210, 225, 235), "Glass", reflectance=0.6, transparency=0.1)
-    for x in (-24, 0, 24):
-        lamp = gp("GymLight", (6, 0.4, 2), (x, gh - 0.4, -2), (255, 250, 235), "Neon", collide=False)
-        point_light(lamp, (255, 250, 235), 1.0, 36)
-    treadmills = Inst("Folder", "Treadmills", gym)
-    for x, kind, color in ((-18, "Basic", (90, 200, 255)), (0, "Pro", (180, 110, 255)), (18, "Elite", (255, 190, 40))):
-        build_treadmill(treadmills, f"{kind}Treadmill", kind, CF(gx + x, 0.2, gz - 4), color)
-    # Dumbbell racks (decor)
-    for sx in (-1, 1):
-        rack_x = gx + sx * 30
-        part(gym, "DumbbellRack", (3, 3, 12), CF(rack_x, 1.7, gz - 6), DARK, "Metal")
-        for i in range(5):
-            part(gym, "Dumbbell", (2.4, 0.9, 0.9), CF(rack_x, 3.6, gz - 10.5 + i * 2.2) * CF.deg(0, 90, 0),
-                 (40, 40, 44), "Metal", shape="Cylinder")
-    tip = gp("GymTip", (0.4, 6, 14), (-gw / 2 + 1.25, 7, 8), (24, 26, 34), "SmoothPlastic")
-    surface_text(tip, "Right", "RUN on a treadmill to get FASTER.\nFaster legs = outrun the security drones!",
+    # Little park on the north side, with a signpost to the treadmills
+    for x, z in ((-26, -72), (26, -72), (-14, -94), (14, -94), (0, -100)):
+        tree(hub, CF(cx + x, 0, z), 1.15)
+    for x in (-9, 9):
+        part(hub, "BenchSeat", (6, 0.4, 2), CF(cx + x, 1.6, -74), WOOD, "WoodPlanks")
+        part(hub, "BenchBack", (6, 2, 0.4), CF(cx + x, 2.6, -75), WOOD, "WoodPlanks")
+        for bx in (-2.4, 2.4):
+            part(hub, "BenchLeg", (0.4, 1.4, 1.8), CF(cx + x + bx, 0.7, -74), DARK, "Metal")
+    for x in (-6, 6):
+        part(hub, "SignPost", (0.6, 6, 0.6), CF(cx + x, 3, -64), DARK, "Metal")
+    treadmill_sign = part(hub, "TreadmillSign", (16, 4.5, 0.5), CF(cx, 7.5, -64), (24, 26, 34), "SmoothPlastic")
+    surface_text(treadmill_sign, "Back", "⬅ 🏃 Train speed on the TREADMILL\noutside your warehouse (AFK works!)",
                  color=(120, 230, 255), font="Builder", weight=700, stroke=None, pixels_per_stud=30)
 
     # Upgrade shop (south side, open to the street)

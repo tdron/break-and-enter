@@ -30,6 +30,7 @@ local function applyUpgrade(player: Player, upgradeId: string)
 	elseif upgradeId == "Trunk" then
 		Vehicles.updateLabel(player)
 	end
+	-- "Treadmill": Treadmills notices the new level by itself (its console updates every tick).
 end
 
 function Economy.purchase(player: Player, upgradeId: any): (boolean, string)
@@ -61,9 +62,6 @@ function Economy.purchase(player: Player, upgradeId: any): (boolean, string)
 	session.Profile.Levels[upgradeId] = level + 1
 	applyUpgrade(player, upgradeId)
 
-	if upgrade.Kind == "Unlock" then
-		return true, string.format("%s %s unlocked! Head to the Gym.", upgrade.Icon, upgrade.DisplayName)
-	end
 	return true,
 		string.format(
 			"%s %s upgraded to level %d (%s)!",

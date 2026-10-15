@@ -16,6 +16,7 @@
 	    Dock        Part (loading dock zone for the car)
 	    CarSpawn    Part (car delivery spot)
 	    Slots       Folder of Parts (attribute Index = shelf order)
+	    Treadmill   Model (the owner's personal treadmill, see Treadmills.luau)
 	    ...a TextLabel named "OwnerText" and one named "StatsText"
 ]]
 
@@ -91,6 +92,16 @@ end
 
 function Plots.getPlot(player: Player): Plot?
 	return plotByPlayer[player]
+end
+
+-- The player who owns the warehouse `model` (nil while it's free).
+function Plots.getOwner(model: Instance): Player?
+	for _, plot in plots do
+		if plot.Model == model then
+			return plot.Owner
+		end
+	end
+	return nil
 end
 
 -- How many items the player's warehouse can hold right now.

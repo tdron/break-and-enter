@@ -2,135 +2,357 @@
 --[[
 	Treadmills
 	----------
-	Run on a treadmill at the Gym to earn speed XP. Every speed level adds +1
-	walk speed, which is how you outrun the faster security drones in the
-	fancier houses. The Pro and Elite treadmills train much faster but must be
-	unlocked in the shop.
+	Every warehouse has its own treadmill out front. Walk onto yours and your
+	character starts running by itself: there are no keys to hold, so you can
+	go AFK and keep getting faster. ESCAPE (or Space) hops you off.
 
-	Map layout expected: Workspace.Map.Gym.Treadmills.<Model>
-	  (attribute TreadmillType = "Basic" | "Pro" | "Elite", with a "Belt" part)
+	Every speed level adds +1 walk speed, which is how you outrun the faster
+	security drones in the fancier houses. Instead of buying better treadmills,
+	you upgrade your own: the "Treadmill" upgrade (in the shop, or the prompt on
+	the treadmill's console) raises how much speed XP it gives per second.
+
+	How a run works:
+	  client  walks onto their own belt -> Remotes.Treadmill:InvokeServer("Start")
+	  server  checks it's their treadmill and that they're standing on it, sets
+	          the player's "Training" attribute and awards XP every tick. No input
+	          is needed, so AFK works. Training stops if they wander off, die, sit
+	          down, lose their warehouse or leave.
+	  client  ESCAPE / Space -> Remotes.Treadmill:InvokeServer("Stop")
+
+	Map layout expected: Workspace.Map.Warehouses.Plot<N>.Treadmill (Model)
+	  Belt        Part, the running surface
+	  RunPoint    Part, where you run (its LookVector is the running direction)
+	  ExitPoint   Part, where ESCAPE puts you (used by the client)
+	  Console     Part, gets the "Upgrade" prompt
+	  TreadmillText / TreadmillOwnerText  TextLabels on the console
+	  Accent...   Parts recoloured to show the treadmill's level
+
+	Attributes set on the Treadmill model for clients: OwnerUserId, Level, Running.
 ]]
 
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Format = require(ReplicatedStorage.Shared.Format)
+local Economy = require(script.Parent.Economy)
 local Notify = require(script.Parent.Notify)
 local PlayerData = require(script.Parent.PlayerData)
+local Plots = require(script.Parent.Plots)
 
 type Treadmill = {
 	Model: Model,
-	Belt: BasePart,
-	Settings: Config.Treadmill,
+	PlotModel: Model,
+	RunPoint: BasePart,
+	Accents: { BasePart },
+	Prompt: ProximityPrompt?,
+	LevelLabel: TextLabel?,
+	OwnerLabel: TextLabel?,
+	-- What the display currently shows, so it's only rewritten when something changes.
+	Shown: string,
 }
 
-local TICK = 0.2
+type Trainer = {
+	Treadmill: Treadmill,
+	AwayTime: number, -- seconds spent too far from the belt
+	PendingLevels: number, -- speed levels gained since the last "Speed up!" toast
+	LastToast: number,
+}
+
+local TICK = 0.25
+-- "Start" is accepted from further away than Config.Treadmill.MaxDistance because the
+-- server sees the character a little behind where the player's own screen has it.
+local START_DISTANCE = 20
+local AWAY_GRACE = 2 -- seconds you may spend off the belt before training stops
+local TOAST_INTERVAL = 3 -- at most one "Speed up!" toast this often
 
 local Treadmills = {}
 
 local treadmills: { Treadmill } = {}
-local lockedNoticeAt: { [Player]: number } = {}
-local maxedNoticeAt: { [Player]: number } = {}
+local trainers: { [Player]: Trainer } = {}
 
-local function isOnBelt(belt: BasePart, position: Vector3): boolean
-	local relative = belt.CFrame:PointToObjectSpace(position)
-	local half = belt.Size / 2
-	return math.abs(relative.X) <= half.X + 0.3 and math.abs(relative.Z) <= half.Z + 0.3 and relative.Y >= 0 and relative.Y <= 6
+local function findTextLabel(container: Instance, name: string): TextLabel?
+	local label = container:FindFirstChild(name, true)
+	return if label and label:IsA("TextLabel") then label else nil
 end
 
-local function isUnlocked(player: Player, treadmill: Treadmill): boolean
-	local unlock = treadmill.Settings.Unlock
-	return unlock == nil or PlayerData.getUpgradeLevel(player, unlock) >= 2
+local function flatDistance(a: Vector3, b: Vector3): number
+	return Vector3.new(a.X - b.X, 0, a.Z - b.Z).Magnitude
 end
 
-local function trainPlayer(player: Player): string
-	local character = player.Character
-	if not character or not PlayerData.get(player) then
-		return ""
+-- The treadmill outside the player's warehouse (nil if they don't have a warehouse).
+local function treadmillFor(player: Player): Treadmill?
+	local plot = Plots.getPlot(player)
+	if not plot then
+		return nil
 	end
-	local root = character:FindFirstChild("HumanoidRootPart")
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if not (root and root:IsA("BasePart") and humanoid) or humanoid.Health <= 0 or humanoid.SeatPart then
-		return ""
-	end
-
 	for _, treadmill in treadmills do
-		if isOnBelt(treadmill.Belt, root.Position) then
-			local now = os.clock()
-			if not isUnlocked(player, treadmill) then
-				if (lockedNoticeAt[player] or 0) < now then
-					lockedNoticeAt[player] = now + 4
-					Notify.send(player, "🔒 The " .. treadmill.Settings.DisplayName .. " is locked. Unlock it in the Shop!", "error")
-				end
-				return ""
-			end
-			-- You have to actually run! Standing still lets the belt carry you backwards at belt
-			-- speed, while running keeps you in place. Checking the velocity works even if
-			-- MoveDirection isn't replicated to the server.
-			local beltForward = treadmill.Belt.CFrame.LookVector
-			local forwardSpeed = root.AssemblyLinearVelocity:Dot(beltForward)
-			local running = humanoid.MoveDirection.Magnitude > 0.1
-				or forwardSpeed > -treadmill.Settings.BeltSpeed * 0.5
-			if not running then
-				return ""
-			end
-			if player:GetAttribute("SpeedMaxed") == true then
-				if (maxedNoticeAt[player] or 0) < now then
-					maxedNoticeAt[player] = now + 10
-					Notify.send(player, "⚡ You're already at MAX speed. Go rob the Mansion!", "level")
-				end
-				return ""
-			end
-			local gained = PlayerData.addSpeedXP(player, treadmill.Settings.XPPerSecond * TICK)
-			if gained > 0 then
-				Notify.send(
-					player,
-					string.format("⚡ Speed up! Your walk speed is now %d", PlayerData.getWalkSpeed(player)),
-					"level"
-				)
-			end
-			return treadmill.Settings.DisplayName
+		if treadmill.PlotModel == plot.Model then
+			return treadmill
 		end
 	end
-	return ""
+	return nil
+end
+
+-- Returns how far the player's character is from the treadmill, or nil if they
+-- can't train right now (no character, dead, or sitting in a car).
+local function distanceFrom(player: Player, treadmill: Treadmill): number?
+	local character = player.Character
+	if not character then
+		return nil
+	end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if not (humanoid and root and root:IsA("BasePart")) or humanoid.Health <= 0 or humanoid.SeatPart then
+		return nil
+	end
+	return flatDistance(root.Position, treadmill.RunPoint.Position)
+end
+
+local function refreshDisplay(treadmill: Treadmill)
+	local owner = Plots.getOwner(treadmill.PlotModel)
+	local level = if owner then PlayerData.getUpgradeLevel(owner, "Treadmill") else 1
+	local trainer = if owner then trainers[owner] else nil
+	local running = trainer ~= nil and trainer.Treadmill == treadmill
+	local ownerId = if owner then owner.UserId else 0
+	local state = string.format("%d|%d|%s", ownerId, level, tostring(running))
+	if treadmill.Shown == state then
+		return
+	end
+	treadmill.Shown = state
+
+	local model = treadmill.Model
+	model:SetAttribute("OwnerUserId", ownerId)
+	model:SetAttribute("Level", level)
+	model:SetAttribute("Running", running)
+	local color = Config.treadmillColor(level)
+	for _, part in treadmill.Accents do
+		part.Color = color
+	end
+
+	local xpPerSecond = Config.getUpgradeValue("Treadmill", level)
+	if treadmill.LevelLabel then
+		treadmill.LevelLabel.Text = if owner then string.format("LV %d\n⚡ %d XP/s", level, xpPerSecond) else "EMPTY"
+	end
+	if treadmill.OwnerLabel then
+		treadmill.OwnerLabel.Text = if owner then string.upper(owner.DisplayName) .. "'S TREADMILL" else "TREADMILL"
+	end
+
+	local prompt = treadmill.Prompt
+	if prompt then
+		local upgrade = Config.UpgradesById.Treadmill
+		local maxed = level >= #upgrade.Costs
+		prompt:SetAttribute("OwnerUserId", ownerId)
+		prompt.ObjectText = string.format("Treadmill Lv %d (%d XP/s)", level, xpPerSecond)
+		prompt.ActionText = if maxed then "Maxed out!" else "Upgrade: " .. Format.money(upgrade.Costs[level + 1])
+		prompt.Enabled = owner ~= nil and not maxed
+	end
+end
+
+local function sendSpeedToast(player: Player, trainer: Trainer)
+	local gained = trainer.PendingLevels
+	if gained <= 0 then
+		return
+	end
+	trainer.PendingLevels = 0
+	trainer.LastToast = os.clock()
+	local walkSpeed = PlayerData.getWalkSpeed(player)
+	local text = if gained == 1
+		then string.format("⚡ Speed up! Your walk speed is now %d", walkSpeed)
+		else string.format("⚡ Speed up! +%d levels, your walk speed is now %d", gained, walkSpeed)
+	Notify.send(player, text, "level")
+end
+
+local function setTrainer(player: Player, trainer: Trainer?)
+	if trainer then
+		trainers[player] = trainer
+	else
+		trainers[player] = nil
+	end
+	player:SetAttribute("Training", trainer ~= nil)
+	local treadmill = if trainer then trainer.Treadmill else treadmillFor(player)
+	if treadmill then
+		refreshDisplay(treadmill)
+	end
+end
+
+-- Starts AFK training on the player's own treadmill. Returns (ok, reason).
+function Treadmills.start(player: Player): (boolean, string)
+	if trainers[player] then
+		return true, ""
+	end
+	if not PlayerData.get(player) then
+		return false, "Still loading your data..."
+	end
+	local treadmill = treadmillFor(player)
+	if not treadmill then
+		return false, "You need a warehouse to use a treadmill."
+	end
+	local distance = distanceFrom(player, treadmill)
+	if not distance then
+		return false, "You can't train right now."
+	end
+	if distance > START_DISTANCE then
+		return false, "Walk onto your treadmill to train!"
+	end
+	setTrainer(player, { Treadmill = treadmill, AwayTime = 0, PendingLevels = 0, LastToast = 0 })
+	return true, ""
+end
+
+-- Stops training (no-op if the player isn't training). `reason` is shown as a toast.
+function Treadmills.stop(player: Player, reason: string?)
+	local trainer = trainers[player]
+	if not trainer then
+		return
+	end
+	sendSpeedToast(player, trainer)
+	setTrainer(player, nil)
+	if reason and player.Parent then
+		Notify.send(player, reason, "info")
+	end
+end
+
+function Treadmills.isTraining(player: Player): boolean
+	return trainers[player] ~= nil
+end
+
+local function train(player: Player, trainer: Trainer, dt: number)
+	local treadmill = trainer.Treadmill
+	if treadmillFor(player) ~= treadmill then
+		Treadmills.stop(player)
+		return
+	end
+	local distance = distanceFrom(player, treadmill)
+	if not distance then
+		Treadmills.stop(player)
+		return
+	end
+	if distance > Config.Treadmill.MaxDistance then
+		trainer.AwayTime += dt
+		if trainer.AwayTime >= AWAY_GRACE then
+			Treadmills.stop(player, "🏃 You left your treadmill, so training stopped.")
+		end
+		return
+	end
+	trainer.AwayTime = 0
+	if player:GetAttribute("SpeedMaxed") == true then
+		return
+	end
+
+	local gained = PlayerData.addSpeedXP(player, PlayerData.getUpgradeValue(player, "Treadmill") * dt)
+	if gained > 0 then
+		trainer.PendingLevels += gained
+		if player:GetAttribute("SpeedMaxed") == true then
+			trainer.PendingLevels = 0
+			trainer.LastToast = os.clock()
+			Notify.send(
+				player,
+				string.format("⚡ MAX SPEED! Walk speed %d is as fast as it gets. Go rob the Mansion!", PlayerData.getWalkSpeed(player)),
+				"level"
+			)
+		end
+	end
+	if trainer.PendingLevels > 0 and os.clock() - trainer.LastToast >= TOAST_INTERVAL then
+		sendSpeedToast(player, trainer)
+	end
 end
 
 local function loop()
+	local last = os.clock()
 	while true do
 		task.wait(TICK)
-		for _, player in Players:GetPlayers() do
-			local training = trainPlayer(player)
-			if player:GetAttribute("Training") ~= training then
-				player:SetAttribute("Training", training)
+		local now = os.clock()
+		local dt = math.min(now - last, 1) -- don't hand out a burst of XP after a server hitch
+		last = now
+		for player, trainer in trainers do
+			if player.Parent then
+				train(player, trainer, dt)
+			else
+				trainers[player] = nil
 			end
+		end
+		-- Also picks up new owners, upgrades and players leaving.
+		for _, treadmill in treadmills do
+			refreshDisplay(treadmill)
 		end
 	end
 end
 
+local function addUpgradePrompt(treadmill: Treadmill, console: BasePart)
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "UpgradeTreadmillPrompt"
+	prompt.ActionText = "Upgrade"
+	prompt.ObjectText = "Treadmill"
+	prompt.HoldDuration = 0.3
+	prompt.MaxActivationDistance = 10
+	prompt.RequiresLineOfSight = false
+	prompt.Enabled = false
+	prompt:SetAttribute("OwnerUserId", 0)
+	prompt.Parent = console
+	prompt.Triggered:Connect(function(player: Player)
+		if Plots.getOwner(treadmill.PlotModel) ~= player then
+			Notify.send(player, "That's not your treadmill! Yours is outside your own warehouse.", "error")
+			return
+		end
+		local ok, message = Economy.purchase(player, "Treadmill")
+		Notify.send(player, message, if ok then "success" else "error")
+		refreshDisplay(treadmill)
+	end)
+	treadmill.Prompt = prompt
+end
+
+local function onRequest(player: Player, action: any): { Ok: boolean, Message: string }
+	if action == "Start" then
+		local ok, message = Treadmills.start(player)
+		return { Ok = ok, Message = message }
+	elseif action == "Stop" then
+		Treadmills.stop(player)
+		return { Ok = true, Message = "" }
+	end
+	return { Ok = false, Message = "Invalid request." }
+end
+
 function Treadmills.onPlayerRemoving(player: Player)
-	lockedNoticeAt[player] = nil
-	maxedNoticeAt[player] = nil
+	trainers[player] = nil
 end
 
 function Treadmills.init()
 	local map = Workspace:WaitForChild("Map")
-	local gym = map:WaitForChild("Gym")
-	local folder = gym:WaitForChild("Treadmills")
-	for _, model in folder:GetChildren() do
-		if model:IsA("Model") then
-			local key = model:GetAttribute("TreadmillType")
-			local settings = if type(key) == "string" then Config.Treadmills[key] else nil
-			local belt = model:FindFirstChild("Belt")
-			if settings and belt and belt:IsA("BasePart") then
-				-- A moving conveyor: the belt pushes you backwards while you run forwards.
-				belt.AssemblyLinearVelocity = -belt.CFrame.LookVector * settings.BeltSpeed
-				table.insert(treadmills, { Model = model, Belt = belt, Settings = settings })
-			else
-				warn("[Treadmills] Skipping " .. model:GetFullName() .. " (missing TreadmillType or Belt)")
+	local folder = map:WaitForChild("Warehouses")
+	for _, plotModel in folder:GetChildren() do
+		local model = plotModel:FindFirstChild("Treadmill")
+		if not (plotModel:IsA("Model") and model and model:IsA("Model")) then
+			continue
+		end
+		local runPoint = model:FindFirstChild("RunPoint")
+		if not (runPoint and runPoint:IsA("BasePart")) then
+			warn("[Treadmills] Skipping " .. model:GetFullName() .. " (it has no RunPoint part)")
+			continue
+		end
+		local accents: { BasePart } = {}
+		for _, descendant in model:GetDescendants() do
+			if descendant:IsA("BasePart") and string.sub(descendant.Name, 1, 6) == "Accent" then
+				table.insert(accents, descendant)
 			end
 		end
+		local treadmill: Treadmill = {
+			Model = model,
+			PlotModel = plotModel,
+			RunPoint = runPoint,
+			Accents = accents,
+			Prompt = nil,
+			LevelLabel = findTextLabel(model, "TreadmillText"),
+			OwnerLabel = findTextLabel(model, "TreadmillOwnerText"),
+			Shown = "",
+		}
+		local console = model:FindFirstChild("Console")
+		if console and console:IsA("BasePart") then
+			addUpgradePrompt(treadmill, console)
+		end
+		table.insert(treadmills, treadmill)
+		refreshDisplay(treadmill)
 	end
+	ReplicatedStorage.Remotes.Treadmill.OnServerInvoke = onRequest
 	task.spawn(loop)
 end
 

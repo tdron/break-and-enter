@@ -218,6 +218,15 @@ def property_rules(database_path: str | None) -> str:
     return "\n".join(lines)
 
 
+def remote_lines() -> str:
+    """The same remotes build_place.py puts in ReplicatedStorage.Remotes."""
+    import build_place
+
+    lines = [f'mk("RemoteEvent", "{name}", RemotesFolder)' for name in build_place.REMOTE_EVENTS]
+    lines += [f'mk("RemoteFunction", "{name}", RemotesFolder)' for name in build_place.REMOTE_FUNCTIONS]
+    return "\n".join(lines)
+
+
 def bundle_server(spec_path: str, database_path: str | None = None, client: bool = False) -> str:
     with open(os.path.join(ROOT, "tests", "mock", "RobloxMock.luau"), encoding="utf-8") as handle:
         mock_source = handle.read()
@@ -237,10 +246,7 @@ end
 local ReplicatedStorageService = Mock.service("ReplicatedStorage")
 SharedFolder = mk("Folder", "Shared", ReplicatedStorageService)
 local RemotesFolder = mk("Folder", "Remotes", ReplicatedStorageService)
-mk("RemoteEvent", "Notify", RemotesFolder)
-mk("RemoteEvent", "Busted", RemotesFolder)
-mk("RemoteFunction", "Purchase", RemotesFolder)
-mk("RemoteFunction", "SpawnCar", RemotesFolder)
+""" + remote_lines() + """
 ServerScript = mk("Script", "Server", Mock.service("ServerScriptService"))
 local M = {}
 """)

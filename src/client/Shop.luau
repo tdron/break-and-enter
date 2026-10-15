@@ -40,9 +40,6 @@ local function getNumber(name: string, default: number): number
 end
 
 local function describeValue(upgrade: Config.Upgrade, value: number): string
-	if upgrade.Kind == "Unlock" then
-		return if value >= 1 then "Unlocked" else "Locked"
-	end
 	return string.format(upgrade.Format, value)
 end
 
@@ -52,24 +49,19 @@ local function refreshCard(card: Card)
 	local maxLevel = #upgrade.Values
 	local cash = getNumber("Cash", 0)
 
-	if upgrade.Kind == "Unlock" then
-		card.Level.Text = if level >= maxLevel then "OWNED" else "LOCKED"
-		card.Value.Text = upgrade.Description
+	card.Level.Text = string.format("LV %d / %d", level, maxLevel)
+	if level >= maxLevel then
+		card.Value.Text = describeValue(upgrade, upgrade.Values[level]) .. "  (max)"
 	else
-		card.Level.Text = string.format("LV %d / %d", level, maxLevel)
-		if level >= maxLevel then
-			card.Value.Text = describeValue(upgrade, upgrade.Values[level]) .. "  (max)"
-		else
-			card.Value.Text = string.format(
-				"%s  ➜  %s",
-				describeValue(upgrade, upgrade.Values[level]),
-				describeValue(upgrade, upgrade.Values[level + 1])
-			)
-		end
+		card.Value.Text = string.format(
+			"%s  ➜  %s",
+			describeValue(upgrade, upgrade.Values[level]),
+			describeValue(upgrade, upgrade.Values[level + 1])
+		)
 	end
 
 	if level >= maxLevel then
-		card.Button.Text = if upgrade.Kind == "Unlock" then "OWNED" else "MAXED"
+		card.Button.Text = "MAXED"
 		card.Button.BackgroundColor3 = Color3.fromRGB(70, 74, 96)
 		card.Button.AutoButtonColor = false
 	else
@@ -187,23 +179,21 @@ local function makeCard(parent: Instance, order: number, upgrade: Config.Upgrade
 		task.spawn(buy, upgrade)
 	end)
 
-	if upgrade.Kind ~= "Unlock" then
-		-- Show the description under the title for normal upgrades via the tooltip-ish subtitle.
-		UI.new("TextLabel", {
-			Name = "Description",
-			BackgroundTransparency = 1,
-			Position = UDim2.fromOffset(92, 66),
-			Size = UDim2.new(1, -260, 0, 20),
-			Font = Theme.BodyFont,
-			Text = upgrade.Description,
-			TextColor3 = Color3.fromRGB(130, 136, 160),
-			TextSize = 14,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			TextTruncate = Enum.TextTruncate.AtEnd,
-			Parent = frame,
-		})
-		valueLabel.Size = UDim2.new(1, -260, 0, 22)
-	end
+	-- Description under the title.
+	UI.new("TextLabel", {
+		Name = "Description",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(92, 66),
+		Size = UDim2.new(1, -260, 0, 20),
+		Font = Theme.BodyFont,
+		Text = upgrade.Description,
+		TextColor3 = Color3.fromRGB(130, 136, 160),
+		TextSize = 14,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = frame,
+	})
+	valueLabel.Size = UDim2.new(1, -260, 0, 22)
 
 	return { Upgrade = upgrade, Level = levelLabel, Value = valueLabel, Button = button }
 end
@@ -293,7 +283,7 @@ function Shop.init(screen: ScreenGui)
 		Position = UDim2.new(0, 20, 1, -10),
 		Size = UDim2.new(1, -40, 0, 30),
 		Font = Theme.BodyFont,
-		Text = "💡 Stored items earn cash every second. Run on Gym treadmills to outrun faster drones!",
+		Text = "💡 Stored items earn cash every second. Run on your warehouse treadmill (even AFK!) to outrun faster drones.",
 		TextColor3 = Theme.SubText,
 		TextSize = 15,
 		TextWrapped = true,

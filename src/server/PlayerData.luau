@@ -126,6 +126,14 @@ local function sanitize(raw: any): Profile
 		for _, upgrade in Config.Upgrades do
 			profile.Levels[upgrade.Id] = math.floor(readNumber(raw.Levels[upgrade.Id], 1, 1, #upgrade.Values))
 		end
+		-- Older saves unlocked Pro/Elite treadmills at the Gym; turn those into treadmill levels.
+		if raw.Levels.Treadmill == nil then
+			if raw.Levels.EliteTreadmill == 2 then
+				profile.Levels.Treadmill = 6
+			elseif raw.Levels.ProTreadmill == 2 then
+				profile.Levels.Treadmill = 3
+			end
+		end
 	end
 	profile.SpeedLevel = math.floor(readNumber(raw.SpeedLevel, 0, 0, Config.Speed.MaxLevel))
 	profile.SpeedXP = readNumber(raw.SpeedXP, 0, 0, 1e9)

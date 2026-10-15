@@ -87,7 +87,7 @@ test("upgrade tables are consistent", function()
 		check(Config.UpgradesById[upgrade.Id] == upgrade, "UpgradesById missing " .. upgrade.Id)
 		check(string.format(upgrade.Format, upgrade.Values[1]) ~= nil, "bad format for " .. upgrade.Id)
 	end
-	for _, id in { "Bag", "Engine", "Trunk", "Storage", "ProTreadmill", "EliteTreadmill" } do
+	for _, id in { "Bag", "Engine", "Trunk", "Storage", "Treadmill" } do
 		check(seen[id] == true, "missing upgrade " .. id)
 	end
 end)
@@ -112,11 +112,12 @@ test("speed progression", function()
 		check(Config.xpForLevel(level) > 0, "xp must be positive")
 		totalXP += Config.xpForLevel(level)
 	end
-	-- Max speed should take a while on the basic treadmill but be quick on the elite one.
-	local basicMinutes = totalXP / Config.Treadmills.Basic.XPPerSecond / 60
-	local eliteMinutes = totalXP / Config.Treadmills.Elite.XPPerSecond / 60
-	check(basicMinutes > 15, "basic treadmill maxes too fast: " .. basicMinutes)
-	check(eliteMinutes < 5, "elite treadmill maxes too slowly: " .. eliteMinutes)
+	-- Max speed should take a while on a new treadmill but be quick on a fully upgraded one.
+	local treadmill = Config.UpgradesById.Treadmill
+	local slowMinutes = totalXP / treadmill.Values[1] / 60
+	local fastMinutes = totalXP / treadmill.Values[#treadmill.Values] / 60
+	check(slowMinutes > 15, "a level 1 treadmill maxes speed too fast: " .. slowMinutes)
+	check(fastMinutes < 3, "a maxed treadmill maxes speed too slowly: " .. fastMinutes)
 end)
 
 test("house tiers get harder", function()
@@ -132,15 +133,13 @@ test("house tiers get harder", function()
 	check(Config.HouseTiers[1].DroneSpeed < Config.Speed.BaseWalkSpeed, "cottage drones too fast for new players")
 end)
 
-test("treadmills reference real unlock upgrades", function()
-	for key, treadmill in Config.Treadmills do
-		if treadmill.Unlock then
-			local upgrade = Config.UpgradesById[treadmill.Unlock]
-			check(upgrade ~= nil, key .. " unlock upgrade missing")
-			eq(upgrade.Kind, "Unlock", key .. " unlock kind")
-		end
-	end
-	check(Config.Treadmills.Basic.Unlock == nil, "basic treadmill must be free")
+test("treadmill settings", function()
+	local treadmill = Config.UpgradesById.Treadmill
+	eq(#Config.Treadmill.LevelColors, #treadmill.Values, "one trim colour per treadmill level")
+	eq(Config.treadmillColor(1), Config.Treadmill.LevelColors[1])
+	eq(Config.treadmillColor(99), Config.Treadmill.LevelColors[#treadmill.Values], "colour clamps to the top level")
+	eq(Config.treadmillColor(0), Config.Treadmill.LevelColors[1], "colour clamps to level 1")
+	check(Config.Treadmill.MaxDistance > 0 and Config.Treadmill.RemountCooldown > 0, "treadmill timings must be positive")
 end)
 
 --------------------------------------------------------------------------------

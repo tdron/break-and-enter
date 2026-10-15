@@ -9,7 +9,7 @@
 	  Plots       personal warehouses (storage = passive income)
 	  Houses      lockpicking, loot, alarms, security drones, lasers
 	  Vehicles    the getaway car
-	  Treadmills  speed training at the Gym
+	  Treadmills  each warehouse's personal (AFK-able, upgradable) treadmill
 	  Economy     income ticks + the upgrade shop
 ]]
 

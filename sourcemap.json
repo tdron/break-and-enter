@@ -90,6 +90,10 @@
       {
        "name": "SpawnCar",
        "className": "RemoteFunction"
+      },
+      {
+       "name": "Treadmill",
+       "className": "RemoteFunction"
       }
      ]
     }
@@ -207,6 +211,13 @@
          "className": "ModuleScript",
          "filePaths": [
           "src/client/Shop.luau"
+         ]
+        },
+        {
+         "name": "TreadmillController",
+         "className": "ModuleScript",
+         "filePaths": [
+          "src/client/TreadmillController.luau"
          ]
         },
         {

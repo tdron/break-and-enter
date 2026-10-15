@@ -7,13 +7,14 @@
 	  * SHOP and CAR buttons
 	  * Alarm banner while drones are chasing you
 	  * Objective hint telling new players what to do next
-	  * Treadmill training bar and car speedometer
+	  * Treadmill training bar (while you run on your treadmill) and car speedometer
 ]]
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
 local UI = require(script.Parent.UI)
 local VehicleController = require(script.Parent.VehicleController)
@@ -276,13 +277,28 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks)
 		UI.scaled(),
 	})
 	local trainingTitle: TextLabel = UI.new("TextLabel", {
+		Name = "Title",
 		BackgroundTransparency = 1,
 		Position = UDim2.fromOffset(12, 4),
-		Size = UDim2.new(1, -24, 0, 24),
+		Size = UDim2.new(1, -140, 0, 24),
 		Font = Theme.TitleFont,
 		Text = "",
 		TextColor3 = Theme.Cyan,
 		TextSize = 19,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = trainingPanel,
+	})
+	local trainingRate: TextLabel = UI.new("TextLabel", {
+		Name = "Rate",
+		AnchorPoint = Vector2.new(1, 0),
+		BackgroundTransparency = 1,
+		Position = UDim2.new(1, -12, 0, 4),
+		Size = UDim2.fromOffset(130, 24),
+		Font = Theme.BoldFont,
+		Text = "",
+		TextColor3 = Theme.Gold,
+		TextSize = 17,
+		TextXAlignment = Enum.TextXAlignment.Right,
 		Parent = trainingPanel,
 	})
 	local barBack: Frame = UI.new("Frame", {
@@ -360,6 +376,8 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks)
 			text = "🚨 Escape the property! Drones can't follow you past the fence."
 		elseif player:GetAttribute("DataLoaded") ~= true then
 			text = "Loading your hideout..."
+		elseif player:GetAttribute("Training") == true then
+			text = "🏃 Training! You can go AFK, you'll keep getting faster. Press ESCAPE to hop off."
 		elseif carried >= bag then
 			text = "🎒 Bag full! Load your car trunk [F] or drop the loot on your warehouse's green DEPOSIT pad."
 		elseif carried > 0 then
@@ -369,7 +387,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks)
 		elseif getNumber("StoredCount", 0) == 0 then
 			text = "🏠 Spawn your 🚗 CAR, drive to a house, pick the lock and steal something!"
 		else
-			text = "🦝 Steal fancier loot from bigger houses. Train speed at the Gym to outrun their drones!"
+			text = "🦝 Steal fancier loot from bigger houses. Run on your warehouse treadmill to outrun their drones!"
 		end
 		objective.Text = text
 	end
@@ -383,13 +401,24 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks)
 	end
 
 	local function updateTraining()
-		local treadmill = getString("Training")
-		trainingPanel.Visible = treadmill ~= ""
-		if treadmill ~= "" then
+		local training = player:GetAttribute("Training") == true
+		trainingPanel.Visible = training
+		if training then
 			local level = getNumber("SpeedLevel", 0)
-			local xp, needed = getNumber("SpeedXP", 0), math.max(getNumber("SpeedXPNeeded", 1), 1)
-			trainingTitle.Text = string.format("🏃 %s — Speed %d ➜ %d", treadmill, 16 + level, 17 + level)
-			UI.tween(barFill, 0.2, { Size = UDim2.fromScale(math.clamp(xp / needed, 0, 1), 1) })
+			local treadmillLevel = getNumber("Level_Treadmill", 1)
+			trainingRate.Text = string.format("Lv %d · ⚡ %d XP/s", treadmillLevel, Config.getUpgradeValue("Treadmill", treadmillLevel))
+			if player:GetAttribute("SpeedMaxed") == true then
+				trainingTitle.Text = string.format("🏃 MAX SPEED (%d)", Config.walkSpeedForLevel(level))
+				UI.tween(barFill, 0.2, { Size = UDim2.fromScale(1, 1) })
+			else
+				local xp, needed = getNumber("SpeedXP", 0), math.max(getNumber("SpeedXPNeeded", 1), 1)
+				trainingTitle.Text = string.format(
+					"🏃 Speed %d ➜ %d",
+					Config.walkSpeedForLevel(level),
+					Config.walkSpeedForLevel(level + 1)
+				)
+				UI.tween(barFill, 0.2, { Size = UDim2.fromScale(math.clamp(xp / needed, 0, 1), 1) })
+			end
 		end
 	end
 
@@ -404,7 +433,8 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks)
 		updateObjective()
 	end)
 	player:GetAttributeChangedSignal("DataLoaded"):Connect(updateObjective)
-	for _, name in { "Training", "SpeedXP", "SpeedLevel", "SpeedXPNeeded" } do
+	player:GetAttributeChangedSignal("Training"):Connect(updateObjective)
+	for _, name in { "Training", "SpeedXP", "SpeedLevel", "SpeedXPNeeded", "SpeedMaxed", "Level_Treadmill" } do
 		player:GetAttributeChangedSignal(name):Connect(updateTraining)
 	end
 	player:GetAttributeChangedSignal("Cash"):Connect(function()

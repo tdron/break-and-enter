@@ -19,6 +19,9 @@
         },
         "SpawnCar": {
           "$className": "RemoteFunction"
+        },
+        "Treadmill": {
+          "$className": "RemoteFunction"
         }
       }
     },

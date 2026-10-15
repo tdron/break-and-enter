@@ -5,7 +5,7 @@
 
 	  join -> spawn at your warehouse -> pick a lock -> steal -> alarm ->
 	  get busted by a drone -> steal again and escape -> deposit -> earn
-	  income -> buy upgrades -> train on a treadmill -> spawn the car ->
+	  income -> buy upgrades -> AFK-train on your own treadmill -> spawn the car ->
 	  load the trunk -> unload at the dock -> sell -> leave (save) -> rejoin (load)
 
 	Run with:  python3 tools/run_luau_tests.py
@@ -16,6 +16,7 @@ local Players = Mock.service("Players")
 local ReplicatedStorage = Mock.service("ReplicatedStorage")
 local Remotes = ReplicatedStorage.Remotes
 local Map = workspace.Map
+local Config = require(SharedFolder.Config)
 
 local passed, failed = 0, 0
 local function step(name: string, fn: () -> ())
@@ -254,41 +255,103 @@ step("buy upgrades in the shop", function()
 	eq(plot.Slots.Slot15.Transparency, 0, "slot 15 unlocked")
 	eq(plot.Slots.Slot16.Transparency > 0, true, "slot 16 still locked")
 	Mock.advance(0.3)
-	eq(purchase(thief, "ProTreadmill").Ok, true, "pro treadmill unlock")
+	eq(purchase(thief, "Treadmill").Ok, true, "treadmill upgrade")
+	eq(thief:GetAttribute("Level_Treadmill"), 2, "treadmill level")
+	eq(purchase(thief, "Treadmill").Ok, false, "purchases are rate limited")
 	Mock.advance(0.3)
-	eq(purchase(thief, "ProTreadmill").Ok, false, "can't buy an unlock twice")
+	local treadmill = plot.Treadmill
+	eq(treadmill:GetAttribute("Level"), 2, "treadmill shows its new level")
+	check(string.find(treadmill.Console:FindFirstChild("TreadmillText", true).Text, "LV 2", 1, true), "console level")
+	eq(treadmill.Console:FindFirstChild("TreadmillOwnerText", true).Text, "THIEF'S TREADMILL", "console owner")
+	eq(treadmill.AccentBar.Color, Config.treadmillColor(2), "trim colour follows the level")
 end)
 
-step("train speed on treadmills", function()
+local function speedToasts(player, since: number): number
+	local count = 0
+	for _, message in notificationsFor(player, since) do
+		if string.find(message, "Speed up", 1, true) then
+			count += 1
+		end
+	end
+	return count
+end
+
+step("AFK training on your own treadmill", function()
 	local mark = #Mock.remoteLog
-	local basic = Map.Gym.Treadmills.BasicTreadmill.Belt
-	check(basic.AssemblyLinearVelocity.Magnitude > 1, "belt isn't moving")
-	root.CFrame = basic.CFrame + Vector3.new(0, 3, 0)
-	root.AssemblyLinearVelocity = Vector3.zero -- running in place against the belt
-	Mock.advance(6)
-	eq(thief:GetAttribute("Training"), "Basic Treadmill", "training attribute")
-	check(thief:GetAttribute("SpeedLevel") >= 1, "no speed level gained")
-	eq(humanoid.WalkSpeed, 16 + thief:GetAttribute("SpeedLevel"), "walk speed applied")
-	check(sawMessage(thief, mark, "Speed up"), "no level-up message")
-	-- Standing still: the belt carries you backwards and you stop training
-	root.AssemblyLinearVelocity = -basic.CFrame.LookVector * 8
-	Mock.advance(1)
-	eq(thief:GetAttribute("Training"), "", "should stop training when not running")
-	-- Elite treadmill is still locked
-	local elite = Map.Gym.Treadmills.EliteTreadmill.Belt
-	root.CFrame = elite.CFrame + Vector3.new(0, 3, 0)
+	local treadmill = plot.Treadmill
+	local request = Remotes.Treadmill.OnServerInvoke
+	eq(treadmill:GetAttribute("OwnerUserId"), 101, "treadmill knows its owner")
+	eq(treadmill:GetAttribute("Running"), false, "belt idle")
+
+	-- You have to actually be on it.
+	root.CFrame = CFrame.new(-140, 3, -40)
+	Mock.advance(0.1)
+	eq(request(thief, "Start").Ok, false, "can't start training from across town")
+	check(thief:GetAttribute("Training") ~= true, "not training")
+	eq(request(thief, "Fly").Ok, false, "unknown action rejected")
+
+	-- Standing on the belt with no input at all (AFK) still trains you.
+	root.CFrame = treadmill.RunPoint.CFrame
 	root.AssemblyLinearVelocity = Vector3.zero
-	local xp = thief:GetAttribute("SpeedXP")
+	local result = request(thief, "Start")
+	eq(result.Ok, true, "start training: " .. tostring(result.Message))
+	eq(thief:GetAttribute("Training"), true, "training attribute")
+	eq(treadmill:GetAttribute("Running"), true, "belt runs while you train")
+	eq(request(thief, "Start").Ok, true, "starting twice is harmless")
+	Mock.advance(10)
 	local level = thief:GetAttribute("SpeedLevel")
-	Mock.advance(1)
-	check(sawMessage(thief, mark, "locked"), "no locked message")
-	eq(thief:GetAttribute("SpeedXP"), xp, "no XP on a locked treadmill")
-	eq(thief:GetAttribute("SpeedLevel"), level, "no level on a locked treadmill")
-	-- The unlocked Pro treadmill trains 3x faster
-	local pro = Map.Gym.Treadmills.ProTreadmill.Belt
-	root.CFrame = pro.CFrame + Vector3.new(0, 3, 0)
+	check(level >= 2, "speed level after 10 AFK seconds on a level 2 treadmill: " .. tostring(level))
+	eq(humanoid.WalkSpeed, 16 + level, "walk speed applied")
+	check(sawMessage(thief, mark, "Speed up"), "no level-up message")
+	eq(thief:GetAttribute("Training"), true, "still training")
+
+	-- A maxed treadmill levels you up several times a second; the toasts get batched.
+	local session = moduleOf("PlayerData").get(thief)
+	session.Profile.Levels.Treadmill = #Config.UpgradesById.Treadmill.Values
+	local burstMark = #Mock.remoteLog
+	local before = thief:GetAttribute("SpeedLevel")
+	Mock.advance(3)
+	check(thief:GetAttribute("SpeedLevel") >= before + 4, "a maxed treadmill should level you up fast")
+	check(speedToasts(thief, burstMark) <= 2, "level-up toasts should be batched, got " .. speedToasts(thief, burstMark))
+	session.Profile.Levels.Treadmill = 2
+
+	-- ESCAPE / Space sends "Stop".
+	eq(request(thief, "Stop").Ok, true, "stop")
+	eq(thief:GetAttribute("Training"), false, "stopped training")
+	eq(treadmill:GetAttribute("Running"), false, "belt stops")
+	local xp = thief:GetAttribute("SpeedXP")
 	Mock.advance(2)
-	eq(thief:GetAttribute("Training"), "Pro Treadmill", "pro treadmill works once unlocked")
+	eq(thief:GetAttribute("SpeedXP"), xp, "no XP after stopping")
+
+	-- Wandering off (e.g. being moved) stops training after a short grace period.
+	eq(request(thief, "Start").Ok, true, "start again")
+	root.CFrame = treadmill.RunPoint.CFrame + Vector3.new(10, 0, 0)
+	Mock.advance(1)
+	eq(thief:GetAttribute("Training"), true, "brief grace period")
+	Mock.advance(2)
+	eq(thief:GetAttribute("Training"), false, "training stops when you leave the treadmill")
+	check(sawMessage(thief, mark, "left your treadmill"), "no message about leaving")
+
+	-- So does dying.
+	root.CFrame = treadmill.RunPoint.CFrame
+	eq(request(thief, "Start").Ok, true, "start once more")
+	humanoid.Health = 0
+	Mock.advance(0.5)
+	eq(thief:GetAttribute("Training"), false, "dead players don't train")
+	humanoid.Health = 100
+
+	-- The console upgrades the treadmill itself.
+	local prompt = treadmill.Console.UpgradeTreadmillPrompt
+	eq(prompt:GetAttribute("OwnerUserId"), 101, "prompt is owner-only")
+	eq(prompt.Enabled, true, "prompt enabled")
+	check(string.find(prompt.ActionText, "$1,200", 1, true), "prompt shows the next price: " .. prompt.ActionText)
+	moduleOf("PlayerData").addCash(thief, 2000)
+	local upgradeMark = #Mock.remoteLog
+	prompt.Triggered:Fire(thief)
+	eq(thief:GetAttribute("Level_Treadmill"), 3, "console upgrade bought")
+	check(sawMessage(thief, upgradeMark, "Treadmill upgraded to level 3"), "no upgrade message")
+	eq(treadmill:GetAttribute("Level"), 3, "treadmill level 3")
+	check(string.find(treadmill.Console:FindFirstChild("TreadmillText", true).Text, "5 XP/s", 1, true), "console XP/s")
 end)
 
 local car
@@ -363,6 +426,23 @@ step("a second player gets their own warehouse and can't touch yours", function(
 	plot.DepositPad.Touched:Fire(rivalRoot)
 	eq(rival:GetAttribute("Carried"), 1, "rival can't deposit in your warehouse")
 	check(sawMessage(rival, mark, "warehouse"), "no wrong-warehouse warning")
+
+	-- Treadmills are personal too.
+	local request = Remotes.Treadmill.OnServerInvoke
+	rivalRoot.CFrame = plot.Treadmill.RunPoint.CFrame
+	eq(request(rival, "Start").Ok, false, "rival can't train on your treadmill")
+	local level = thief:GetAttribute("Level_Treadmill")
+	plot.Treadmill.Console.UpgradeTreadmillPrompt.Triggered:Fire(rival)
+	eq(thief:GetAttribute("Level_Treadmill"), level, "rival can't upgrade your treadmill")
+	check(sawMessage(rival, mark, "not your treadmill"), "rival not told off at the console")
+	local rivalTreadmill = Map.Warehouses.Plot2.Treadmill
+	eq(rivalTreadmill:GetAttribute("OwnerUserId"), 202, "rival owns the plot 2 treadmill")
+	eq(rivalTreadmill:GetAttribute("Level"), 1, "rival's treadmill starts at level 1")
+	rivalRoot.CFrame = rivalTreadmill.RunPoint.CFrame
+	eq(request(rival, "Start").Ok, true, "rival trains on their own treadmill")
+	eq(rivalTreadmill:GetAttribute("Running"), true, "rival's belt runs")
+	eq(plot.Treadmill:GetAttribute("Running"), false, "your belt doesn't")
+	eq(request(rival, "Stop").Ok, true, "rival stops")
 end)
 
 step("sell an item from your shelf", function()
@@ -425,9 +505,14 @@ step("progress saves on leave and loads on rejoin", function()
 	eq(#saved.Stored, #stored, "saved stored items")
 	eq(saved.Levels.Bag, 2, "saved bag level")
 	eq(saved.Levels.Engine, 3, "saved engine level")
+	eq(saved.Levels.Treadmill, 3, "saved treadmill level")
 	eq(plot:FindFirstChild("OwnerText", true).Text, "EMPTY WAREHOUSE", "plot released")
 	eq(#plot.Display:GetChildren(), 0, "shelves cleared")
 	eq(#workspace.Cars:GetChildren(), 0, "car removed")
+	Mock.advance(0.3)
+	eq(plot.Treadmill:GetAttribute("OwnerUserId"), 0, "treadmill released")
+	eq(plot.Treadmill.Console:FindFirstChild("TreadmillText", true).Text, "EMPTY", "treadmill console reset")
+	eq(plot.Treadmill.Console.UpgradeTreadmillPrompt.Enabled, false, "no upgrades on an empty treadmill")
 
 	local returning = newPlayer(101, "Thief")
 	spawnCharacter(returning, Vector3.new(0, 5, 0))
@@ -438,6 +523,26 @@ step("progress saves on leave and loads on rejoin", function()
 	check(returning:GetAttribute("Cash") >= cash, "cash restored")
 	eq(#plot.Display:GetChildren(), #stored, "shelves rebuilt")
 	check(returning:GetAttribute("SpeedLevel") >= 1, "speed restored")
+	eq(returning:GetAttribute("Level_Treadmill"), 3, "treadmill level restored")
+	Mock.advance(0.3)
+	eq(plot.Treadmill:GetAttribute("Level"), 3, "treadmill shows the restored level")
+end)
+
+step("old saves with gym treadmill unlocks become treadmill levels", function()
+	local store = Mock.dataStores.StealAnItem_PlayerData_v1
+	store.Player_303 = { Cash = 10, Levels = { Bag = 2, ProTreadmill = 2, EliteTreadmill = 2 } }
+	store.Player_404 = { Cash = 10, Levels = { ProTreadmill = 2, EliteTreadmill = 1 } }
+	local elite = newPlayer(303, "EliteRunner")
+	local pro = newPlayer(404, "ProRunner")
+	Mock.advance(0.5)
+	eq(elite:GetAttribute("Level_Treadmill"), 6, "elite unlock -> treadmill level 6")
+	eq(elite:GetAttribute("Level_Bag"), 2, "other upgrades kept")
+	eq(pro:GetAttribute("Level_Treadmill"), 3, "pro unlock -> treadmill level 3")
+	for _, player in { elite, pro } do
+		player.Parent = nil
+		Players.PlayerRemoving:Fire(player)
+	end
+	Mock.advance(0.5)
 end)
 
 step("no warnings were logged", function()

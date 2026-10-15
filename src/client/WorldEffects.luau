@@ -4,9 +4,8 @@
 	------------
 	Purely visual/audio touches that only the local player needs:
 	  * Flashing sirens + beeping on houses whose alarm is going off
-	  * Moving stripes on treadmill belts
+	  * Moving stripes on the warehouse treadmills while someone runs on them
 	  * A "YOUR WAREHOUSE" marker so you can always find your way home
-	  * Lock/unlock labels over the Pro and Elite treadmills
 ]]
 
 local Players = game:GetService("Players")
@@ -15,7 +14,6 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
-local Format = require(ReplicatedStorage.Shared.Format)
 
 local WorldEffects = {}
 
@@ -30,9 +28,9 @@ type SirenHouse = {
 }
 
 type Belt = {
+	Model: Model,
 	Part: BasePart,
 	Stripes: { BasePart },
-	Speed: number,
 	Offset: number,
 }
 
@@ -114,84 +112,55 @@ local function setupSirens(map: Instance)
 end
 
 --------------------------------------------------------------------------------
--- Treadmills
+-- Treadmills: the belt scrolls while its owner is running on it (the server sets
+-- the Running and Level attributes on each warehouse's Treadmill model).
 --------------------------------------------------------------------------------
+local function addBelt(belts: { Belt }, treadmill: Model)
+	local beltPart = treadmill:WaitForChild("Belt", 10)
+	if not (beltPart and beltPart:IsA("BasePart")) then
+		return
+	end
+	local belt: Belt = { Model = treadmill, Part = beltPart, Stripes = {}, Offset = 0 }
+	for _ = 1, STRIPES_PER_BELT do
+		local stripe = Instance.new("Part")
+		stripe.Name = "BeltStripe"
+		stripe.Anchored = true
+		stripe.CanCollide = false
+		stripe.CanQuery = false
+		stripe.CanTouch = false
+		stripe.CastShadow = false
+		stripe.Size = Vector3.new(beltPart.Size.X - 0.1, 0.02, 0.3)
+		stripe.Color = Color3.fromRGB(70, 70, 78)
+		stripe.Material = Enum.Material.SmoothPlastic
+		stripe.Parent = beltPart
+		table.insert(belt.Stripes, stripe)
+	end
+	table.insert(belts, belt)
+end
+
 local function setupTreadmills(map: Instance)
-	local gym = map:WaitForChild("Gym")
-	local folder = gym:WaitForChild("Treadmills")
+	local folder = map:WaitForChild("Warehouses")
 	local belts: { Belt } = {}
-
-	for _, model in folder:GetChildren() do
-		if not model:IsA("Model") then
-			continue
+	for _, plot in folder:GetChildren() do
+		local treadmill = plot:FindFirstChild("Treadmill")
+		if treadmill and treadmill:IsA("Model") then
+			addBelt(belts, treadmill)
 		end
-		local key = model:GetAttribute("TreadmillType")
-		local settings = if type(key) == "string" then Config.Treadmills[key] else nil
-		local beltPart = model:WaitForChild("Belt", 10)
-		if not (settings and beltPart and beltPart:IsA("BasePart")) then
-			continue
-		end
-
-		local belt: Belt = { Part = beltPart, Stripes = {}, Speed = settings.BeltSpeed, Offset = 0 }
-		for _ = 1, STRIPES_PER_BELT do
-			local stripe = Instance.new("Part")
-			stripe.Name = "BeltStripe"
-			stripe.Anchored = true
-			stripe.CanCollide = false
-			stripe.CanQuery = false
-			stripe.CanTouch = false
-			stripe.CastShadow = false
-			stripe.Size = Vector3.new(beltPart.Size.X - 0.1, 0.02, 0.3)
-			stripe.Color = Color3.fromRGB(70, 70, 78)
-			stripe.Material = Enum.Material.SmoothPlastic
-			stripe.Parent = beltPart
-			table.insert(belt.Stripes, stripe)
-		end
-		table.insert(belts, belt)
-
-		-- Floating label: shows whether this treadmill is unlocked for you.
-		local billboard = Instance.new("BillboardGui")
-		billboard.Name = "TreadmillLabel"
-		billboard.Size = UDim2.fromOffset(220, 64)
-		billboard.StudsOffsetWorldSpace = Vector3.new(0, 7.5, 0)
-		billboard.MaxDistance = 90
-		billboard.LightInfluence = 0
-		billboard.Adornee = beltPart
-		billboard.Parent = beltPart
-		local label = Instance.new("TextLabel")
-		label.BackgroundTransparency = 1
-		label.Size = UDim2.fromScale(1, 1)
-		label.Font = Enum.Font.FredokaOne
-		label.TextScaled = true
-		label.TextStrokeTransparency = 0.3
-		label.TextColor3 = settings.Color
-		label.Parent = billboard
-
-		local function refresh()
-			local unlock = settings.Unlock
-			local unlocked = unlock == nil or (player:GetAttribute("Level_" .. unlock) or 1) >= 2
-			if unlocked then
-				label.Text = string.format("%s\n⚡ %d XP / sec", string.upper(settings.DisplayName), settings.XPPerSecond)
-				label.TextColor3 = settings.Color
-			else
-				local upgrade = Config.UpgradesById[unlock :: string]
-				local cost = if upgrade then upgrade.Costs[2] else 0
-				label.Text = string.format("🔒 %s\nUnlock in Shop: %s", string.upper(settings.DisplayName), Format.money(cost))
-				label.TextColor3 = Color3.fromRGB(255, 120, 120)
-			end
-		end
-		if settings.Unlock then
-			player:GetAttributeChangedSignal("Level_" .. settings.Unlock):Connect(refresh)
-		end
-		refresh()
 	end
 
+	local settings = Config.Treadmill
 	RunService.RenderStepped:Connect(function(dt: number)
 		for _, belt in belts do
 			local part = belt.Part
 			local length = part.Size.Z
 			local spacing = length / STRIPES_PER_BELT
-			belt.Offset = (belt.Offset + belt.Speed * dt) % spacing
+			if belt.Model:GetAttribute("Running") == true then
+				local level = belt.Model:GetAttribute("Level")
+				local speed = settings.BeltSpeedBase
+					+ (if type(level) == "number" then level - 1 else 0) * settings.BeltSpeedPerLevel
+				-- The belt runs from the console towards the back, under the runner's feet.
+				belt.Offset = (belt.Offset + speed * dt) % spacing
+			end
 			for index, stripe in belt.Stripes do
 				local z = -length / 2 + ((index - 1) * spacing + belt.Offset) % length
 				stripe.CFrame = part.CFrame * CFrame.new(0, part.Size.Y / 2 + 0.012, z)
