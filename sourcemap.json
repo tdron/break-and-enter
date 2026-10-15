@@ -101,6 +101,14 @@
       {
        "name": "Treadmill",
        "className": "RemoteFunction"
+      },
+      {
+       "name": "Storage",
+       "className": "RemoteFunction"
+      },
+      {
+       "name": "Sell",
+       "className": "RemoteFunction"
       }
      ]
     }
@@ -143,6 +151,13 @@
        "className": "ModuleScript",
        "filePaths": [
         "src/server/Inventory.luau"
+       ]
+      },
+      {
+       "name": "Market",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/server/Market.luau"
        ]
       },
       {
@@ -235,10 +250,24 @@
          ]
         },
         {
+         "name": "SellPoint",
+         "className": "ModuleScript",
+         "filePaths": [
+          "src/client/SellPoint.luau"
+         ]
+        },
+        {
          "name": "Shop",
          "className": "ModuleScript",
          "filePaths": [
           "src/client/Shop.luau"
+         ]
+        },
+        {
+         "name": "Storage",
+         "className": "ModuleScript",
+         "filePaths": [
+          "src/client/Storage.luau"
          ]
         },
         {

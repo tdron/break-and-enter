@@ -10,6 +10,7 @@ local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local ItemModels = require(ReplicatedStorage.Shared.ItemModels)
 
 local UI = {}
 
@@ -96,6 +97,44 @@ function UI.scaled(): UIScale
 	scale.Scale = UI.CurrentScale
 	table.insert(UI.Scales, scale)
 	return scale
+end
+
+-- A little 3D picture of an item, framed to fit, for the Loot Index and the storage / sell windows.
+-- Rarity auras are stripped, so the picture shows the item itself (the card's outline carries the colour).
+function UI.itemPicture(parent: Instance, itemId: string, size: UDim2, position: UDim2?): ViewportFrame
+	local picture: ViewportFrame = UI.new("ViewportFrame", {
+		Name = "Picture",
+		BackgroundColor3 = Color3.fromRGB(56, 62, 92),
+		Position = position or UDim2.fromOffset(6, 6),
+		Size = size,
+		Ambient = Color3.fromRGB(165, 165, 175),
+		LightColor = Color3.fromRGB(255, 250, 240),
+		LightDirection = Vector3.new(-0.6, -1, -0.8),
+		Parent = parent,
+	}, { UI.corner(10) })
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 34
+	camera.Parent = picture
+	picture.CurrentCamera = camera
+
+	local model = ItemModels.build(itemId)
+	if model then
+		for _, child in model:GetChildren() do
+			if child.Name == "Aura" or child.Name == "AuraGlow" then
+				child:Destroy()
+			end
+		end
+		model:PivotTo(CFrame.new())
+		model.Parent = picture
+	end
+
+	-- Frame the whole item, seen from the front, a little from the right and above.
+	local itemSize, center = ItemModels.getBounds(itemId)
+	local radius = math.max(itemSize.Magnitude / 2, 0.5)
+	local distance = radius / math.sin(math.rad(camera.FieldOfView / 2)) * 1.02
+	local direction = Vector3.new(0.5, 0.42, -1).Unit
+	camera.CFrame = CFrame.lookAt(center + direction * distance, center)
+	return picture
 end
 
 function UI.setScale(value: number)

@@ -43,6 +43,16 @@ local function findButton(root, text: string)
 	error("no button labelled " .. text)
 end
 
+-- A list row is named "<ItemId><order>"; the item's 3D model inside the picture is named "<ItemId>".
+local function findRow(list, itemId: string)
+	for _, child in list:GetChildren() do
+		if string.sub(child.Name, 1, #itemId) == itemId then
+			return child
+		end
+	end
+	return nil
+end
+
 local function findText(root, fragment: string)
 	for _, descendant in root:GetDescendants() do
 		if (descendant:IsA("TextLabel") or descendant:IsA("TextButton")) and descendant.Text
@@ -181,6 +191,7 @@ step("client boots and builds the HUD", function()
 	eq(hud.ResetOnSpawn, false, "HUD survives respawns")
 	check(findText(hud, "SHOP"), "no shop button")
 	check(findText(hud, "CAR"), "no car button")
+	check(findText(hud, "📦 STORAGE"), "no storage button")
 	check(#Mock.warnings == 0, "warnings: " .. table.concat(Mock.warnings, "; "))
 end)
 
@@ -653,6 +664,227 @@ step("new discoveries light up the index button until you look", function()
 	eq(hud.LootIndex.Visible, false, "opening the shop closes the index")
 	eq(hud.Shop.Visible, true, "shop open")
 	hud.Shop.Close.Activated:Fire()
+	Mock.advance(0.1)
+end)
+
+--------------------------------------------------------------------------------
+-- Warehouse storage, the sell point and the loot auras (change #4)
+--------------------------------------------------------------------------------
+-- A tiny stand-in for the server's Storage handler: it keeps a real shelf list.
+local shelves = { "Toaster", "OldRadio", "CoffeeMaker" }
+local storageRequests = {}
+local function shelfResult(ok: boolean, message: string): any
+	return { Ok = ok, Message = message, Items = table.clone(shelves) }
+end
+Mock.invokeHandlers.Storage = function(action, itemId)
+	table.insert(storageRequests, string.format("%s %s", tostring(action), tostring(itemId)))
+	if action == "List" then
+		return shelfResult(true, "")
+	end
+	local index = table.find(shelves, itemId)
+	if not index then
+		return shelfResult(false, "That item is no longer on your shelves.")
+	end
+	table.remove(shelves, index)
+	player:SetAttribute("StoredCount", #shelves)
+	if action == "Take" then
+		player:SetAttribute("Carried", (player:GetAttribute("Carried") or 0) + 1)
+		return shelfResult(true, "🎒 Took " .. tostring(itemId) .. " off the shelf (now in your bag).")
+	end
+	return shelfResult(true, "💵 Sold " .. tostring(itemId))
+end
+
+-- A stand-in for the server's Sell handler.
+local bag = { "Toaster", "DiamondNecklace" }
+local trunk = {}
+local trunkReady = false
+local sellRequests = {}
+Mock.invokeHandlers.Sell = function(action, itemId, source)
+	table.insert(sellRequests, string.format("%s %s %s", tostring(action), tostring(itemId), tostring(source)))
+	local sales = {}
+	for _, id in bag do
+		table.insert(sales, { ItemId = id, Source = "Bag" })
+	end
+	if trunkReady then
+		for _, id in trunk do
+			table.insert(sales, { ItemId = id, Source = "Trunk" })
+		end
+	end
+	if action == "List" then
+		return { Ok = true, Sales = sales, TrunkReady = trunkReady, TrunkRange = 45 }
+	end
+	if action == "All" then
+		bag, trunk = {}, {}
+		return { Ok = true, Message = "💵 Sold the lot", Count = 1, Value = 25, TrunkReady = trunkReady }
+	end
+	local list = if source == "Trunk" then trunk else bag
+	local index = table.find(list, itemId)
+	if not index then
+		return { Ok = false, Message = "Nothing like that in your bag.", TrunkReady = trunkReady }
+	end
+	table.remove(list, index)
+	return { Ok = true, Message = "💵 Sold " .. tostring(itemId) .. "!", TrunkReady = trunkReady }
+end
+
+step("the shelf prompt opens your storage, where items are taken off the shelves", function()
+	player:SetAttribute("Carried", 0)
+	player:SetAttribute("StoredCount", #shelves)
+	player:SetAttribute("StorageCapacity", 10)
+	player:SetAttribute("BagCapacity", 2)
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "ShelfPrompt"
+	Mock.service("ProximityPromptService").PromptTriggered:Fire(prompt, player)
+	Mock.advance(0.3)
+	local window = hud:FindFirstChild("Storage")
+	check(window, "no storage window")
+	eq(window.Visible, true, "the shelf prompt opens it")
+	check(findText(window, "WAREHOUSE STORAGE"), "title")
+	check(findText(window, "📦 Shelves 3 / 10"), "header should count the shelves: " .. findText(window, "📦").Text)
+	local list = window:FindFirstChild("List")
+	eq(#list:GetChildren(), #shelves, "one row per stored item")
+	local row = findRow(list, "Toaster")
+	check(row, "no row for the Toaster")
+	check(row:FindFirstChild("ItemName").Text == "Toaster", "the row names the item")
+	check(row:FindFirstChild("Picture").CurrentCamera, "the row shows a 3D picture of the item")
+
+	-- TAKE puts the item back in the bag (the server owns the real shelves).
+	row.Take.Activated:Fire()
+	Mock.advance(0.3)
+	check(table.find(storageRequests, "Take Toaster"), "the take went to the server")
+	check(findText(hud, "off the shelf"), "the take result is shown")
+	eq(player:GetAttribute("StoredCount"), #shelves, "the header follows the new count")
+	eq(#list:GetChildren(), #shelves, "the list was rebuilt without it")
+	check(not list:FindFirstChild("Toaster", true), "the taken item is gone from the list")
+
+	-- SELL pays cash straight from the window.
+	local before = #shelves
+	local cashRow = list:GetChildren()[1]
+	local soldId = cashRow.Name:gsub("%d+$", "")
+	cashRow.Sell.Activated:Fire()
+	Mock.advance(0.3)
+	check(table.find(storageRequests, "Sell " .. soldId), "the sell went to the server")
+	check(findText(hud, "💵 Sold"), "the sale result is shown")
+	eq(#list:GetChildren(), before - 1, "one row fewer")
+
+	-- The HUD's STORAGE button opens the same window from anywhere.
+	window.Close.Activated:Fire()
+	Mock.advance(0.1)
+	eq(window.Visible, false, "the close button shuts it")
+	findButton(hud, "📦 STORAGE").Activated:Fire()
+	Mock.advance(0.3)
+	eq(window.Visible, true, "the HUD button opens it")
+	check(findText(window, "📦 Shelves"), "the header is there again")
+
+	-- Only one window is open at a time: the trader's window closes the shelves.
+	local sellPrompt = Instance.new("ProximityPrompt")
+	sellPrompt.Name = "OpenSellPrompt"
+	Mock.service("ProximityPromptService").PromptTriggered:Fire(sellPrompt, player)
+	Mock.advance(0.3)
+	eq(window.Visible, false, "opening the sell point closes the storage window")
+end)
+
+step("the trader's window sells your bag, and the trunk once the car is at the stall", function()
+	local window = hud:FindFirstChild("SellPoint")
+	check(window, "no sell point window")
+	eq(window.Visible, true, "the counter prompt opens it")
+	check(findText(window, "💰 SELL POINT"), "title")
+	local list = window:FindFirstChild("List")
+	eq(#list:GetChildren(), #bag, "every carried item is listed")
+	local row = findRow(list, "DiamondNecklace")
+	check(row, "no row for the necklace")
+	check(findText(row, "🎒 bag"), "bag loot says so")
+	check(findText(row, "Legendary"), "the row shows the rarity")
+	check(findText(window, "2 items in your bag"), "the total line counts the bag: " .. window.Total.Text)
+	check(findText(window, "🤑 SELL EVERYTHING ($"), "the sell-everything button shows the total")
+	check(findText(window, "Park your car within 45 studs"), "the trunk hint explains the range: " .. window.TrunkHint.Text)
+
+	row.Sell.Activated:Fire()
+	Mock.advance(0.3)
+	check(table.find(sellRequests, "Sell DiamondNecklace Bag"), "one item sold through the server")
+	check(findText(hud, "💵 Sold DiamondNecklace!"), "the trader's answer is shown")
+	eq(#list:GetChildren(), 1, "the sold item left the list")
+
+	-- Park the car: the trunk shows up in the window on its next look (once a second).
+	trunkReady = true
+	table.insert(trunk, "RubyRing")
+	Mock.advance(1.5)
+	eq(#list:GetChildren(), 2, "the trunk item is listed too")
+	check(findText(window, "🎒 bag") and findText(window, "🚗 trunk"), "each row says where it came from")
+	check(findText(window, "and 1 in the trunk"), "the total line counts the trunk: " .. window.Total.Text)
+	check(findText(window, "Your car is at the stall"), "the hint says the car is here")
+
+	window.SellAll.Activated:Fire()
+	Mock.advance(0.3)
+	check(table.find(sellRequests, "All nil nil"), "sell everything through the server")
+	eq(#list:GetChildren(), 0, "the list is empty now")
+	check(findText(window, "Nothing to sell"), "the empty note is back")
+	window.Close.Activated:Fire()
+	Mock.advance(0.1)
+	eq(window.Visible, false, "the window closes")
+end)
+
+step("epic and legendary loot carries a breathing aura in its rarity colour", function()
+	local Items = require(SharedFolder.Items)
+	local ItemModels = require(SharedFolder.ItemModels)
+	local rarity = Items.getRarity("DiamondNecklace")
+	eq(Items.hasAura("DiamondNecklace"), true, "legendary loot has an aura")
+	eq(Items.hasAura("SapphireTiara"), true, "epic loot has an aura")
+	eq(Items.hasAura("Toaster"), false, "common loot doesn't")
+
+	local legendary = ItemModels.build("DiamondNecklace")
+	check(legendary, "no model")
+	eq(legendary:GetAttribute("Glowing"), true, "the model is marked as glowing")
+	local aura = legendary:FindFirstChild("Aura")
+	check(aura, "no aura part on the necklace")
+	eq(aura.Color, rarity.Color, "the aura uses the Legendary gold")
+	eq(aura.Shape, Enum.PartType.Ball, "the aura is a ball around the item")
+	eq(aura.Transparency, Config.Aura.Transparency, "it starts at the base transparency")
+	check(aura.CanCollide == false and aura.CanQuery == false, "the aura never blocks the player")
+	local glow = legendary:FindFirstChild("AuraGlow")
+	check(glow, "no outline glow")
+	eq(glow.FillColor, rarity.Color, "the outline glows in the rarity colour")
+
+	local epic = ItemModels.build("SapphireTiara")
+	eq(epic:FindFirstChild("Aura").Color, Items.getRarity("SapphireTiara").Color, "epic auras are purple")
+	local plain = ItemModels.build("Toaster")
+	eq(plain:FindFirstChild("Aura"), nil, "a common item has no aura")
+
+	-- The client breathes the aura while it's near the camera, and leaves far away ones alone.
+	local nearby = legendary
+	nearby:PivotTo(CFrame.new(20, 4, 0))
+	nearby.Parent = workspace
+	local distant = ItemModels.build("SapphireTiara")
+	distant:PivotTo(CFrame.new(0, 4, -4000))
+	distant.Parent = workspace
+	Mock.advance(0.1)
+
+	local base = Config.Aura.Transparency
+	local lowest, highest, smallest = 1, 0, math.huge
+	local farStart, farEnd = distant.Aura.Transparency, distant.Aura.Transparency
+	local auraSize = aura:GetAttribute("AuraSize")
+	for index = 1, 40 do
+		Mock.advance(0.1)
+		local transparency = aura.Transparency
+		lowest, highest = math.min(lowest, transparency), math.max(highest, transparency)
+		smallest = math.min(smallest, aura.Size.X)
+		if index == 20 then
+			farEnd = distant.Aura.Transparency
+		end
+		check(math.abs(aura.Size.X - auraSize) <= auraSize * 0.05, "the aura should stay near its size")
+	end
+	check(highest - lowest > Config.Aura.Pulse, "the aura should breathe, saw " .. string.format("%.3f..%.3f", lowest, highest))
+	check(lowest >= base - Config.Aura.Pulse - 0.01 and highest <= base + Config.Aura.Pulse + 0.01, "the breathing stays in range")
+	check(smallest < auraSize, "the aura shrinks as it breathes")
+	local lowestGlow = math.huge
+	for index = 1, 20 do
+		Mock.advance(0.1)
+		lowestGlow = math.min(lowestGlow, glow.FillTransparency)
+	end
+	check(lowestGlow < Config.Aura.FillTransparency, "the outline glow breathes with the aura")
+	check(glow.FillTransparency <= 0.95, "the outline glow never disappears")
+	eq(farStart, farEnd, "an aura 4000 studs away isn't animated")
+	nearby:Destroy()
+	distant:Destroy()
 	Mock.advance(0.1)
 end)
 

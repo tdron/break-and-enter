@@ -300,6 +300,39 @@ test("rolls only give a house's own loot, weighted by rarity", function()
 	end
 end)
 
+test("rarities are ranked in the shop's colours, and Epic and up glows", function()
+	eq(Items.Rarities.Common.Order, 1)
+	eq(Items.Rarities.Rare.Order, 2)
+	eq(Items.Rarities.Epic.Order, 3)
+	eq(Items.Rarities.Legendary.Order, 4)
+	eq(Items.Rarities.Epic.Color, Color3.fromRGB(190, 100, 255))
+	eq(Items.Rarities.Legendary.Color, Color3.fromRGB(255, 190, 40))
+	eq(Config.Aura.MinOrder, 3, "the aura starts at Epic")
+	local glowing, plain = 0, 0
+	for _, def in Items.List do
+		local rarity = Items.Rarities[def.Rarity]
+		check(rarity ~= nil, def.Id .. " has an unknown rarity " .. tostring(def.Rarity))
+		eq(Items.getRarity(def.Id).Color, rarity.Color, def.Id .. " rarity colour")
+		eq(Items.hasAura(def.Id), rarity.Order >= Config.Aura.MinOrder, def.Id .. " aura")
+		if Items.hasAura(def.Id) then
+			glowing += 1
+		else
+			plain += 1
+		end
+	end
+	check(glowing > 0 and plain > 0, "there should be both glowing and plain loot")
+end)
+
+test("selling pays the item's value and the stall's trunk range is sane", function()
+	check(Config.Economy.SellRatio > 0, "selling has to pay something")
+	check(Config.Market.TrunkRange >= 20, "the trunk range should cover the stall's apron")
+	check(Config.Market.PromptDistance >= 6, "the stall prompt has to be reachable")
+	for _, def in Items.List do
+		eq(Items.getSellValue(def.Id), math.floor(def.Value * Config.Economy.SellRatio), def.Id .. " sell value")
+		check(Items.getSellValue(def.Id) > 0, def.Id .. " should be worth something")
+	end
+end)
+
 test("item models fit on shelves and furniture", function()
 	for _, def in Items.List do
 		local size, center = ItemModels.getBounds(def.Id)

@@ -218391,7 +218391,7 @@ Works while you're AFK!</string>
 						<token name="BottomSurface">0</token>
 						<CoordinateFrame name="CFrame">
 							<X>-319.25</X>
-							<Y>4.6</Y>
+							<Y>4.7</Y>
 							<Z>0</Z>
 							<R00>0</R00>
 							<R01>0</R01>
@@ -218407,8 +218407,8 @@ Works while you're AFK!</string>
 						<token name="Material">272</token>
 						<token name="TopSurface">0</token>
 						<Vector3 name="size">
-							<X>16</X>
-							<Y>2.2</Y>
+							<X>18</X>
+							<Y>2.4</Y>
 							<Z>0.3</Z>
 						</Vector3>
 					</Properties>
@@ -218801,7 +218801,7 @@ Works while you're AFK!</string>
 			</Item>
 			<Item class="Model" referent="RBX00000000000000000000000000001DE3">
 				<Properties>
-					<string name="Name">MarketStall</string>
+					<string name="Name">SellPoint</string>
 					<OptionalCoordinateFrame name="WorldPivotData">
 						<CFrame>
 							<X>-327</X>
@@ -219041,7 +219041,7 @@ Works while you're AFK!</string>
 							<R21>0</R21>
 							<R22>0</R22>
 						</CoordinateFrame>
-						<Color3uint8 name="Color3uint8">4293059292</Color3uint8>
+						<Color3uint8 name="Color3uint8">4286114710</Color3uint8>
 						<token name="Material">1312</token>
 						<token name="TopSurface">0</token>
 						<Vector3 name="size">
@@ -219099,7 +219099,7 @@ Works while you're AFK!</string>
 							<R21>0</R21>
 							<R22>0</R22>
 						</CoordinateFrame>
-						<Color3uint8 name="Color3uint8">4293059292</Color3uint8>
+						<Color3uint8 name="Color3uint8">4286114710</Color3uint8>
 						<token name="Material">1312</token>
 						<token name="TopSurface">0</token>
 						<Vector3 name="size">
@@ -219157,7 +219157,7 @@ Works while you're AFK!</string>
 							<R21>0</R21>
 							<R22>0</R22>
 						</CoordinateFrame>
-						<Color3uint8 name="Color3uint8">4293059292</Color3uint8>
+						<Color3uint8 name="Color3uint8">4286114710</Color3uint8>
 						<token name="Material">1312</token>
 						<token name="TopSurface">0</token>
 						<Vector3 name="size">
@@ -219198,7 +219198,7 @@ Works while you're AFK!</string>
 				</Item>
 				<Item class="Part" referent="RBX00000000000000000000000000001DF1">
 					<Properties>
-						<string name="Name">MarketCounter</string>
+						<string name="Name">SellCounter</string>
 						<bool name="Anchored">true</bool>
 						<token name="BottomSurface">0</token>
 						<CoordinateFrame name="CFrame">
@@ -219400,11 +219400,11 @@ Works while you're AFK!</string>
 									<YS>0.86</YS>
 									<YO>0</YO>
 								</UDim2>
-								<string name="Text">🚧 FOR RENT</string>
+								<string name="Text">💰 SELL POINT</string>
 								<Color3 name="TextColor3">
-									<R>0.88627451</R>
-									<G>0.88627451</G>
-									<B>0.862745098</B>
+									<R>0.470588235</R>
+									<G>0.921568627</G>
+									<B>0.588235294</B>
 								</Color3>
 								<bool name="TextScaled">true</bool>
 								<bool name="TextWrapped">true</bool>
@@ -219442,11 +219442,11 @@ Works while you're AFK!</string>
 									<YS>0.86</YS>
 									<YO>0</YO>
 								</UDim2>
-								<string name="Text">🚧 FOR RENT</string>
+								<string name="Text">💰 SELL POINT</string>
 								<Color3 name="TextColor3">
-									<R>0.88627451</R>
-									<G>0.88627451</G>
-									<B>0.862745098</B>
+									<R>0.470588235</R>
+									<G>0.921568627</G>
+									<B>0.588235294</B>
 								</Color3>
 								<bool name="TextScaled">true</bool>
 								<bool name="TextWrapped">true</bool>
@@ -219461,7 +219461,7 @@ Works while you're AFK!</string>
 						<token name="BottomSurface">0</token>
 						<CoordinateFrame name="CFrame">
 							<X>-320.75</X>
-							<Y>4.6</Y>
+							<Y>4.7</Y>
 							<Z>0</Z>
 							<R00>0</R00>
 							<R01>0</R01>
@@ -219477,8 +219477,8 @@ Works while you're AFK!</string>
 						<token name="Material">272</token>
 						<token name="TopSurface">0</token>
 						<Vector3 name="size">
-							<X>16</X>
-							<Y>2.2</Y>
+							<X>18</X>
+							<Y>2.4</Y>
 							<Z>0.3</Z>
 						</Vector3>
 					</Properties>
@@ -219513,7 +219513,7 @@ Works while you're AFK!</string>
 									<YS>0.86</YS>
 									<YO>0</YO>
 								</UDim2>
-								<string name="Text">Something is coming here soon...</string>
+								<string name="Text">Bag it, bring it, cash it in</string>
 								<Color3 name="TextColor3">
 									<R>0.941176471</R>
 									<G>0.941176471</G>
@@ -219527,13 +219527,13 @@ Works while you're AFK!</string>
 				</Item>
 				<Item class="Part" referent="RBX00000000000000000000000000001DFE">
 					<Properties>
-						<string name="Name">EmptyCrate</string>
+						<string name="Name">ScalesPost</string>
 						<bool name="Anchored">true</bool>
 						<token name="BottomSurface">0</token>
 						<CoordinateFrame name="CFrame">
-							<X>-322.6</X>
-							<Y>1.4</Y>
-							<Z>-7</Z>
+							<X>-332.4</X>
+							<Y>5.3</Y>
+							<Z>6</Z>
 							<R00>0</R00>
 							<R01>0</R01>
 							<R02>-1</R02>
@@ -219544,25 +219544,56 @@ Works while you're AFK!</string>
 							<R21>0</R21>
 							<R22>0</R22>
 						</CoordinateFrame>
-						<Color3uint8 name="Color3uint8">4288050768</Color3uint8>
-						<token name="Material">528</token>
+						<Color3uint8 name="Color3uint8">4291075646</Color3uint8>
+						<token name="Material">1088</token>
 						<token name="TopSurface">0</token>
+						<token name="shape">2</token>
 						<Vector3 name="size">
-							<X>2.6</X>
-							<Y>2.2</Y>
-							<Z>2.2</Z>
+							<X>0.5</X>
+							<Y>3.2</Y>
+							<Z>0.5</Z>
 						</Vector3>
 					</Properties>
 				</Item>
 				<Item class="Part" referent="RBX00000000000000000000000000001DFF">
 					<Properties>
-						<string name="Name">EmptyCrate</string>
+						<string name="Name">ScalesBeam</string>
 						<bool name="Anchored">true</bool>
 						<token name="BottomSurface">0</token>
 						<CoordinateFrame name="CFrame">
-							<X>-322.6</X>
-							<Y>1.4</Y>
-							<Z>3</Z>
+							<X>-332.4</X>
+							<Y>6.9</Y>
+							<Z>6</Z>
+							<R00>0</R00>
+							<R01>0</R01>
+							<R02>-1</R02>
+							<R10>1</R10>
+							<R11>0</R11>
+							<R12>0</R12>
+							<R20>0</R20>
+							<R21>-1</R21>
+							<R22>0</R22>
+						</CoordinateFrame>
+						<Color3uint8 name="Color3uint8">4292786776</Color3uint8>
+						<token name="Material">1088</token>
+						<token name="TopSurface">0</token>
+						<token name="shape">2</token>
+						<Vector3 name="size">
+							<X>4.6</X>
+							<Y>0.24</Y>
+							<Z>0.24</Z>
+						</Vector3>
+					</Properties>
+				</Item>
+				<Item class="Part" referent="RBX00000000000000000000000000001E00">
+					<Properties>
+						<string name="Name">ScalesChain</string>
+						<bool name="Anchored">true</bool>
+						<token name="BottomSurface">0</token>
+						<CoordinateFrame name="CFrame">
+							<X>-332.4</X>
+							<Y>6.4</Y>
+							<Z>3.8</Z>
 							<R00>0</R00>
 							<R01>0</R01>
 							<R02>-1</R02>
@@ -219573,22 +219604,496 @@ Works while you're AFK!</string>
 							<R21>0</R21>
 							<R22>0</R22>
 						</CoordinateFrame>
-						<Color3uint8 name="Color3uint8">4288050768</Color3uint8>
-						<token name="Material">528</token>
+						<bool name="CanCollide">false</bool>
+						<Color3uint8 name="Color3uint8">4289367110</Color3uint8>
+						<token name="Material">1088</token>
 						<token name="TopSurface">0</token>
 						<Vector3 name="size">
-							<X>2.6</X>
-							<Y>2.2</Y>
+							<X>0.1</X>
+							<Y>1</Y>
+							<Z>0.1</Z>
+						</Vector3>
+					</Properties>
+				</Item>
+				<Item class="Part" referent="RBX00000000000000000000000000001E01">
+					<Properties>
+						<string name="Name">ScalesPan</string>
+						<bool name="Anchored">true</bool>
+						<token name="BottomSurface">0</token>
+						<CoordinateFrame name="CFrame">
+							<X>-332.4</X>
+							<Y>5.9</Y>
+							<Z>3.8</Z>
+							<R00>0</R00>
+							<R01>0</R01>
+							<R02>-1</R02>
+							<R10>0</R10>
+							<R11>1</R11>
+							<R12>0</R12>
+							<R20>1</R20>
+							<R21>0</R21>
+							<R22>0</R22>
+						</CoordinateFrame>
+						<Color3uint8 name="Color3uint8">4291603018</Color3uint8>
+						<token name="Material">1088</token>
+						<token name="TopSurface">0</token>
+						<token name="shape">2</token>
+						<Vector3 name="size">
+							<X>2.2</X>
+							<Y>0.24</Y>
 							<Z>2.2</Z>
 						</Vector3>
 					</Properties>
 				</Item>
+				<Item class="Part" referent="RBX00000000000000000000000000001E02">
+					<Properties>
+						<string name="Name">ScalesChain</string>
+						<bool name="Anchored">true</bool>
+						<token name="BottomSurface">0</token>
+						<CoordinateFrame name="CFrame">
+							<X>-332.4</X>
+							<Y>6.4</Y>
+							<Z>8.2</Z>
+							<R00>0</R00>
+							<R01>0</R01>
+							<R02>-1</R02>
+							<R10>0</R10>
+							<R11>1</R11>
+							<R12>0</R12>
+							<R20>1</R20>
+							<R21>0</R21>
+							<R22>0</R22>
+						</CoordinateFrame>
+						<bool name="CanCollide">false</bool>
+						<Color3uint8 name="Color3uint8">4289367110</Color3uint8>
+						<token name="Material">1088</token>
+						<token name="TopSurface">0</token>
+						<Vector3 name="size">
+							<X>0.1</X>
+							<Y>1</Y>
+							<Z>0.1</Z>
+						</Vector3>
+					</Properties>
+				</Item>
+				<Item class="Part" referent="RBX00000000000000000000000000001E03">
+					<Properties>
+						<string name="Name">ScalesPan</string>
+						<bool name="Anchored">true</bool>
+						<token name="BottomSurface">0</token>
+						<CoordinateFrame name="CFrame">
+							<X>-332.4</X>
+							<Y>5.9</Y>
+							<Z>8.2</Z>
+							<R00>0</R00>
+							<R01>0</R01>
+							<R02>-1</R02>
+							<R10>0</R10>
+							<R11>1</R11>
+							<R12>0</R12>
+							<R20>1</R20>
+							<R21>0</R21>
+							<R22>0</R22>
+						</CoordinateFrame>
+						<Color3uint8 name="Color3uint8">4291603018</Color3uint8>
+						<token name="Material">1088</token>
+						<token name="TopSurface">0</token>
+						<token name="shape">2</token>
+						<Vector3 name="size">
+							<X>2.2</X>
+							<Y>0.24</Y>
+							<Z>2.2</Z>
+						</Vector3>
+					</Properties>
+				</Item>
+				<Item class="Part" referent="RBX00000000000000000000000000001E04">
+					<Properties>
+						<string name="Name">CashBox</string>
+						<bool name="Anchored">true</bool>
+						<token name="BottomSurface">0</token>
+						<CoordinateFrame name="CFrame">
+							<X>-332.2</X>
+							<Y>4.85</Y>
+							<Z>-6.4</Z>
+							<R00>0</R00>
+							<R01>0</R01>
+							<R02>-1</R02>
+							<R10>0</R10>
+							<R11>1</R11>
+							<R12>0</R12>
+							<R20>1</R20>
+							<R21>0</R21>
+							<R22>0</R22>
+						</CoordinateFrame>
+						<Color3uint8 name="Color3uint8">4282797660</Color3uint8>
+						<token name="Material">1088</token>
+						<token name="TopSurface">0</token>
+						<Vector3 name="size">
+							<X>3</X>
+							<Y>2</Y>
+							<Z>2.4</Z>
+						</Vector3>
+					</Properties>
+				</Item>
+				<Item class="Part" referent="RBX00000000000000000000000000001E05">
+					<Properties>
+						<string name="Name">CashBoxLid</string>
+						<bool name="Anchored">true</bool>
+						<token name="BottomSurface">0</token>
+						<CoordinateFrame name="CFrame">
+							<X>-331.4</X>
+							<Y>6.6</Y>
+							<Z>-6.4</Z>
+							<R00>0</R00>
+							<R01>0.615661475</R01>
+							<R02>-0.788010754</R02>
+							<R10>0</R10>
+							<R11>0.788010754</R11>
+							<R12>0.615661475</R12>
+							<R20>1</R20>
+							<R21>0</R21>
+							<R22>0</R22>
+						</CoordinateFrame>
+						<Color3uint8 name="Color3uint8">4283850864</Color3uint8>
+						<token name="Material">1088</token>
+						<token name="TopSurface">0</token>
+						<Vector3 name="size">
+							<X>3</X>
+							<Y>0.3</Y>
+							<Z>2.4</Z>
+						</Vector3>
+					</Properties>
+				</Item>
+				<Item class="Part" referent="RBX00000000000000000000000000001E06">
+					<Properties>
+						<string name="Name">Banknotes</string>
+						<bool name="Anchored">true</bool>
+						<token name="BottomSurface">0</token>
+						<CoordinateFrame name="CFrame">
+							<X>-332.2</X>
+							<Y>6.3</Y>
+							<Z>-6.4</Z>
+							<R00>0</R00>
+							<R01>0</R01>
+							<R02>-1</R02>
+							<R10>0</R10>
+							<R11>1</R11>
+							<R12>0</R12>
+							<R20>1</R20>
+							<R21>0</R21>
+							<R22>0</R22>
+						</CoordinateFrame>
+						<bool name="CanCollide">false</bool>
+						<Color3uint8 name="Color3uint8">4286103160</Color3uint8>
+						<token name="Material">1312</token>
+						<token name="TopSurface">0</token>
+						<Vector3 name="size">
+							<X>2.4</X>
+							<Y>0.9</Y>
+							<Z>1.8</Z>
+						</Vector3>
+					</Properties>
+				</Item>
+				<Item class="Part" referent="RBX00000000000000000000000000001E07">
+					<Properties>
+						<string name="Name">MoneyBag</string>
+						<bool name="Anchored">true</bool>
+						<token name="BottomSurface">0</token>
+						<CoordinateFrame name="CFrame">
+							<X>-331.8</X>
+							<Y>5.6</Y>
+							<Z>-9.2</Z>
+							<R00>0</R00>
+							<R01>0</R01>
+							<R02>-1</R02>
+							<R10>0</R10>
+							<R11>1</R11>
+							<R12>0</R12>
+							<R20>1</R20>
+							<R21>0</R21>
+							<R22>0</R22>
+						</CoordinateFrame>
+						<Color3uint8 name="Color3uint8">4289233994</Color3uint8>
+						<token name="Material">1312</token>
+						<token name="TopSurface">0</token>
+						<token name="shape">0</token>
+						<Vector3 name="size">
+							<X>2</X>
+							<Y>2</Y>
+							<Z>2</Z>
+						</Vector3>
+					</Properties>
+				</Item>
+				<Item class="Part" referent="RBX00000000000000000000000000001E08">
+					<Properties>
+						<string name="Name">MoneyBag</string>
+						<bool name="Anchored">true</bool>
+						<token name="BottomSurface">0</token>
+						<CoordinateFrame name="CFrame">
+							<X>-330.6</X>
+							<Y>5.5</Y>
+							<Z>-8.2</Z>
+							<R00>0</R00>
+							<R01>0</R01>
+							<R02>-1</R02>
+							<R10>0</R10>
+							<R11>1</R11>
+							<R12>0</R12>
+							<R20>1</R20>
+							<R21>0</R21>
+							<R22>0</R22>
+						</CoordinateFrame>
+						<Color3uint8 name="Color3uint8">4289233994</Color3uint8>
+						<token name="Material">1312</token>
+						<token name="TopSurface">0</token>
+						<token name="shape">0</token>
+						<Vector3 name="size">
+							<X>1.8</X>
+							<Y>1.8</Y>
+							<Z>1.8</Z>
+						</Vector3>
+					</Properties>
+				</Item>
+				<Item class="Part" referent="RBX00000000000000000000000000001E09">
+					<Properties>
+						<string name="Name">MoneyBag</string>
+						<bool name="Anchored">true</bool>
+						<token name="BottomSurface">0</token>
+						<CoordinateFrame name="CFrame">
+							<X>-330.4</X>
+							<Y>5.4</Y>
+							<Z>-10</Z>
+							<R00>0</R00>
+							<R01>0</R01>
+							<R02>-1</R02>
+							<R10>0</R10>
+							<R11>1</R11>
+							<R12>0</R12>
+							<R20>1</R20>
+							<R21>0</R21>
+							<R22>0</R22>
+						</CoordinateFrame>
+						<Color3uint8 name="Color3uint8">4289233994</Color3uint8>
+						<token name="Material">1312</token>
+						<token name="TopSurface">0</token>
+						<token name="shape">0</token>
+						<Vector3 name="size">
+							<X>1.6</X>
+							<Y>1.6</Y>
+							<Z>1.6</Z>
+						</Vector3>
+					</Properties>
+				</Item>
+				<Item class="Part" referent="RBX00000000000000000000000000001E0A">
+					<Properties>
+						<string name="Name">MoneyBagKnot</string>
+						<bool name="Anchored">true</bool>
+						<token name="BottomSurface">0</token>
+						<CoordinateFrame name="CFrame">
+							<X>-331.8</X>
+							<Y>5.9</Y>
+							<Z>-9.2</Z>
+							<R00>0</R00>
+							<R01>0</R01>
+							<R02>-1</R02>
+							<R10>0</R10>
+							<R11>1</R11>
+							<R12>0</R12>
+							<R20>1</R20>
+							<R21>0</R21>
+							<R22>0</R22>
+						</CoordinateFrame>
+						<bool name="CanCollide">false</bool>
+						<Color3uint8 name="Color3uint8">4286603314</Color3uint8>
+						<token name="Material">1312</token>
+						<token name="TopSurface">0</token>
+						<token name="shape">0</token>
+						<Vector3 name="size">
+							<X>0.5</X>
+							<Y>0.5</Y>
+							<Z>0.5</Z>
+						</Vector3>
+					</Properties>
+				</Item>
+				<Item class="Part" referent="RBX00000000000000000000000000001E0B">
+					<Properties>
+						<string name="Name">Ledger</string>
+						<bool name="Anchored">true</bool>
+						<token name="BottomSurface">0</token>
+						<CoordinateFrame name="CFrame">
+							<X>-332.6</X>
+							<Y>3.95</Y>
+							<Z>-2</Z>
+							<R00>-0.241921896</R00>
+							<R01>0</R01>
+							<R02>-0.970295726</R02>
+							<R10>0</R10>
+							<R11>1</R11>
+							<R12>0</R12>
+							<R20>0.970295726</R20>
+							<R21>0</R21>
+							<R22>-0.241921896</R22>
+						</CoordinateFrame>
+						<Color3uint8 name="Color3uint8">4293452498</Color3uint8>
+						<token name="Material">272</token>
+						<token name="TopSurface">0</token>
+						<Vector3 name="size">
+							<X>2.4</X>
+							<Y>0.2</Y>
+							<Z>3</Z>
+						</Vector3>
+					</Properties>
+				</Item>
+				<Item class="Part" referent="RBX00000000000000000000000000001E0C">
+					<Properties>
+						<string name="Name">LedgerPen</string>
+						<bool name="Anchored">true</bool>
+						<token name="BottomSurface">0</token>
+						<CoordinateFrame name="CFrame">
+							<X>-332.8</X>
+							<Y>4.1</Y>
+							<Z>-1</Z>
+							<R00>-0.342020143</R00>
+							<R01>0</R01>
+							<R02>-0.939692621</R02>
+							<R10>0</R10>
+							<R11>1</R11>
+							<R12>0</R12>
+							<R20>0.939692621</R20>
+							<R21>0</R21>
+							<R22>-0.342020143</R22>
+						</CoordinateFrame>
+						<bool name="CanCollide">false</bool>
+						<Color3uint8 name="Color3uint8">4280822324</Color3uint8>
+						<token name="Material">1088</token>
+						<token name="TopSurface">0</token>
+						<token name="shape">2</token>
+						<Vector3 name="size">
+							<X>0.16</X>
+							<Y>0.16</Y>
+							<Z>2</Z>
+						</Vector3>
+					</Properties>
+				</Item>
+				<Item class="Part" referent="RBX00000000000000000000000000001E0D">
+					<Properties>
+						<string name="Name">BuySign</string>
+						<bool name="Anchored">true</bool>
+						<token name="BottomSurface">0</token>
+						<CoordinateFrame name="CFrame">
+							<X>-333.1</X>
+							<Y>5.6</Y>
+							<Z>0</Z>
+							<R00>0</R00>
+							<R01>0</R01>
+							<R02>-1</R02>
+							<R10>0</R10>
+							<R11>1</R11>
+							<R12>0</R12>
+							<R20>1</R20>
+							<R21>0</R21>
+							<R22>0</R22>
+						</CoordinateFrame>
+						<Color3uint8 name="Color3uint8">4280572988</Color3uint8>
+						<token name="Material">272</token>
+						<token name="TopSurface">0</token>
+						<Vector3 name="size">
+							<X>9</X>
+							<Y>2.6</Y>
+							<Z>0.3</Z>
+						</Vector3>
+					</Properties>
+					<Item class="SurfaceGui" referent="RBX00000000000000000000000000001E0E">
+						<Properties>
+							<string name="Name">SurfaceGui</string>
+							<token name="Face">5</token>
+							<float name="LightInfluence">0</float>
+							<float name="PixelsPerStud">44</float>
+							<token name="SizingMode">1</token>
+						</Properties>
+						<Item class="TextLabel" referent="RBX00000000000000000000000000001E0F">
+							<Properties>
+								<string name="Name">Label</string>
+								<float name="BackgroundTransparency">1</float>
+								<int name="BorderSizePixel">0</int>
+								<Font name="FontFace">
+									<Family><url>rbxasset://fonts/families/BuilderSans.json</url></Family>
+									<Weight>700</Weight>
+									<Style>Normal</Style>
+								</Font>
+								<UDim2 name="Position">
+									<XS>0.04</XS>
+									<XO>0</XO>
+									<YS>0.07</YS>
+									<YO>0</YO>
+								</UDim2>
+								<bool name="RichText">false</bool>
+								<UDim2 name="Size">
+									<XS>0.92</XS>
+									<XO>0</XO>
+									<YS>0.86</YS>
+									<YO>0</YO>
+								</UDim2>
+								<string name="Text">WE BUY LOOT</string>
+								<Color3 name="TextColor3">
+									<R>0.745098039</R>
+									<G>1</G>
+									<B>0.784313725</B>
+								</Color3>
+								<bool name="TextScaled">true</bool>
+								<bool name="TextWrapped">true</bool>
+							</Properties>
+						</Item>
+					</Item>
+				</Item>
+				<Item class="Part" referent="RBX00000000000000000000000000001E10">
+					<Properties>
+						<string name="Name">StallLight</string>
+						<bool name="Anchored">true</bool>
+						<token name="BottomSurface">0</token>
+						<CoordinateFrame name="CFrame">
+							<X>-329</X>
+							<Y>7.5</Y>
+							<Z>0</Z>
+							<R00>0</R00>
+							<R01>0</R01>
+							<R02>-1</R02>
+							<R10>0</R10>
+							<R11>1</R11>
+							<R12>0</R12>
+							<R20>1</R20>
+							<R21>0</R21>
+							<R22>0</R22>
+						</CoordinateFrame>
+						<bool name="CanCollide">false</bool>
+						<Color3uint8 name="Color3uint8">4294964962</Color3uint8>
+						<token name="Material">288</token>
+						<token name="TopSurface">0</token>
+						<Vector3 name="size">
+							<X>18</X>
+							<Y>0.4</Y>
+							<Z>2</Z>
+						</Vector3>
+					</Properties>
+					<Item class="PointLight" referent="RBX00000000000000000000000000001E11">
+						<Properties>
+							<string name="Name">Light</string>
+							<float name="Brightness">1.1</float>
+							<Color3 name="Color">
+								<R>1</R>
+								<G>0.956862745</G>
+								<B>0.878431373</B>
+							</Color3>
+							<float name="Range">26</float>
+							<bool name="Shadows">false</bool>
+						</Properties>
+					</Item>
+				</Item>
 			</Item>
-			<Item class="Folder" referent="RBX00000000000000000000000000001E00">
+			<Item class="Folder" referent="RBX00000000000000000000000000001E12">
 				<Properties>
 					<string name="Name">Boundary</string>
 				</Properties>
-				<Item class="Part" referent="RBX00000000000000000000000000001E01">
+				<Item class="Part" referent="RBX00000000000000000000000000001E13">
 					<Properties>
 						<string name="Name">InvisibleWall</string>
 						<bool name="Anchored">true</bool>
@@ -219619,7 +220124,7 @@ Works while you're AFK!</string>
 						</Vector3>
 					</Properties>
 				</Item>
-				<Item class="Part" referent="RBX00000000000000000000000000001E02">
+				<Item class="Part" referent="RBX00000000000000000000000000001E14">
 					<Properties>
 						<string name="Name">InvisibleWall</string>
 						<bool name="Anchored">true</bool>
@@ -219650,7 +220155,7 @@ Works while you're AFK!</string>
 						</Vector3>
 					</Properties>
 				</Item>
-				<Item class="Part" referent="RBX00000000000000000000000000001E03">
+				<Item class="Part" referent="RBX00000000000000000000000000001E15">
 					<Properties>
 						<string name="Name">InvisibleWall</string>
 						<bool name="Anchored">true</bool>
@@ -219681,7 +220186,7 @@ Works while you're AFK!</string>
 						</Vector3>
 					</Properties>
 				</Item>
-				<Item class="Part" referent="RBX00000000000000000000000000001E04">
+				<Item class="Part" referent="RBX00000000000000000000000000001E16">
 					<Properties>
 						<string name="Name">InvisibleWall</string>
 						<bool name="Anchored">true</bool>
@@ -219714,13 +220219,13 @@ Works while you're AFK!</string>
 				</Item>
 			</Item>
 		</Item>
-		<Item class="Folder" referent="RBX00000000000000000000000000001E05">
+		<Item class="Folder" referent="RBX00000000000000000000000000001E17">
 			<Properties>
 				<string name="Name">Cars</string>
 			</Properties>
 		</Item>
 	</Item>
-	<Item class="Lighting" referent="RBX00000000000000000000000000001E06">
+	<Item class="Lighting" referent="RBX00000000000000000000000000001E18">
 		<Properties>
 			<string name="Name">Lighting</string>
 			<Color3 name="Ambient">
@@ -219741,7 +220246,7 @@ Works while you're AFK!</string>
 			<float name="ShadowSoftness">0.25</float>
 			<token name="Technology">3</token>
 		</Properties>
-		<Item class="Atmosphere" referent="RBX00000000000000000000000000001E07">
+		<Item class="Atmosphere" referent="RBX00000000000000000000000000001E19">
 			<Properties>
 				<string name="Name">Atmosphere</string>
 				<Color3 name="Color">
@@ -219760,7 +220265,7 @@ Works while you're AFK!</string>
 				<float name="Offset">0.2</float>
 			</Properties>
 		</Item>
-		<Item class="BloomEffect" referent="RBX00000000000000000000000000001E08">
+		<Item class="BloomEffect" referent="RBX00000000000000000000000000001E1A">
 			<Properties>
 				<string name="Name">Bloom</string>
 				<float name="Intensity">0.6</float>
@@ -219768,7 +220273,7 @@ Works while you're AFK!</string>
 				<float name="Threshold">1.6</float>
 			</Properties>
 		</Item>
-		<Item class="ColorCorrectionEffect" referent="RBX00000000000000000000000000001E09">
+		<Item class="ColorCorrectionEffect" referent="RBX00000000000000000000000000001E1B">
 			<Properties>
 				<string name="Name">ColorCorrection</string>
 				<float name="Brightness">0.01</float>
@@ -219777,15 +220282,15 @@ Works while you're AFK!</string>
 			</Properties>
 		</Item>
 	</Item>
-	<Item class="ReplicatedStorage" referent="RBX00000000000000000000000000001E0A">
+	<Item class="ReplicatedStorage" referent="RBX00000000000000000000000000001E1C">
 		<Properties>
 			<string name="Name">ReplicatedStorage</string>
 		</Properties>
-		<Item class="Folder" referent="RBX00000000000000000000000000001E0B">
+		<Item class="Folder" referent="RBX00000000000000000000000000001E1D">
 			<Properties>
 				<string name="Name">Shared</string>
 			</Properties>
-			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E0C">
+			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E1E">
 				<Properties>
 					<string name="Name">Config</string>
 					<ProtectedString name="Source"><![CDATA[--!strict
@@ -220148,6 +220653,29 @@ Config.Vehicle = {
 }
 
 --------------------------------------------------------------------------------
+-- Sell point (the market stall in the yard, where loot you are carrying is sold)
+--------------------------------------------------------------------------------
+Config.Market = {
+	-- How close your car has to be to the stall before its trunk can be sold too.
+	TrunkRange = 45,
+	PromptDistance = 12,
+}
+
+--------------------------------------------------------------------------------
+-- Rarity auras
+-- Items of this rarity and above glow in the world in their rarity's colour
+-- (the same colour the Loot Index and the toasts use).
+--------------------------------------------------------------------------------
+Config.Aura = {
+	MinOrder = 3, -- 1 Common, 2 Rare, 3 Epic, 4 Legendary — so Epic and above
+	Size = 1.18, -- the glow shell is this much wider than the item's widest side
+	Transparency = 0.86,
+	Pulse = 0.06, -- the client breathes the shell's transparency by this much
+	FillTransparency = 0.78, -- the outline glow around the item's silhouette
+	OutlineTransparency = 0.1,
+}
+
+--------------------------------------------------------------------------------
 -- Sounds
 -- These use sounds that ship with every Roblox client so they always work.
 -- Swap in your own "rbxassetid://..." audio for a more polished feel!
@@ -220167,7 +220695,7 @@ return Config
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E0D">
+			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E1F">
 				<Properties>
 					<string name="Name">Format</string>
 					<ProtectedString name="Source"><![CDATA[--!strict
@@ -220237,7 +220765,7 @@ return Format
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E0E">
+			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E20">
 				<Properties>
 					<string name="Name">Guards</string>
 					<ProtectedString name="Source"><![CDATA[--!strict
@@ -220817,7 +221345,7 @@ return Guards
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E0F">
+			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E21">
 				<Properties>
 					<string name="Name">ItemModels</string>
 					<ProtectedString name="Source"><![CDATA[--!strict
@@ -220829,6 +221357,7 @@ return Guards
 	the item, so `model:PivotTo(surfaceCFrame)` sets it neatly on a surface.
 ]]
 
+local Config = require(script.Parent.Config)
 local Items = require(script.Parent.Items)
 
 local ItemModels = {}
@@ -220885,6 +221414,9 @@ function ItemModels.build(itemId: string): Model?
 	local model = Instance.new("Model")
 	model.Name = def.Id
 	model:SetAttribute("ItemId", def.Id)
+	if Items.hasAura(itemId) then
+		model:SetAttribute("Glowing", true)
+	end
 
 	-- An invisible root part the size of the item. Prompts and labels attach to it.
 	local size, center = ItemModels.getBounds(itemId)
@@ -220935,6 +221467,37 @@ function ItemModels.build(itemId: string): Model?
 
 	-- Put the pivot at the bottom-centre (the model was built around the origin).
 	model.WorldPivot = CFrame.new()
+
+	-- Rare loot glows: an Epic or Legendary item gets a shell plus an outline in its rarity's colour.
+	local rarity = Items.getRarity(itemId)
+	if rarity and rarity.Order >= Config.Aura.MinOrder then
+		local aura = Config.Aura
+		local widest = math.max(size.X, size.Y, size.Z)
+		local shell = Instance.new("Part")
+		shell.Name = "Aura"
+		shell.Shape = Enum.PartType.Ball
+		shell.Size = Vector3.one * math.max(widest * aura.Size, 1.6)
+		shell.CFrame = CFrame.new(center)
+		shell.Color = rarity.Color
+		shell.Material = Enum.Material.Neon
+		shell.Transparency = aura.Transparency
+		shell.Anchored = true
+		shell.CanCollide = false
+		shell.CanQuery = false
+		shell.CanTouch = false
+		shell.CastShadow = false
+		shell:SetAttribute("AuraSize", shell.Size.X) -- the client pulses around this size
+		shell.Parent = model
+		-- The client animates the shell's glow (see client/WorldEffects.luau).
+		local glow = Instance.new("Highlight")
+		glow.Name = "AuraGlow"
+		glow.FillColor = rarity.Color
+		glow.FillTransparency = aura.FillTransparency
+		glow.OutlineColor = rarity.Color
+		glow.OutlineTransparency = aura.OutlineTransparency
+		glow.DepthMode = Enum.HighlightDepthMode.Occluded
+		glow.Parent = model
+	end
 	return model
 end
 
@@ -220942,7 +221505,7 @@ return ItemModels
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E10">
+			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E22">
 				<Properties>
 					<string name="Name">Items</string>
 					<ProtectedString name="Source"><![CDATA[--!strict
@@ -221782,6 +222345,18 @@ function Items.getSellValue(itemId: string): number
 	return math.floor(Items.getValue(itemId) * Config.Economy.SellRatio)
 end
 
+-- The rarity table for an item (colour, weight, order), or nil for an unknown id.
+function Items.getRarity(itemId: string): Rarity?
+	local def = byId[itemId]
+	return if def then Items.Rarities[def.Rarity] else nil
+end
+
+-- Epic and above: these items get a coloured aura in the world (see ItemModels).
+function Items.hasAura(itemId: string): boolean
+	local rarity = Items.getRarity(itemId)
+	return rarity ~= nil and rarity.Order >= Config.Aura.MinOrder
+end
+
 -- Cash per second this item earns while stored in a warehouse.
 function Items.getIncome(itemId: string): number
 	local def = byId[itemId]
@@ -221851,42 +222426,52 @@ return Items
 				</Properties>
 			</Item>
 		</Item>
-		<Item class="Folder" referent="RBX00000000000000000000000000001E11">
+		<Item class="Folder" referent="RBX00000000000000000000000000001E23">
 			<Properties>
 				<string name="Name">Remotes</string>
 			</Properties>
-			<Item class="RemoteEvent" referent="RBX00000000000000000000000000001E12">
+			<Item class="RemoteEvent" referent="RBX00000000000000000000000000001E24">
 				<Properties>
 					<string name="Name">Notify</string>
 				</Properties>
 			</Item>
-			<Item class="RemoteEvent" referent="RBX00000000000000000000000000001E13">
+			<Item class="RemoteEvent" referent="RBX00000000000000000000000000001E25">
 				<Properties>
 					<string name="Name">Busted</string>
 				</Properties>
 			</Item>
-			<Item class="RemoteFunction" referent="RBX00000000000000000000000000001E14">
+			<Item class="RemoteFunction" referent="RBX00000000000000000000000000001E26">
 				<Properties>
 					<string name="Name">Purchase</string>
 				</Properties>
 			</Item>
-			<Item class="RemoteFunction" referent="RBX00000000000000000000000000001E15">
+			<Item class="RemoteFunction" referent="RBX00000000000000000000000000001E27">
 				<Properties>
 					<string name="Name">SpawnCar</string>
 				</Properties>
 			</Item>
-			<Item class="RemoteFunction" referent="RBX00000000000000000000000000001E16">
+			<Item class="RemoteFunction" referent="RBX00000000000000000000000000001E28">
 				<Properties>
 					<string name="Name">Treadmill</string>
 				</Properties>
 			</Item>
+			<Item class="RemoteFunction" referent="RBX00000000000000000000000000001E29">
+				<Properties>
+					<string name="Name">Storage</string>
+				</Properties>
+			</Item>
+			<Item class="RemoteFunction" referent="RBX00000000000000000000000000001E2A">
+				<Properties>
+					<string name="Name">Sell</string>
+				</Properties>
+			</Item>
 		</Item>
 	</Item>
-	<Item class="ServerScriptService" referent="RBX00000000000000000000000000001E17">
+	<Item class="ServerScriptService" referent="RBX00000000000000000000000000001E2B">
 		<Properties>
 			<string name="Name">ServerScriptService</string>
 		</Properties>
-		<Item class="Script" referent="RBX00000000000000000000000000001E18">
+		<Item class="Script" referent="RBX00000000000000000000000000001E2C">
 			<Properties>
 				<string name="Name">Server</string>
 				<ProtectedString name="Source"><![CDATA[--!strict
@@ -221903,6 +222488,7 @@ return Items
 	  Vehicles    the getaway car
 	  Treadmills  each warehouse's personal (AFK-able, upgradable) treadmill
 	  Economy     income ticks + the upgrade shop
+	  Market      the sell point stall in the yard (loot -> cash on the spot)
 ]]
 
 local Players = game:GetService("Players")
@@ -221911,6 +222497,7 @@ local DayNight = require(script.DayNight)
 local Economy = require(script.Economy)
 local Houses = require(script.Houses)
 local Inventory = require(script.Inventory)
+local Market = require(script.Market)
 local Notify = require(script.Notify)
 local PlayerData = require(script.PlayerData)
 local Plots = require(script.Plots)
@@ -221923,6 +222510,7 @@ Houses.init()
 Vehicles.init()
 Treadmills.init()
 Economy.init()
+Market.init()
 PlayerData.start()
 
 local function onCharacterAdded(player: Player, character: Model)
@@ -221988,7 +222576,7 @@ for _, player in Players:GetPlayers() do
 end
 ]]></ProtectedString>
 			</Properties>
-			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E19">
+			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E2D">
 				<Properties>
 					<string name="Name">DayNight</string>
 					<ProtectedString name="Source"><![CDATA[--!strict
@@ -222080,7 +222668,7 @@ return DayNight
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E1A">
+			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E2E">
 				<Properties>
 					<string name="Name">Economy</string>
 					<ProtectedString name="Source"><![CDATA[--!strict
@@ -222203,7 +222791,7 @@ return Economy
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E1B">
+			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E2F">
 				<Properties>
 					<string name="Name">Houses</string>
 					<ProtectedString name="Source"><![CDATA[--!strict
@@ -223110,7 +223698,7 @@ return Houses
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E1C">
+			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E30">
 				<Properties>
 					<string name="Name">Inventory</string>
 					<ProtectedString name="Source"><![CDATA[--!strict
@@ -223319,7 +223907,185 @@ return Inventory
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E1D">
+			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E31">
+				<Properties>
+					<string name="Name">Market</string>
+					<ProtectedString name="Source"><![CDATA[--!strict
+--[[
+	Market
+	------
+	The sell point: the market stall in the middle of the yard, where loot is
+	turned into cash on the spot instead of being shelved.
+
+	  * Sells whatever the player is carrying (their bag).
+	  * Also sells the car's trunk, but only while the car is parked at the stall.
+	  * Pays Config.Economy.SellRatio of the item's value — the same as selling
+	    straight off a warehouse shelf.
+
+	The client window (client/SellPoint.luau) asks for the list, then sells by
+	item or all at once; every sale is validated here.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local Format = require(ReplicatedStorage.Shared.Format)
+local Items = require(ReplicatedStorage.Shared.Items)
+local Inventory = require(script.Parent.Inventory)
+local Notify = require(script.Parent.Notify)
+local PlayerData = require(script.Parent.PlayerData)
+local Vehicles = require(script.Parent.Vehicles)
+
+type Sale = { ItemId: string, Source: string }
+
+local Market = {}
+
+local counter: BasePart? = nil
+
+local BAG = "Bag"
+local TRUNK = "Trunk"
+
+-- Is the player's car parked close enough to the stall to unload its trunk?
+local function carIsAtStall(player: Player): boolean
+	local stall = counter
+	local car = Vehicles.getCar(player)
+	if not stall or not car then
+		return false
+	end
+	local root = car.PrimaryPart or car:FindFirstChildWhichIsA("BasePart")
+	if not root then
+		return false
+	end
+	return (root.Position - stall.Position).Magnitude <= Config.Market.TrunkRange
+end
+
+-- Everything the player could sell right now.
+function Market.list(player: Player): { Sale }
+	local session = PlayerData.get(player)
+	if not session then
+		return {}
+	end
+	local sales: { Sale } = {}
+	for _, itemId in session.Carried do
+		table.insert(sales, { ItemId = itemId, Source = BAG })
+	end
+	if carIsAtStall(player) then
+		for _, itemId in session.Profile.Trunk do
+			table.insert(sales, { ItemId = itemId, Source = TRUNK })
+		end
+	end
+	return sales
+end
+
+local function remove(list: { string }, itemId: string): boolean
+	local index = table.find(list, itemId)
+	if not index then
+		return false
+	end
+	table.remove(list, index)
+	return true
+end
+
+-- Sells one item. `source` is "Bag" or "Trunk"; the trunk needs the car at the stall.
+function Market.sell(player: Player, itemId: string, source: string): (boolean, string)
+	local session = PlayerData.get(player)
+	local def = Items.get(itemId)
+	if not session or not def then
+		return false, "That item has gone missing."
+	end
+	local items = if source == TRUNK then session.Profile.Trunk else session.Carried
+	if source == TRUNK and not carIsAtStall(player) then
+		return false, "Park your car at the stall to sell what's in its trunk."
+	end
+	if not remove(items, itemId) then
+		return false, string.format("No %s in your %s.", def.DisplayName, if source == TRUNK then "trunk" else "bag")
+	end
+	local value = Items.getSellValue(itemId)
+	PlayerData.addCash(player, value)
+	Inventory.refresh(player)
+	if source == TRUNK then
+		Vehicles.updateLabel(player)
+	end
+	return true, string.format("💵 Sold %s for %s", def.DisplayName, Format.money(value))
+end
+
+-- Sells everything the player brought to the stall. Returns (count, total).
+function Market.sellAll(player: Player): (number, number)
+	local total, count = 0, 0
+	for _, sale in Market.list(player) do
+		local ok = Market.sell(player, sale.ItemId, sale.Source)
+		if ok then
+			total += Items.getSellValue(sale.ItemId)
+			count += 1
+		end
+	end
+	return count, total
+end
+
+local function addPrompt()
+	local map = Workspace:WaitForChild("Map")
+	local found = map:FindFirstChild("SellCounter", true)
+	if not (found and found:IsA("BasePart")) then
+		warn("[Market] No SellCounter part found; the sell point is unavailable.")
+		return
+	end
+	counter = found
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "OpenSellPrompt"
+	prompt.ActionText = "Sell loot"
+	prompt.ObjectText = "💰 SELL POINT"
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = Config.Market.PromptDistance
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = found
+end
+
+function Market.init()
+	local remote = ReplicatedStorage.Remotes.Sell
+	remote.OnServerInvoke = function(player: Player, action: any, itemId: any, source: any)
+		if action == "List" then
+			return {
+				Ok = true,
+				Sales = Market.list(player),
+				TrunkReady = carIsAtStall(player),
+				TrunkRange = Config.Market.TrunkRange,
+			}
+		end
+		if action == "Sell" and type(itemId) == "string" then
+			local ok, message = Market.sell(player, itemId, if source == TRUNK then TRUNK else BAG)
+			if ok then
+				Notify.send(player, message, "money")
+			else
+				Notify.send(player, message, "error")
+			end
+			return { Ok = ok, Message = message, TrunkReady = carIsAtStall(player) }
+		end
+		if action == "All" then
+			local count, total = Market.sellAll(player)
+			if count == 0 then
+				return { Ok = false, Message = "You have nothing to sell — steal something first!", TrunkReady = carIsAtStall(player) }
+			end
+			Notify.send(player, string.format("💵 Sold %d item%s for %s!", count, if count == 1 then "" else "s",
+				Format.money(total)), "money")
+			return {
+				Ok = true,
+				Message = string.format("Sold %d for %s", count, Format.money(total)),
+				Count = count,
+				Value = total,
+				TrunkReady = carIsAtStall(player),
+			}
+		end
+		return { Ok = false, Message = "The trader doesn't understand that." }
+	end
+	addPrompt()
+end
+
+return Market
+]]></ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E32">
 				<Properties>
 					<string name="Name">Notify</string>
 					<ProtectedString name="Source"><![CDATA[--!strict
@@ -223350,7 +224116,7 @@ return Notify
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E1E">
+			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E33">
 				<Properties>
 					<string name="Name">PlayerData</string>
 					<ProtectedString name="Source"><![CDATA[--!strict
@@ -223853,7 +224619,7 @@ return PlayerData
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E1F">
+			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E34">
 				<Properties>
 					<string name="Name">Plots</string>
 					<ProtectedString name="Source"><![CDATA[--!strict
@@ -224017,49 +224783,80 @@ local function updateStats(plot: Plot, player: Player)
 	)
 end
 
-function Plots.sell(player: Player, itemId: string)
+function Plots.sell(player: Player, itemId: string): (boolean, string)
 	local session = PlayerData.get(player)
 	local def = Items.get(itemId)
 	if not session or not def then
-		return
+		return false, "That item has gone missing."
 	end
 	local index = table.find(session.Profile.Stored, itemId)
 	if not index then
-		return
+		return false, "That item is no longer on your shelves."
 	end
 	table.remove(session.Profile.Stored, index)
 	local value = Items.getSellValue(itemId)
 	PlayerData.addCash(player, value)
 	PlayerData.recalculateIncome(player)
 	Plots.refresh(player)
-	Notify.send(player, string.format("💵 Sold %s for %s", def.DisplayName, Format.money(value)), "money")
+	return true, string.format("💵 Sold %s for %s", def.DisplayName, Format.money(value))
 end
 
-local function addSellPrompt(plot: Plot, model: Model, itemId: string)
-	local def = Items.get(itemId)
-	local root = model.PrimaryPart
-	if not def or not root then
-		return
+-- Everything on the player's shelves, in shelf order (the storage window lists it).
+function Plots.storageList(player: Player): { string }
+	local session = PlayerData.get(player)
+	if not session then
+		return {}
 	end
+	local items: { string } = {}
+	for _, itemId in session.Profile.Stored do
+		table.insert(items, itemId)
+	end
+	return items
+end
+
+local function addStoragePrompt(plot: Plot, target: BasePart, objectText: string, itemId: string?)
 	local prompt = Instance.new("ProximityPrompt")
-	prompt.Name = "SellPrompt"
-	prompt.ActionText = "Sell for " .. Format.money(Items.getSellValue(itemId))
-	prompt.ObjectText = string.format("%s (+%s/s)", def.DisplayName, Format.money(Items.getIncome(itemId)))
-	prompt.HoldDuration = 0.8
+	prompt.Name = "ShelfPrompt"
+	prompt.ActionText = "Manage storage"
+	prompt.ObjectText = objectText
+	prompt.HoldDuration = 0.3
 	prompt.MaxActivationDistance = 6
 	prompt.RequiresLineOfSight = false
+	if itemId then
+		prompt:SetAttribute("ItemId", itemId)
+	end
 	if plot.Owner then
 		-- The client hides owner-only prompts from everyone else.
 		prompt:SetAttribute("OwnerUserId", plot.Owner.UserId)
 	end
-	prompt.Parent = root
+	prompt.Parent = target
 	prompt.Triggered:Connect(function(who: Player)
 		if who ~= plot.Owner then
-			Notify.send(who, "You can only sell items in your own warehouse.", "error")
-			return
+			Notify.send(who, "That's someone else's warehouse.", "error")
 		end
-		Plots.sell(who, itemId)
 	end)
+end
+
+-- Takes an item back off the shelves and into the player's bag (the opposite of depositing).
+function Plots.take(player: Player, itemId: string): (boolean, string)
+	local session = PlayerData.get(player)
+	local def = Items.get(itemId)
+	if not session or not def then
+		return false, "That item is no longer on your shelves."
+	end
+	local index = table.find(session.Profile.Stored, itemId)
+	if not index then
+		return false, "That item is no longer on your shelves."
+	end
+	local capacity = PlayerData.getUpgradeValue(player, "Bag")
+	if #session.Carried >= capacity then
+		return false, string.format("🎒 Your bag is full (%d items). Sell something or upgrade your bag first.", capacity)
+	end
+	table.remove(session.Profile.Stored, index)
+	Inventory.addCarried(player, itemId)
+	PlayerData.recalculateIncome(player)
+	Plots.refresh(player)
+	return true, string.format("🎒 Took %s off the shelf (now in your bag).", def.DisplayName)
 end
 
 -- Rebuilds the shelf display, locked-slot colours and the stats board.
@@ -224087,8 +224884,13 @@ function Plots.refresh(player: Player)
 		end
 		local model = ItemModels.build(itemId)
 		if model then
+			local root = model.PrimaryPart
 			model:PivotTo(slot.CFrame * CFrame.new(0, slot.Size.Y / 2, 0))
-			addSellPrompt(plot, model, itemId)
+			local def = Items.get(itemId)
+			if root and def then
+				addStoragePrompt(plot, root, string.format("%s (+%s/s)", def.DisplayName, Format.money(Items.getIncome(itemId))),
+					itemId)
+			end
 			model.Parent = plot.Display
 		end
 	end
@@ -224334,13 +225136,37 @@ function Plots.init()
 	if #plots == 0 then
 		warn("[Plots] No warehouse plots found in Workspace.Map.Warehouses")
 	end
+
+	-- The storage window (client/Storage.luau): list the shelves, take an item back
+	-- into the bag, or sell it. Only the warehouse's owner may do any of it.
+	local storageRemote = ReplicatedStorage.Remotes.Storage
+	storageRemote.OnServerInvoke = function(player: Player, action: any, itemId: any)
+		local plot = plotByPlayer[player]
+		if not plot then
+			return { Ok = false, Message = "You don't have a warehouse on this server.", Items = {} }
+		end
+		if action == "List" then
+			return { Ok = true, Items = Plots.storageList(player) }
+		end
+		if action == "Take" and type(itemId) == "string" then
+			local ok, message = Plots.take(player, itemId)
+			Notify.send(player, message, if ok then "success" else "error")
+			return { Ok = ok, Message = message, Items = Plots.storageList(player) }
+		end
+		if action == "Sell" and type(itemId) == "string" then
+			local ok, message = Plots.sell(player, itemId)
+			Notify.send(player, message, if ok then "money" else "error")
+			return { Ok = ok, Message = message, Items = Plots.storageList(player) }
+		end
+		return { Ok = false, Message = "Unknown storage action.", Items = Plots.storageList(player) }
+	end
 end
 
 return Plots
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E20">
+			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E35">
 				<Properties>
 					<string name="Name">Treadmills</string>
 					<ProtectedString name="Source"><![CDATA[--!strict
@@ -224705,7 +225531,7 @@ return Treadmills
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E21">
+			<Item class="ModuleScript" referent="RBX00000000000000000000000000001E36">
 				<Properties>
 					<string name="Name">Vehicles</string>
 					<ProtectedString name="Source"><![CDATA[--!strict
@@ -225321,23 +226147,23 @@ return Vehicles
 			</Item>
 		</Item>
 	</Item>
-	<Item class="StarterPlayer" referent="RBX00000000000000000000000000001E22">
+	<Item class="StarterPlayer" referent="RBX00000000000000000000000000001E37">
 		<Properties>
 			<string name="Name">StarterPlayer</string>
 		</Properties>
-		<Item class="StarterPlayerScripts" referent="RBX00000000000000000000000000001E23">
+		<Item class="StarterPlayerScripts" referent="RBX00000000000000000000000000001E38">
 			<Properties>
 				<string name="Name">StarterPlayerScripts</string>
 			</Properties>
-			<Item class="LocalScript" referent="RBX00000000000000000000000000001E24">
+			<Item class="LocalScript" referent="RBX00000000000000000000000000001E39">
 				<Properties>
 					<string name="Name">Client</string>
 					<ProtectedString name="Source"><![CDATA[--!strict
 --[[
 	Steal an Item — client entry point
 	==================================
-	Builds the HUD, shop, loot index and effects, follows the day/night clock and
-	listens to the server's remotes.
+	Builds the HUD, shop, loot index, storage, sell point and effects, follows the
+	day/night clock and listens to the server's remotes.
 ]]
 
 local Players = game:GetService("Players")
@@ -225354,7 +226180,7 @@ for _, name in { "Config", "Items", "ItemModels", "Format" } do
 	sharedFolder:WaitForChild(name)
 end
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
-for _, name in { "Notify", "Busted", "Purchase", "SpawnCar", "Treadmill" } do
+for _, name in { "Notify", "Busted", "Purchase", "SpawnCar", "Treadmill", "Storage", "Sell" } do
 	remotesFolder:WaitForChild(name)
 end
 
@@ -225363,7 +226189,9 @@ local DayNight = require(script.DayNight)
 local Hud = require(script.Hud)
 local LootIndex = require(script.LootIndex)
 local Notifications = require(script.Notifications)
+local SellPoint = require(script.SellPoint)
 local Shop = require(script.Shop)
+local Storage = require(script.Storage)
 local TreadmillController = require(script.TreadmillController)
 local UI = require(script.UI)
 local VehicleController = require(script.VehicleController)
@@ -225408,16 +226236,39 @@ Notifications.init(screen)
 DayNight.init()
 Shop.init(screen)
 LootIndex.init(screen)
+Storage.init(screen)
+SellPoint.init(screen)
+
+-- Only one window is ever open at a time.
+local function closeWindows(keep: string?)
+	if keep ~= "Shop" then
+		Shop.close()
+	end
+	if keep ~= "Index" then
+		LootIndex.close()
+	end
+	if keep ~= "Storage" then
+		Storage.close()
+	end
+	if keep ~= "Sell" then
+		SellPoint.close()
+	end
+end
+
 local hud = Hud.init(screen, {
 	OnShop = function()
-		LootIndex.close()
+		closeWindows("Shop")
 		Shop.toggle()
 	end,
 	OnSpawnCar = function()
 		task.spawn(requestCar)
 	end,
+	OnStorage = function()
+		closeWindows("Storage")
+		Storage.toggle()
+	end,
 	OnIndex = function()
-		Shop.close()
+		closeWindows("Index")
 		LootIndex.toggle()
 	end,
 })
@@ -225438,15 +226289,25 @@ Remotes.Notify.OnClientEvent:Connect(function(text: string, kind: string?)
 end)
 
 Remotes.Busted.OnClientEvent:Connect(function(lostCount: number, lostValue: number, houseName: string, catcher: string?)
-	Shop.close()
-	LootIndex.close()
+	closeWindows()
 	BustedScreen.show(lostCount, lostValue, houseName, catcher)
 end)
 
+-- Prompts in the world open their window: the market stall's shop counter, the
+-- trader's counter opposite it, and the shelf prompts in your own warehouse.
 ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt, who: Player)
-	if who == player and prompt.Name == "OpenShopPrompt" then -- the counter of the market stall in the yard
-		LootIndex.close()
+	if who ~= player then
+		return
+	end
+	if prompt.Name == "OpenShopPrompt" then
+		closeWindows("Shop")
 		Shop.open()
+	elseif prompt.Name == "OpenSellPrompt" then
+		closeWindows("Sell")
+		SellPoint.open()
+	elseif prompt.Name == "ShelfPrompt" then
+		closeWindows("Storage")
+		Storage.open()
 	end
 end)
 
@@ -225460,7 +226321,7 @@ ProximityPromptService.PromptShown:Connect(function(prompt: ProximityPrompt)
 end)
 ]]></ProtectedString>
 				</Properties>
-				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E25">
+				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E3A">
 					<Properties>
 						<string name="Name">BustedScreen</string>
 						<ProtectedString name="Source"><![CDATA[--!strict
@@ -225570,7 +226431,7 @@ return BustedScreen
 ]]></ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E26">
+				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E3B">
 					<Properties>
 						<string name="Name">DayNight</string>
 						<ProtectedString name="Source"><![CDATA[--!strict
@@ -225684,7 +226545,7 @@ return DayNight
 ]]></ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E27">
+				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E3C">
 					<Properties>
 						<string name="Name">Hud</string>
 						<ProtectedString name="Source"><![CDATA[--!strict
@@ -225719,6 +226580,7 @@ local Theme = UI.Theme
 export type Callbacks = {
 	OnShop: () -> (),
 	OnSpawnCar: () -> (),
+	OnStorage: () -> (),
 	OnIndex: () -> (),
 }
 
@@ -225897,6 +226759,9 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 	})
 	makeButton(buttonColumn, 1, "🛒 SHOP", Color3.fromRGB(255, 176, 40), callbacks.OnShop)
 	makeButton(buttonColumn, 2, "🚗 CAR", Color3.fromRGB(60, 150, 255), callbacks.OnSpawnCar)
+	local storageButton = makeButton(column, 3, "📦 STORAGE", Color3.fromRGB(90, 190, 130), callbacks.OnStorage)
+	storageButton.Size = UDim2.fromOffset(270, 46)
+	storageButton.TextSize = 21
 	local indexButton = makeButton(column, 4, "📖 LOOT INDEX", Color3.fromRGB(170, 100, 255), callbacks.OnIndex)
 	indexButton.Size = UDim2.fromOffset(270, 46)
 	indexButton.TextSize = 21
@@ -226248,7 +227113,7 @@ return Hud
 ]]></ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E28">
+				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E3D">
 					<Properties>
 						<string name="Name">LootIndex</string>
 						<ProtectedString name="Source"><![CDATA[--!strict
@@ -226266,7 +227131,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
-local ItemModels = require(ReplicatedStorage.Shared.ItemModels)
 local Items = require(ReplicatedStorage.Shared.Items)
 local UI = require(script.Parent.UI)
 
@@ -226324,32 +227188,9 @@ local function updateBadge()
 end
 
 local function makePicture(parent: Instance, def: Items.ItemDef): ViewportFrame
-	local picture: ViewportFrame = UI.new("ViewportFrame", {
-		Name = "Picture",
-		BackgroundColor3 = Color3.fromRGB(56, 62, 92),
-		Position = UDim2.fromOffset(6, 6),
-		Size = UDim2.new(1, -12, 0, 92),
-		Ambient = Color3.fromRGB(165, 165, 175),
-		LightColor = Color3.fromRGB(255, 250, 240),
-		LightDirection = Vector3.new(-0.6, -1, -0.8),
-		ImageColor3 = LOCKED_TINT,
-		Parent = parent,
-	}, { UI.corner(10) })
-	local camera = Instance.new("Camera")
-	camera.FieldOfView = 34
-	camera.Parent = picture
-	picture.CurrentCamera = camera
-	local model = ItemModels.build(def.Id)
-	if model then
-		model:PivotTo(CFrame.new())
-		model.Parent = picture
-	end
-	-- Frame the whole item, seen from the front, a little from the right and above.
-	local size, center = ItemModels.getBounds(def.Id)
-	local radius = math.max(size.Magnitude / 2, 0.5)
-	local distance = radius / math.sin(math.rad(camera.FieldOfView / 2)) * 1.02
-	local direction = Vector3.new(0.5, 0.42, -1).Unit
-	camera.CFrame = CFrame.lookAt(center + direction * distance, center)
+	-- UI.itemPicture strips the rarity aura, so the card shows the item itself.
+	local picture = UI.itemPicture(parent, def.Id, UDim2.new(1, -12, 0, 92), UDim2.fromOffset(6, 6))
+	picture.ImageColor3 = LOCKED_TINT
 	return picture
 end
 
@@ -226708,7 +227549,7 @@ return LootIndex
 ]]></ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E29">
+				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E3E">
 					<Properties>
 						<string name="Name">Notifications</string>
 						<ProtectedString name="Source"><![CDATA[--!strict
@@ -226851,7 +227692,431 @@ return Notifications
 ]]></ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E2A">
+				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E3F">
+					<Properties>
+						<string name="Name">SellPoint</string>
+						<ProtectedString name="Source"><![CDATA[--!strict
+--[[
+	SellPoint
+	---------
+	The trader's window at the yard's market stall. Opens from the stall's prompt
+	and lists everything you could sell right now:
+
+	  * the loot in your bag,
+	  * plus the loot in your car's trunk while the car is parked at the stall.
+
+	One button sells a single item, the big button sells the lot. The server
+	(Market.luau) decides what really gets sold and pays the cash.
+]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local Format = require(ReplicatedStorage.Shared.Format)
+local Items = require(ReplicatedStorage.Shared.Items)
+local Notifications = require(script.Parent.Notifications)
+local UI = require(script.Parent.UI)
+
+local SellRemote = ReplicatedStorage.Remotes.Sell
+
+local SellPoint = {}
+
+local player = Players.LocalPlayer
+local Theme = UI.Theme
+
+local ROW_HEIGHT = 84
+local CARD_COLOR = Color3.fromRGB(36, 40, 62)
+
+local window: Frame? = nil
+local windowScale: UIScale? = nil
+local list: ScrollingFrame? = nil
+local cashLabel: TextLabel? = nil
+local totalLabel: TextLabel? = nil
+local empty: TextLabel? = nil
+local trunkHint: TextLabel? = nil
+local sellAll: TextButton? = nil
+local isOpen = false
+local busy = false
+local lastSignature: string? = nil
+
+local function number(name: string, default: number): number
+	local value = player:GetAttribute(name)
+	return if type(value) == "number" then value else default
+end
+
+local function request(action: string?, itemId: string?, source: string?): { [string]: any }?
+	if busy then
+		return nil
+	end
+	busy = true
+	local ok, result = pcall(function()
+		if action then
+			return SellRemote:InvokeServer(action, itemId, source)
+		end
+		return SellRemote:InvokeServer("List")
+	end)
+	busy = false
+	if not ok or type(result) ~= "table" then
+		Notifications.show("The trader is busy, try again!", "error")
+		return nil
+	end
+	return result
+end
+
+local function totalValue(sales: { any }): number
+	local total = 0
+	for _, sale in sales do
+		total += Items.getSellValue(tostring(sale.ItemId))
+	end
+	return total
+end
+
+local function makeRow(parent: Instance, order: number, sale: any): Frame?
+	local def = Items.get(tostring(sale.ItemId))
+	if not def then
+		return nil
+	end
+	local rarity = Items.getRarity(def.Id)
+	local color = if rarity then rarity.Color else Theme.SubText
+	local fromTrunk = sale.Source == "Trunk"
+	local frame: Frame = UI.new("Frame", {
+		Name = def.Id .. order,
+		BackgroundColor3 = CARD_COLOR,
+		Size = UDim2.new(1, -8, 0, ROW_HEIGHT),
+		LayoutOrder = order,
+		Parent = parent,
+	}, {
+		UI.corner(12),
+		UI.stroke(color, 2, 0.55),
+	})
+	UI.itemPicture(frame, def.Id, UDim2.fromOffset(72, 72), UDim2.fromOffset(6, 6))
+	UI.new("TextLabel", {
+		Name = "ItemName",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(88, 8),
+		Size = UDim2.new(1, -300, 0, 24),
+		Font = Theme.TitleFont,
+		Text = def.DisplayName,
+		TextColor3 = Theme.Text,
+		TextSize = 20,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = frame,
+	})
+	UI.new("TextLabel", {
+		Name = "Info",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(88, 32),
+		Size = UDim2.new(1, -300, 0, 20),
+		Font = Theme.BoldFont,
+		Text = string.format("%s · %s%s", def.Rarity, if fromTrunk then "🚗 trunk · " else "🎒 bag · ",
+			Format.money(Items.getSellValue(def.Id))),
+		TextColor3 = color,
+		TextSize = 16,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = frame,
+	})
+	UI.new("TextLabel", {
+		Name = "House",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(88, 52),
+		Size = UDim2.new(1, -300, 0, 18),
+		Font = Theme.BodyFont,
+		Text = "from " .. def.House,
+		TextColor3 = Theme.SubText,
+		TextSize = 15,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = frame,
+	})
+
+	local button: TextButton = UI.new("TextButton", {
+		Name = "Sell",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -14, 0.5, 0),
+		Size = UDim2.fromOffset(120, 46),
+		BackgroundColor3 = Theme.Green,
+		Font = Theme.BoldFont,
+		Text = "💰 " .. Format.money(Items.getSellValue(def.Id)),
+		TextColor3 = Color3.new(1, 1, 1),
+		TextSize = 18,
+		Parent = frame,
+	}, { UI.corner(10) })
+	UI.bounce(button)
+	button.Activated:Connect(function()
+		local result = request("Sell", def.Id, tostring(sale.Source))
+		if not result then
+			return
+		end
+		UI.playSound(if result.Ok then UI.Sounds.Purchase else UI.Sounds.Error, 0.5, if result.Ok then 1.7 else 1)
+		Notifications.show(tostring(result.Message), if result.Ok then "money" else "error")
+		SellPoint.refresh()
+	end)
+	return frame
+end
+
+function SellPoint.refresh()
+	local frame, container = window, list
+	if not frame or not container then
+		return
+	end
+	local result = request(nil)
+	local sales: { any } = if result then result.Sales or {} else {}
+	local bagCount, trunkCount = 0, 0
+	local parts = {}
+	for index, sale in sales do
+		if sale.Source == "Trunk" then
+			trunkCount += 1
+		else
+			bagCount += 1
+		end
+		table.insert(parts, string.format("%d:%s:%s", index, tostring(sale.ItemId), tostring(sale.Source)))
+	end
+	-- The car can drive up at any time, so only touch the rows when the list really changed.
+	table.insert(parts, if result and result.TrunkReady == true then "trunk-ready" else "trunk-away")
+	local signature = table.concat(parts, "|")
+	if signature ~= lastSignature then
+		lastSignature = signature
+		container:ClearAllChildren()
+		for index, sale in sales do
+			makeRow(container, index, sale)
+		end
+	end
+
+	local total = totalValue(sales)
+	if cashLabel then
+		cashLabel.Text = "💰 " .. Format.money(number("Cash", 0))
+	end
+	if totalLabel then
+		if #sales == 0 then
+			totalLabel.Text = "Nothing to sell — steal something first!"
+		else
+			totalLabel.Text = string.format("%d item%s in your bag%s · worth %s", bagCount,
+				if bagCount == 1 then "" else "s",
+				if trunkCount > 0 then string.format(" and %d in the trunk", trunkCount) else "", Format.money(total))
+		end
+	end
+	if sellAll then
+		sellAll.Text = if total > 0 then "🤑 SELL EVERYTHING (" .. Format.money(total) .. ")" else "🤑 NOTHING TO SELL"
+		sellAll.BackgroundColor3 = if total > 0 then Theme.Green else Color3.fromRGB(70, 74, 96)
+		sellAll.AutoButtonColor = total > 0
+	end
+	if empty then
+		empty.Visible = #sales == 0
+	end
+	local hint = trunkHint
+	if hint then
+		local ready = result ~= nil and result.TrunkReady == true
+		hint.Text = if ready
+			then "🚗 Your car is at the stall — its trunk is included."
+			else string.format("🚗 Park your car within %d studs of the stall to sell the trunk too.",
+				Config.Market.TrunkRange)
+		hint.TextColor3 = if ready then Theme.Green else Theme.SubText
+	end
+end
+
+function SellPoint.init(screen: ScreenGui)
+	local scale = UI.scaled()
+	local frame: Frame = UI.new("Frame", {
+		Name = "SellPoint",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(700, 540),
+		BackgroundColor3 = Theme.Panel,
+		Visible = false,
+		Parent = screen,
+	}, {
+		UI.corner(18),
+		UI.stroke(Theme.Green, 3, 0.1),
+		scale,
+	})
+	window = frame
+	windowScale = scale
+
+	UI.new("TextLabel", {
+		Name = "Title",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(20, 8),
+		Size = UDim2.new(1, -90, 0, 44),
+		Font = Theme.TitleFont,
+		Text = "💰 SELL POINT",
+		TextColor3 = Theme.Green,
+		TextSize = 32,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = frame,
+	})
+	local cash: TextLabel = UI.new("TextLabel", {
+		Name = "Cash",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -74, 0, 16),
+		Size = UDim2.fromOffset(240, 32),
+		Font = Theme.TitleFont,
+		Text = "",
+		TextColor3 = Theme.Green,
+		TextSize = 24,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = frame,
+	})
+	cashLabel = cash
+	local close: TextButton = UI.new("TextButton", {
+		Name = "Close",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -14, 0, 14),
+		Size = UDim2.fromOffset(44, 44),
+		BackgroundColor3 = Theme.Red,
+		Font = Theme.TitleFont,
+		Text = "X",
+		TextColor3 = Color3.new(1, 1, 1),
+		TextSize = 26,
+		Parent = frame,
+	}, { UI.corner(10) })
+	UI.bounce(close)
+	close.Activated:Connect(function()
+		SellPoint.close()
+	end)
+
+	local baggage: TextLabel = UI.new("TextLabel", {
+		Name = "Total",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(22, 50),
+		Size = UDim2.new(1, -44, 0, 24),
+		Font = Theme.BoldFont,
+		Text = "",
+		TextColor3 = Theme.SubText,
+		TextSize = 17,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = frame,
+	})
+	totalLabel = baggage
+
+	local scrolling: ScrollingFrame = UI.new("ScrollingFrame", {
+		Name = "List",
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Position = UDim2.fromOffset(16, 80),
+		Size = UDim2.new(1, -28, 1, -186),
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollBarThickness = 8,
+		ScrollBarImageColor3 = Theme.Green,
+		Parent = frame,
+	}, {
+		UI.new("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }),
+	})
+	list = scrolling
+
+	local hint: TextLabel = UI.new("TextLabel", {
+		Name = "TrunkHint",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(22, 396),
+		Size = UDim2.new(1, -44, 0, 22),
+		Font = Theme.BodyFont,
+		Text = "",
+		TextColor3 = Theme.SubText,
+		TextSize = 16,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = frame,
+	})
+	trunkHint = hint
+	UI.new("TextLabel", {
+		Name = "Empty",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(22, 120),
+		Size = UDim2.new(1, -44, 0, 40),
+		Font = Theme.BodyFont,
+		Text = "Your bag is empty. Rob a house, then bring the loot here for cash on the spot.",
+		TextColor3 = Theme.SubText,
+		TextSize = 18,
+		TextWrapped = true,
+		Parent = frame,
+	})
+	empty = frame:FindFirstChild("Empty") :: TextLabel
+
+	local all: TextButton = UI.new("TextButton", {
+		Name = "SellAll",
+		Position = UDim2.new(0, 20, 1, -74),
+		Size = UDim2.new(1, -40, 0, 52),
+		BackgroundColor3 = Theme.Green,
+		Font = Theme.TitleFont,
+		Text = "🤑 SELL EVERYTHING",
+		TextColor3 = Color3.new(1, 1, 1),
+		TextSize = 24,
+		Parent = frame,
+	}, { UI.corner(12) })
+	sellAll = all
+	UI.bounce(all)
+	all.Activated:Connect(function()
+		local result = request("All")
+		if not result then
+			return
+		end
+		UI.playSound(if result.Ok then UI.Sounds.Purchase else UI.Sounds.Error, 0.6, if result.Ok then 1.9 else 1)
+		Notifications.show(tostring(result.Message), if result.Ok then "money" else "error")
+		SellPoint.refresh()
+	end)
+
+	player:GetAttributeChangedSignal("Cash"):Connect(function()
+		if cash then
+			cash.Text = "💰 " .. Format.money(number("Cash", 0))
+		end
+	end)
+	for _, name in { "Carried", "TrunkCount" } do
+		player:GetAttributeChangedSignal(name):Connect(function()
+			task.spawn(SellPoint.refresh)
+		end)
+	end
+	cash.Text = "💰 " .. Format.money(number("Cash", 0))
+end
+
+function SellPoint.open()
+	local frame, scale = window, windowScale
+	if not frame or not scale or isOpen then
+		return
+	end
+	isOpen = true
+	lastSignature = nil
+	frame.Visible = true
+	local target = UI.CurrentScale
+	scale.Scale = target * 0.8
+	UI.tween(scale, 0.18, { Scale = target }, Enum.EasingStyle.Back)
+	task.spawn(SellPoint.refresh)
+	task.spawn(function()
+		-- Keep an eye out for the car pulling up at the stall while the trader's window is open.
+		while isOpen do
+			task.wait(1)
+			if isOpen then
+				SellPoint.refresh()
+			end
+		end
+	end)
+end
+
+function SellPoint.close()
+	local frame = window
+	if not frame or not isOpen then
+		return
+	end
+	isOpen = false
+	frame.Visible = false
+end
+
+function SellPoint.toggle()
+	if isOpen then
+		SellPoint.close()
+	else
+		SellPoint.open()
+	end
+end
+
+function SellPoint.isOpen(): boolean
+	return isOpen
+end
+
+return SellPoint
+]]></ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E40">
 					<Properties>
 						<string name="Name">Shop</string>
 						<ProtectedString name="Source"><![CDATA[--!strict
@@ -227198,7 +228463,355 @@ return Shop
 ]]></ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E2B">
+				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E41">
+					<Properties>
+						<string name="Name">Storage</string>
+						<ProtectedString name="Source"><![CDATA[--!strict
+--[[
+	Storage
+	-------
+	The warehouse storage window. Opens from any shelf prompt in your own warehouse
+	(or from the HUD's STORAGE button) and lists everything on your shelves:
+
+	  * TAKE  — unequips an item: it comes off the shelf and back into your bag.
+	  * SELL  — sells it for cash on the spot.
+
+	Nothing is taken for granted on the client: the server (Plots.storageList /
+	Plots.take / Plots.sell, reached through the Storage remote) checks that the
+	warehouse is really yours and that the bag has room.
+]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Format = require(ReplicatedStorage.Shared.Format)
+local Items = require(ReplicatedStorage.Shared.Items)
+local Notifications = require(script.Parent.Notifications)
+local UI = require(script.Parent.UI)
+
+local StorageRemote = ReplicatedStorage.Remotes.Storage
+
+local Storage = {}
+
+local player = Players.LocalPlayer
+local Theme = UI.Theme
+
+local ROW_HEIGHT = 96
+local CARD_COLOR = Color3.fromRGB(36, 40, 62)
+
+local window: Frame? = nil
+local windowScale: UIScale? = nil
+local list: ScrollingFrame? = nil
+local header: TextLabel? = nil
+local empty: TextLabel? = nil
+local isOpen = false
+local busy = false
+
+local function number(name: string, default: number): number
+	local value = player:GetAttribute(name)
+	return if type(value) == "number" then value else default
+end
+
+local function updateHeader()
+	local label = header
+	if label then
+		label.Text = string.format(
+			"📦 Shelves %d / %d   ·   🎒 Bag %d / %d   ·   💰 %s",
+			number("StoredCount", 0),
+			number("StorageCapacity", 0),
+			number("Carried", 0),
+			number("BagCapacity", 0),
+			Format.money(number("Cash", 0))
+		)
+	end
+	local hint = empty
+	if hint then
+		hint.Visible = #(list and list:GetChildren() or {}) == 0
+	end
+end
+
+local function request(action: string?, itemId: string?): { [string]: any }?
+	if busy then
+		return nil
+	end
+	busy = true
+	local ok, result = pcall(function()
+		if action then
+			return StorageRemote:InvokeServer(action, itemId)
+		end
+		return StorageRemote:InvokeServer("List")
+	end)
+	busy = false
+	if not ok or type(result) ~= "table" then
+		Notifications.show("The warehouse is busy, try again!", "error")
+		return nil
+	end
+	return result
+end
+
+local function act(action: string, itemId: string)
+	local result = request(action, itemId)
+	if not result then
+		return
+	end
+	if result.Ok then
+		UI.playSound(UI.Sounds.Purchase, 0.5, if action == "Take" then 1.3 else 1.7)
+	else
+		UI.playSound(UI.Sounds.Error, 0.4, 1)
+	end
+	Notifications.show(tostring(result.Message), if result.Ok then "success" else "error")
+	Storage.refresh()
+end
+
+local function makeRow(parent: Instance, order: number, itemId: string): Frame?
+	local def = Items.get(itemId)
+	if not def then
+		return nil
+	end
+	local rarity = Items.getRarity(itemId)
+	local color = if rarity then rarity.Color else Theme.SubText
+	local frame: Frame = UI.new("Frame", {
+		Name = itemId .. order,
+		BackgroundColor3 = CARD_COLOR,
+		Size = UDim2.new(1, -8, 0, ROW_HEIGHT),
+		LayoutOrder = order,
+		Parent = parent,
+	}, {
+		UI.corner(12),
+		UI.stroke(color, 2, 0.55),
+	})
+	UI.itemPicture(frame, itemId, UDim2.fromOffset(84, 84), UDim2.fromOffset(6, 6))
+
+	UI.new("TextLabel", {
+		Name = "ItemName",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(100, 8),
+		Size = UDim2.new(1, -320, 0, 26),
+		Font = Theme.TitleFont,
+		Text = def.DisplayName,
+		TextColor3 = Theme.Text,
+		TextSize = 22,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = frame,
+	})
+	UI.new("TextLabel", {
+		Name = "Rarity",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(100, 34),
+		Size = UDim2.new(1, -320, 0, 20),
+		Font = Theme.BoldFont,
+		Text = string.format("%s · from %s", def.Rarity, def.House),
+		TextColor3 = color,
+		TextSize = 16,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = frame,
+	})
+	UI.new("TextLabel", {
+		Name = "Worth",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(100, 58),
+		Size = UDim2.new(1, -320, 0, 24),
+		Font = Theme.BoldFont,
+		Text = string.format("💵 %s   ·   +%s / sec", Format.money(def.Value), Format.money(Items.getIncome(itemId))),
+		TextColor3 = Theme.Green,
+		TextSize = 17,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = frame,
+	})
+
+	local function button(name: string, text: string, x: number, color: Color3, callback: () -> ()): TextButton
+		local button: TextButton = UI.new("TextButton", {
+			Name = name,
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, x, 0.5, 0),
+			Size = UDim2.fromOffset(96, 46),
+			BackgroundColor3 = color,
+			Font = Theme.BoldFont,
+			Text = text,
+			TextColor3 = Color3.new(1, 1, 1),
+			TextSize = 18,
+			Parent = frame,
+		}, { UI.corner(10) })
+		UI.bounce(button)
+		button.Activated:Connect(callback)
+		return button
+	end
+
+	button("Take", "🎒 TAKE", -14, Theme.Blue, function()
+		act("Take", itemId)
+	end)
+	button("Sell", "💰 " .. Format.money(Items.getSellValue(itemId)), -118, Theme.Green, function()
+		act("Sell", itemId)
+	end)
+	return frame
+end
+
+-- Asks the server what is on the shelves and rebuilds the list.
+function Storage.refresh()
+	local frame, container = window, list
+	if not frame or not container then
+		return
+	end
+	local result = request(nil)
+	container:ClearAllChildren()
+	if result then
+		for index, itemId in result.Items or {} do
+			makeRow(container, index, itemId)
+		end
+	end
+	updateHeader()
+end
+
+function Storage.init(screen: ScreenGui)
+	local scale = UI.scaled()
+	local frame: Frame = UI.new("Frame", {
+		Name = "Storage",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(700, 520),
+		BackgroundColor3 = Theme.Panel,
+		Visible = false,
+		Parent = screen,
+	}, {
+		UI.corner(18),
+		UI.stroke(Theme.Blue, 3, 0.1),
+		scale,
+	})
+	window = frame
+	windowScale = scale
+
+	UI.new("TextLabel", {
+		Name = "Title",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(20, 8),
+		Size = UDim2.new(1, -90, 0, 44),
+		Font = Theme.TitleFont,
+		Text = "📦 WAREHOUSE STORAGE",
+		TextColor3 = Theme.Blue,
+		TextSize = 32,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = frame,
+	})
+	local headerLabel: TextLabel = UI.new("TextLabel", {
+		Name = "Header",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(22, 50),
+		Size = UDim2.new(1, -44, 0, 24),
+		Font = Theme.BoldFont,
+		Text = "",
+		TextColor3 = Theme.SubText,
+		TextSize = 17,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = frame,
+	})
+	header = headerLabel
+	local close: TextButton = UI.new("TextButton", {
+		Name = "Close",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -14, 0, 14),
+		Size = UDim2.fromOffset(44, 44),
+		BackgroundColor3 = Theme.Red,
+		Font = Theme.TitleFont,
+		Text = "X",
+		TextColor3 = Color3.new(1, 1, 1),
+		TextSize = 26,
+		Parent = frame,
+	}, { UI.corner(10) })
+	UI.bounce(close)
+	close.Activated:Connect(function()
+		Storage.close()
+	end)
+
+	local scrolling: ScrollingFrame = UI.new("ScrollingFrame", {
+		Name = "List",
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Position = UDim2.fromOffset(16, 80),
+		Size = UDim2.new(1, -28, 1, -142),
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollBarThickness = 8,
+		ScrollBarImageColor3 = Theme.Blue,
+		Parent = frame,
+	}, {
+		UI.new("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }),
+	})
+	list = scrolling
+
+	UI.new("TextLabel", {
+		Name = "Empty",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(20, 110),
+		Size = UDim2.new(1, -40, 0, 40),
+		Font = Theme.BodyFont,
+		Text = "Your shelves are empty — steal something and drop it on the green DEPOSIT pad.",
+		TextColor3 = Theme.SubText,
+		TextSize = 18,
+		TextWrapped = true,
+		Parent = frame,
+	})
+	empty = frame:FindFirstChild("Empty") :: TextLabel
+
+	UI.new("TextLabel", {
+		Name = "Tip",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 20, 1, -10),
+		Size = UDim2.new(1, -40, 0, 34),
+		Font = Theme.BodyFont,
+		Text = "🎒 TAKE puts an item back in your bag (sell it at the 💰 SELL POINT, or stash it again).  "
+			.. "💰 SELL pays cash on the spot and frees the shelf.",
+		TextColor3 = Theme.SubText,
+		TextSize = 15,
+		TextWrapped = true,
+		Parent = frame,
+	})
+
+	for _, name in { "StoredCount", "StorageCapacity", "Carried", "BagCapacity", "Cash" } do
+		player:GetAttributeChangedSignal(name):Connect(updateHeader)
+	end
+	updateHeader()
+end
+
+function Storage.open()
+	local frame, scale = window, windowScale
+	if not frame or not scale or isOpen then
+		return
+	end
+	isOpen = true
+	frame.Visible = true
+	local target = UI.CurrentScale
+	scale.Scale = target * 0.8
+	UI.tween(scale, 0.18, { Scale = target }, Enum.EasingStyle.Back)
+	task.spawn(Storage.refresh)
+end
+
+function Storage.close()
+	local frame = window
+	if not frame or not isOpen then
+		return
+	end
+	isOpen = false
+	frame.Visible = false
+end
+
+function Storage.toggle()
+	if isOpen then
+		Storage.close()
+	else
+		Storage.open()
+	end
+end
+
+function Storage.isOpen(): boolean
+	return isOpen
+end
+
+return Storage
+]]></ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E42">
 					<Properties>
 						<string name="Name">TreadmillController</string>
 						<ProtectedString name="Source"><![CDATA[--!strict
@@ -227740,7 +229353,7 @@ return TreadmillController
 ]]></ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E2C">
+				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E43">
 					<Properties>
 						<string name="Name">UI</string>
 						<ProtectedString name="Source"><![CDATA[--!strict
@@ -227755,6 +229368,7 @@ local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local ItemModels = require(ReplicatedStorage.Shared.ItemModels)
 
 local UI = {}
 
@@ -227843,6 +229457,44 @@ function UI.scaled(): UIScale
 	return scale
 end
 
+-- A little 3D picture of an item, framed to fit, for the Loot Index and the storage / sell windows.
+-- Rarity auras are stripped, so the picture shows the item itself (the card's outline carries the colour).
+function UI.itemPicture(parent: Instance, itemId: string, size: UDim2, position: UDim2?): ViewportFrame
+	local picture: ViewportFrame = UI.new("ViewportFrame", {
+		Name = "Picture",
+		BackgroundColor3 = Color3.fromRGB(56, 62, 92),
+		Position = position or UDim2.fromOffset(6, 6),
+		Size = size,
+		Ambient = Color3.fromRGB(165, 165, 175),
+		LightColor = Color3.fromRGB(255, 250, 240),
+		LightDirection = Vector3.new(-0.6, -1, -0.8),
+		Parent = parent,
+	}, { UI.corner(10) })
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 34
+	camera.Parent = picture
+	picture.CurrentCamera = camera
+
+	local model = ItemModels.build(itemId)
+	if model then
+		for _, child in model:GetChildren() do
+			if child.Name == "Aura" or child.Name == "AuraGlow" then
+				child:Destroy()
+			end
+		end
+		model:PivotTo(CFrame.new())
+		model.Parent = picture
+	end
+
+	-- Frame the whole item, seen from the front, a little from the right and above.
+	local itemSize, center = ItemModels.getBounds(itemId)
+	local radius = math.max(itemSize.Magnitude / 2, 0.5)
+	local distance = radius / math.sin(math.rad(camera.FieldOfView / 2)) * 1.02
+	local direction = Vector3.new(0.5, 0.42, -1).Unit
+	camera.CFrame = CFrame.lookAt(center + direction * distance, center)
+	return picture
+end
+
 function UI.setScale(value: number)
 	UI.CurrentScale = value
 	for _, scale in UI.Scales do
@@ -227901,7 +229553,7 @@ return UI
 ]]></ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E2D">
+				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E44">
 					<Properties>
 						<string name="Name">VehicleController</string>
 						<ProtectedString name="Source"><![CDATA[--!strict
@@ -228051,7 +229703,7 @@ return VehicleController
 ]]></ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E2E">
+				<Item class="ModuleScript" referent="RBX00000000000000000000000000001E45">
 					<Properties>
 						<string name="Name">WorldEffects</string>
 						<ProtectedString name="Source"><![CDATA[--!strict
@@ -228061,6 +229713,7 @@ return VehicleController
 	Purely visual/audio touches that only the local player needs:
 	  * Flashing sirens + beeping on houses whose alarm is going off
 	  * Moving stripes on the warehouse treadmills while someone runs on them
+	  * Breathing the rarity aura around Epic and Legendary loot
 	  * A "YOUR WAREHOUSE" marker so you can always find your way home
 ]]
 
@@ -228226,6 +229879,69 @@ local function setupTreadmills(map: Instance)
 end
 
 --------------------------------------------------------------------------------
+-- Rarity auras: Epic and Legendary loot carries a glowing shell (built by
+-- shared/ItemModels.luau in the item's rarity colour). Breathe it gently, and
+-- keep the outline glow in step with it.
+--------------------------------------------------------------------------------
+local AURA_RANGE = 260 -- studs; further away than this the glow is only wasted work
+
+type Aura = {
+	Shell: BasePart,
+	Glow: Highlight?,
+	Size: number,
+}
+
+local function setupAuras()
+	local camera = Workspace.CurrentCamera
+	local auras: { Aura } = {}
+	local elapsed = 0
+
+	local function add(instance: Instance)
+		if instance:IsA("BasePart") and instance.Name == "Aura" and instance.Parent then
+			local stored = instance:GetAttribute("AuraSize")
+			table.insert(auras, {
+				Shell = instance,
+				Glow = instance.Parent:FindFirstChild("AuraGlow") :: Highlight?,
+				Size = if type(stored) == "number" then stored else instance.Size.X,
+			})
+		end
+	end
+
+	Workspace.DescendantAdded:Connect(function(instance)
+		if instance.Name == "Aura" then
+			add(instance)
+		end
+	end)
+	for _, instance in Workspace:GetDescendants() do
+		add(instance)
+	end
+
+	RunService.RenderStepped:Connect(function(dt: number)
+		elapsed += dt
+		local view = camera and camera.CFrame.Position
+		local wave = math.sin(elapsed * 2.2)
+		for index = #auras, 1, -1 do
+			local aura = auras[index]
+			local shell = aura.Shell
+			if not shell.Parent then
+				table.remove(auras, index)
+				continue
+			end
+			-- Only animate what the player could actually see.
+			if view and (shell.Position - view).Magnitude > AURA_RANGE then
+				continue
+			end
+			shell.Transparency = Config.Aura.Transparency + wave * Config.Aura.Pulse
+			shell.Size = Vector3.one * (aura.Size * (1 + wave * 0.04))
+			local glow = aura.Glow
+			if glow then
+				glow.FillTransparency = math.clamp(Config.Aura.FillTransparency + wave * 0.08, 0, 0.95)
+			end
+		end
+	end)
+end
+
+--------------------------------------------------------------------------------
 -- Warehouse marker
 --------------------------------------------------------------------------------
 local function setupWarehouseMarker(map: Instance)
@@ -228302,6 +230018,7 @@ function WorldEffects.init()
 	task.spawn(setupSirens, map)
 	task.spawn(setupTreadmills, map)
 	task.spawn(setupWarehouseMarker, map)
+	setupAuras()
 end
 
 return WorldEffects

@@ -13,7 +13,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
-local ItemModels = require(ReplicatedStorage.Shared.ItemModels)
 local Items = require(ReplicatedStorage.Shared.Items)
 local UI = require(script.Parent.UI)
 
@@ -71,32 +70,9 @@ local function updateBadge()
 end
 
 local function makePicture(parent: Instance, def: Items.ItemDef): ViewportFrame
-	local picture: ViewportFrame = UI.new("ViewportFrame", {
-		Name = "Picture",
-		BackgroundColor3 = Color3.fromRGB(56, 62, 92),
-		Position = UDim2.fromOffset(6, 6),
-		Size = UDim2.new(1, -12, 0, 92),
-		Ambient = Color3.fromRGB(165, 165, 175),
-		LightColor = Color3.fromRGB(255, 250, 240),
-		LightDirection = Vector3.new(-0.6, -1, -0.8),
-		ImageColor3 = LOCKED_TINT,
-		Parent = parent,
-	}, { UI.corner(10) })
-	local camera = Instance.new("Camera")
-	camera.FieldOfView = 34
-	camera.Parent = picture
-	picture.CurrentCamera = camera
-	local model = ItemModels.build(def.Id)
-	if model then
-		model:PivotTo(CFrame.new())
-		model.Parent = picture
-	end
-	-- Frame the whole item, seen from the front, a little from the right and above.
-	local size, center = ItemModels.getBounds(def.Id)
-	local radius = math.max(size.Magnitude / 2, 0.5)
-	local distance = radius / math.sin(math.rad(camera.FieldOfView / 2)) * 1.02
-	local direction = Vector3.new(0.5, 0.42, -1).Unit
-	camera.CFrame = CFrame.lookAt(center + direction * distance, center)
+	-- UI.itemPicture strips the rarity aura, so the card shows the item itself.
+	local picture = UI.itemPicture(parent, def.Id, UDim2.new(1, -12, 0, 92), UDim2.fromOffset(6, 6))
+	picture.ImageColor3 = LOCKED_TINT
 	return picture
 end
 

@@ -50,9 +50,16 @@ function Vector3Meta:Max(o) return v3(math.max(self.X, o.X), math.max(self.Y, o.
 function Vector3Meta:Dot(o) return self.X * o.X + self.Y * o.Y + self.Z * o.Z end
 Vector3 = { new = v3, zero = v3(0, 0, 0), one = v3(1, 1, 1), yAxis = v3(0, 1, 0) }
 
+local Color3Meta = {}
+Color3Meta.__eq = function(a, b) return a.R == b.R and a.G == b.G and a.B == b.B end
+Color3Meta.__tostring = function(a)
+	return string.format("Color3(%.3f, %.3f, %.3f)", a.R, a.G, a.B)
+end
 Color3 = {
-	new = function(r, g, b) return { R = r or 0, G = g or 0, B = b or 0 } end,
-	fromRGB = function(r, g, b) return { R = (r or 0) / 255, G = (g or 0) / 255, B = (b or 0) / 255 } end,
+	new = function(r, g, b) return setmetatable({ R = r or 0, G = g or 0, B = b or 0 }, Color3Meta) end,
+	fromRGB = function(r, g, b)
+		return setmetatable({ R = (r or 0) / 255, G = (g or 0) / 255, B = (b or 0) / 255 }, Color3Meta)
+	end,
 }
 
 local function enumGroup(groupName)

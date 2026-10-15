@@ -835,6 +835,18 @@ function Items.getSellValue(itemId: string): number
 	return math.floor(Items.getValue(itemId) * Config.Economy.SellRatio)
 end
 
+-- The rarity table for an item (colour, weight, order), or nil for an unknown id.
+function Items.getRarity(itemId: string): Rarity?
+	local def = byId[itemId]
+	return if def then Items.Rarities[def.Rarity] else nil
+end
+
+-- Epic and above: these items get a coloured aura in the world (see ItemModels).
+function Items.hasAura(itemId: string): boolean
+	local rarity = Items.getRarity(itemId)
+	return rarity ~= nil and rarity.Order >= Config.Aura.MinOrder
+end
+
 -- Cash per second this item earns while stored in a warehouse.
 function Items.getIncome(itemId: string): number
 	local def = byId[itemId]

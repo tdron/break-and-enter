@@ -1379,14 +1379,21 @@ YARD_PLOTS = (
 )
 
 
-def market_stall(parent: Inst, name: str, cf: CF, *, counter_name: str, sign: str, sign_color, blurb: str,
-                 stocked: bool) -> Inst:
-    """One wooden market stall: local +Z is the customer side, the back wall is at local -Z."""
+def market_stall(parent: Inst, name: str, cf: CF, *, variant: str, counter_name: str, sign: str, sign_color,
+                 blurb: str) -> Inst:
+    """One wooden market stall: local +Z is the customer side, the back wall is at local -Z.
+
+    `variant` is "shop" (shelves stacked with one crate per upgrade) or "sell" (the trader's
+    counter: scales, a cash box and bags of money).
+    """
     stall = model(parent, name, cf)
     W, D, H = STALL_W, STALL_D, STALL_H
 
-    def p(n, size, pos, col, mat="WoodPlanks", **kw):
-        return part(stall, n, size, cf * CF(*pos), col, mat, **kw)
+    def p(n, size, pos, col, mat="WoodPlanks", rot=None, **kw):
+        frame = cf * CF(*pos)
+        if rot:
+            frame = frame * CF.deg(*rot)
+        return part(stall, n, size, frame, col, mat, **kw)
 
     p("Deck", (W, 0.3, D), (0, 0.15, 0), (150, 116, 82), "WoodPlanks")
     p("BackWall", (W, H, 0.7), (0, H / 2, -D / 2 + 0.35), (172, 122, 76), "WoodPlanks")
@@ -1405,19 +1412,41 @@ def market_stall(parent: Inst, name: str, cf: CF, *, counter_name: str, sign: st
     board = p("StallSign", (W - 2, 3.4, 0.4), (0, H + 2.4, D / 2 + 2.3), (74, 54, 40), "Wood")
     for face in ("Front", "Back"):
         surface_text(board, face, sign, color=sign_color, font="Luckiest", stroke=None, pixels_per_stud=40)
-    note = p("StallNote", (W - 8, 2.2, 0.3), (0, 4.6, -D / 2 + 0.75), (24, 26, 34), "SmoothPlastic")
+    note = p("StallNote", (W - 6, 2.4, 0.3), (0, 4.7, -D / 2 + 0.75), (24, 26, 34), "SmoothPlastic")
     surface_text(note, "Front", blurb, color=(240, 240, 245), font="Builder", weight=700, stroke=None,
                  pixels_per_stud=34)
-    if stocked:
+
+    if variant == "shop":
         for x, color in ((-8, (215, 90, 70)), (-4, (90, 150, 215)), (0, (110, 190, 110)), (4, (230, 180, 60)),
                          (8, (170, 110, 210))):  # one little crate per upgrade the shop sells
             p("Crate", (3.0, 2.4, 2.4), (x, 1.4, -D / 2 + 2.6), (170, 130, 80), "WoodPlanks")
             p("Goods", (1.7, 1.7, 1.7), (x, 3.4, -D / 2 + 2.6), color, "SmoothPlastic", shape="Ball", collide=False)
-        lamp = p("StallLight", (W - 6, 0.4, 2), (0, H - 0.5, 2.0), (255, 246, 226), "Neon", collide=False)
-        point_light(lamp, (255, 244, 224), 1.1, 26)
     else:
-        for x in (-7.0, 3.0):  # empty crates, waiting for a trader
-            p("EmptyCrate", (2.6, 2.2, 2.2), (x, 1.4, -D / 2 + 2.6), (150, 118, 80), "WoodPlanks")
+        # The trader's scales: a brass post with a beam and two pans.
+        p("ScalesPost", (0.5, 3.2, 0.5), (6.0, 5.3, D / 2 - 1.6), (196, 158, 62), "Metal", shape="Cylinder")
+        p("ScalesBeam", (4.6, 0.24, 0.24), (6.0, 6.9, D / 2 - 1.6), (222, 186, 88), "Metal", rot=(0, 0, 90),
+          shape="Cylinder")
+        for x in (3.8, 8.2):
+            p("ScalesChain", (0.1, 1.0, 0.1), (x, 6.4, D / 2 - 1.6), (170, 140, 70), "Metal", collide=False)
+            p("ScalesPan", (2.2, 0.24, 2.2), (x, 5.9, D / 2 - 1.6), (204, 170, 74), "Metal", shape="Cylinder")
+        # A cash box, its lid open, and bags of takings.
+        p("CashBox", (3.0, 2.0, 2.4), (-6.4, 4.85, D / 2 - 1.8), (70, 78, 92), "Metal")
+        p("CashBoxLid", (3.0, 0.3, 2.4), (-6.4, 6.6, D / 2 - 2.6), (86, 96, 112), "Metal", rot=(-38, 0, 0))
+        p("Banknotes", (2.4, 0.9, 1.8), (-6.4, 6.3, D / 2 - 1.8), (120, 190, 120), "Fabric", collide=False)
+        for i, (x, z) in enumerate(((-9.2, D / 2 - 2.2), (-8.2, D / 2 - 3.4), (-10.0, D / 2 - 3.6))):
+            p("MoneyBag", (2.0 - i * 0.2, 2.0 - i * 0.2, 2.0 - i * 0.2), (x, 4.6 + (2.0 - i * 0.2) / 2, z),
+              (168, 132, 74), "Fabric", shape="Ball")
+        p("MoneyBagKnot", (0.5, 0.5, 0.5), (-9.2, 5.9, D / 2 - 2.2), (128, 96, 50), "Fabric", shape="Ball",
+          collide=False)
+        p("Ledger", (2.4, 0.2, 3.0), (-2.0, 3.95, D / 2 - 1.4), (232, 226, 210), "SmoothPlastic", rot=(0, -14, 0))
+        p("LedgerPen", (0.16, 0.16, 2.0), (-1.0, 4.1, D / 2 - 1.2), (40, 42, 52), "Metal", rot=(0, -20, 0),
+          shape="Cylinder", collide=False)
+        # A "WE BUY LOOT" board on the counter.
+        buy = p("BuySign", (9, 2.6, 0.3), (0, 5.6, D / 2 - 0.9), (36, 92, 60), "SmoothPlastic")
+        surface_text(buy, "Front", "WE BUY LOOT", color=(190, 255, 200), font="Builder", weight=700, stroke=None,
+                     pixels_per_stud=44)
+    lamp = p("StallLight", (W - 6, 0.4, 2), (0, H - 0.5, 2.0), (255, 246, 226), "Neon", collide=False)
+    point_light(lamp, (255, 244, 224), 1.1, 26)
     return stall
 
 
@@ -1437,13 +1466,13 @@ def build_yard(map_folder: Inst, ground: Inst, decor: Inst):
                  collide=False, query=False, shadow=False)
 
     # The two market stalls, back to back in the middle of the lot: the upgrade shop faces the spawn, the
-    # empty one faces back towards the garages. They share the wall down the middle.
-    market_stall(map_folder, "Shop", CF(YARD_CX + STALL_D / 2, 0, 0) * CF.deg(0, 90, 0), counter_name="ShopCounter",
-                 sign="🛒 UPGRADE SHOP", sign_color=(255, 196, 54), blurb="Bag, car, trunk, storage, treadmill",
-                 stocked=True)
-    market_stall(map_folder, "MarketStall", CF(YARD_CX - STALL_D / 2, 0, 0) * CF.deg(0, -90, 0),
-                 counter_name="MarketCounter", sign="🚧 FOR RENT", sign_color=(226, 226, 220),
-                 blurb="Something is coming here soon...", stocked=False)
+    # trader's sell point faces back towards the garages. They share the wall down the middle.
+    market_stall(map_folder, "Shop", CF(YARD_CX + STALL_D / 2, 0, 0) * CF.deg(0, 90, 0), variant="shop",
+                 counter_name="ShopCounter", sign="🛒 UPGRADE SHOP", sign_color=(255, 196, 54),
+                 blurb="Bag, car, trunk, storage, treadmill")
+    market_stall(map_folder, "SellPoint", CF(YARD_CX - STALL_D / 2, 0, 0) * CF.deg(0, -90, 0), variant="sell",
+                 counter_name="SellCounter", sign="💰 SELL POINT", sign_color=(120, 235, 150),
+                 blurb="Bag it, bring it, cash it in")
 
     # Spawn: in the drive lane at the mouth of the yard, looking at the stalls.
     spawn = Inst("SpawnLocation", "HubSpawn", yard)

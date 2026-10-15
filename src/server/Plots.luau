@@ -159,49 +159,80 @@ local function updateStats(plot: Plot, player: Player)
 	)
 end
 
-function Plots.sell(player: Player, itemId: string)
+function Plots.sell(player: Player, itemId: string): (boolean, string)
 	local session = PlayerData.get(player)
 	local def = Items.get(itemId)
 	if not session or not def then
-		return
+		return false, "That item has gone missing."
 	end
 	local index = table.find(session.Profile.Stored, itemId)
 	if not index then
-		return
+		return false, "That item is no longer on your shelves."
 	end
 	table.remove(session.Profile.Stored, index)
 	local value = Items.getSellValue(itemId)
 	PlayerData.addCash(player, value)
 	PlayerData.recalculateIncome(player)
 	Plots.refresh(player)
-	Notify.send(player, string.format("💵 Sold %s for %s", def.DisplayName, Format.money(value)), "money")
+	return true, string.format("💵 Sold %s for %s", def.DisplayName, Format.money(value))
 end
 
-local function addSellPrompt(plot: Plot, model: Model, itemId: string)
-	local def = Items.get(itemId)
-	local root = model.PrimaryPart
-	if not def or not root then
-		return
+-- Everything on the player's shelves, in shelf order (the storage window lists it).
+function Plots.storageList(player: Player): { string }
+	local session = PlayerData.get(player)
+	if not session then
+		return {}
 	end
+	local items: { string } = {}
+	for _, itemId in session.Profile.Stored do
+		table.insert(items, itemId)
+	end
+	return items
+end
+
+local function addStoragePrompt(plot: Plot, target: BasePart, objectText: string, itemId: string?)
 	local prompt = Instance.new("ProximityPrompt")
-	prompt.Name = "SellPrompt"
-	prompt.ActionText = "Sell for " .. Format.money(Items.getSellValue(itemId))
-	prompt.ObjectText = string.format("%s (+%s/s)", def.DisplayName, Format.money(Items.getIncome(itemId)))
-	prompt.HoldDuration = 0.8
+	prompt.Name = "ShelfPrompt"
+	prompt.ActionText = "Manage storage"
+	prompt.ObjectText = objectText
+	prompt.HoldDuration = 0.3
 	prompt.MaxActivationDistance = 6
 	prompt.RequiresLineOfSight = false
+	if itemId then
+		prompt:SetAttribute("ItemId", itemId)
+	end
 	if plot.Owner then
 		-- The client hides owner-only prompts from everyone else.
 		prompt:SetAttribute("OwnerUserId", plot.Owner.UserId)
 	end
-	prompt.Parent = root
+	prompt.Parent = target
 	prompt.Triggered:Connect(function(who: Player)
 		if who ~= plot.Owner then
-			Notify.send(who, "You can only sell items in your own warehouse.", "error")
-			return
+			Notify.send(who, "That's someone else's warehouse.", "error")
 		end
-		Plots.sell(who, itemId)
 	end)
+end
+
+-- Takes an item back off the shelves and into the player's bag (the opposite of depositing).
+function Plots.take(player: Player, itemId: string): (boolean, string)
+	local session = PlayerData.get(player)
+	local def = Items.get(itemId)
+	if not session or not def then
+		return false, "That item is no longer on your shelves."
+	end
+	local index = table.find(session.Profile.Stored, itemId)
+	if not index then
+		return false, "That item is no longer on your shelves."
+	end
+	local capacity = PlayerData.getUpgradeValue(player, "Bag")
+	if #session.Carried >= capacity then
+		return false, string.format("🎒 Your bag is full (%d items). Sell something or upgrade your bag first.", capacity)
+	end
+	table.remove(session.Profile.Stored, index)
+	Inventory.addCarried(player, itemId)
+	PlayerData.recalculateIncome(player)
+	Plots.refresh(player)
+	return true, string.format("🎒 Took %s off the shelf (now in your bag).", def.DisplayName)
 end
 
 -- Rebuilds the shelf display, locked-slot colours and the stats board.
@@ -229,8 +260,13 @@ function Plots.refresh(player: Player)
 		end
 		local model = ItemModels.build(itemId)
 		if model then
+			local root = model.PrimaryPart
 			model:PivotTo(slot.CFrame * CFrame.new(0, slot.Size.Y / 2, 0))
-			addSellPrompt(plot, model, itemId)
+			local def = Items.get(itemId)
+			if root and def then
+				addStoragePrompt(plot, root, string.format("%s (+%s/s)", def.DisplayName, Format.money(Items.getIncome(itemId))),
+					itemId)
+			end
 			model.Parent = plot.Display
 		end
 	end
@@ -475,6 +511,30 @@ function Plots.init()
 
 	if #plots == 0 then
 		warn("[Plots] No warehouse plots found in Workspace.Map.Warehouses")
+	end
+
+	-- The storage window (client/Storage.luau): list the shelves, take an item back
+	-- into the bag, or sell it. Only the warehouse's owner may do any of it.
+	local storageRemote = ReplicatedStorage.Remotes.Storage
+	storageRemote.OnServerInvoke = function(player: Player, action: any, itemId: any)
+		local plot = plotByPlayer[player]
+		if not plot then
+			return { Ok = false, Message = "You don't have a warehouse on this server.", Items = {} }
+		end
+		if action == "List" then
+			return { Ok = true, Items = Plots.storageList(player) }
+		end
+		if action == "Take" and type(itemId) == "string" then
+			local ok, message = Plots.take(player, itemId)
+			Notify.send(player, message, if ok then "success" else "error")
+			return { Ok = ok, Message = message, Items = Plots.storageList(player) }
+		end
+		if action == "Sell" and type(itemId) == "string" then
+			local ok, message = Plots.sell(player, itemId)
+			Notify.send(player, message, if ok then "money" else "error")
+			return { Ok = ok, Message = message, Items = Plots.storageList(player) }
+		end
+		return { Ok = false, Message = "Unknown storage action.", Items = Plots.storageList(player) }
 	end
 end
 

@@ -34,7 +34,7 @@ from rbxlx import C3, Float, Inst, Protected, Token, serialize  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 REMOTE_EVENTS = ["Notify", "Busted"]
-REMOTE_FUNCTIONS = ["Purchase", "SpawnCar", "Treadmill"]
+REMOTE_FUNCTIONS = ["Purchase", "SpawnCar", "Treadmill", "Storage", "Sell"]
 
 
 def script_class_for(filename: str) -> tuple[str, str] | None:

@@ -471,6 +471,11 @@ local SUPER = {
 local SIGNALS = {
 	Touched = true,
 	Triggered = true,
+	DescendantAdded = true,
+	DescendantRemoving = true,
+	ChildAdded = true,
+	ChildRemoved = true,
+	AncestryChanged = true,
 	CharacterAdded = true,
 	PlayerAdded = true,
 	PlayerRemoving = true,
@@ -527,6 +532,9 @@ local DEFAULTS = {
 	end,
 	Model = function()
 		return { WorldPivot = CFrame.new() }
+	end,
+	Camera = function()
+		return { CFrame = CFrame.new(), FieldOfView = 70 }
 	end,
 	Light = function()
 		return { Enabled = true }
@@ -650,6 +658,57 @@ local function firePropertyChanged(instance, key)
 	end
 end
 
+-- Fires an event only if something is listening (like Roblox does not, but it keeps the mock cheap).
+local function fireSignal(instance, key, ...)
+	local signals = rawget(instance, "_signals")
+	local signal = signals and signals[key]
+	if signal then
+		signal:Fire(...)
+	end
+end
+
+-- The instance plus every one of its descendants, in a snapshot (listeners may reparent things).
+local function subtree(instance): { any }
+	local nodes = { instance }
+	local index = 1
+	while index <= #nodes do
+		local children = rawget(nodes[index], "_children")
+		if children then
+			for _, child in children do
+				table.insert(nodes, child)
+			end
+		end
+		index += 1
+	end
+	return nodes
+end
+
+-- ChildAdded on the new parent, DescendantAdded on it and every ancestor for the whole subtree.
+local function fireParented(instance, parent)
+	fireSignal(parent, "ChildAdded", instance)
+	local nodes = subtree(instance)
+	local node = parent
+	while node do
+		for _, child in nodes do
+			fireSignal(node, "DescendantAdded", child)
+		end
+		node = rawget(node, "_parent")
+	end
+end
+
+-- ChildRemoved on the old parent, DescendantRemoving on it and every ancestor for the whole subtree.
+local function fireUnparented(instance, parent)
+	fireSignal(parent, "ChildRemoved", instance)
+	local nodes = subtree(instance)
+	local node = parent
+	while node do
+		for _, child in nodes do
+			fireSignal(node, "DescendantRemoving", child)
+		end
+		node = rawget(node, "_parent")
+	end
+end
+
 InstanceMeta.__newindex = function(instance, key, value)
 	local props = rawget(instance, "_props")
 	local rules = rulesFor(instance)
@@ -672,10 +731,12 @@ InstanceMeta.__newindex = function(instance, key, value)
 			if index then
 				table.remove(siblings, index)
 			end
+			fireUnparented(instance, old)
 		end
 		rawset(instance, "_parent", value)
 		if value then
 			table.insert(rawget(value, "_children"), instance)
+			fireParented(instance, value)
 		end
 		return
 	elseif key == "Position" and props.CFrame then

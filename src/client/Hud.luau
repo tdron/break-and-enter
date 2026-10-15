@@ -30,6 +30,7 @@ local Theme = UI.Theme
 export type Callbacks = {
 	OnShop: () -> (),
 	OnSpawnCar: () -> (),
+	OnStorage: () -> (),
 	OnIndex: () -> (),
 }
 
@@ -208,6 +209,9 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 	})
 	makeButton(buttonColumn, 1, "🛒 SHOP", Color3.fromRGB(255, 176, 40), callbacks.OnShop)
 	makeButton(buttonColumn, 2, "🚗 CAR", Color3.fromRGB(60, 150, 255), callbacks.OnSpawnCar)
+	local storageButton = makeButton(column, 3, "📦 STORAGE", Color3.fromRGB(90, 190, 130), callbacks.OnStorage)
+	storageButton.Size = UDim2.fromOffset(270, 46)
+	storageButton.TextSize = 21
 	local indexButton = makeButton(column, 4, "📖 LOOT INDEX", Color3.fromRGB(170, 100, 255), callbacks.OnIndex)
 	indexButton.Size = UDim2.fromOffset(270, 46)
 	indexButton.TextSize = 21

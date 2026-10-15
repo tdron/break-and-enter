@@ -2,8 +2,8 @@
 --[[
 	Steal an Item — client entry point
 	==================================
-	Builds the HUD, shop, loot index and effects, follows the day/night clock and
-	listens to the server's remotes.
+	Builds the HUD, shop, loot index, storage, sell point and effects, follows the
+	day/night clock and listens to the server's remotes.
 ]]
 
 local Players = game:GetService("Players")
@@ -20,7 +20,7 @@ for _, name in { "Config", "Items", "ItemModels", "Format" } do
 	sharedFolder:WaitForChild(name)
 end
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
-for _, name in { "Notify", "Busted", "Purchase", "SpawnCar", "Treadmill" } do
+for _, name in { "Notify", "Busted", "Purchase", "SpawnCar", "Treadmill", "Storage", "Sell" } do
 	remotesFolder:WaitForChild(name)
 end
 
@@ -29,7 +29,9 @@ local DayNight = require(script.DayNight)
 local Hud = require(script.Hud)
 local LootIndex = require(script.LootIndex)
 local Notifications = require(script.Notifications)
+local SellPoint = require(script.SellPoint)
 local Shop = require(script.Shop)
+local Storage = require(script.Storage)
 local TreadmillController = require(script.TreadmillController)
 local UI = require(script.UI)
 local VehicleController = require(script.VehicleController)
@@ -74,16 +76,39 @@ Notifications.init(screen)
 DayNight.init()
 Shop.init(screen)
 LootIndex.init(screen)
+Storage.init(screen)
+SellPoint.init(screen)
+
+-- Only one window is ever open at a time.
+local function closeWindows(keep: string?)
+	if keep ~= "Shop" then
+		Shop.close()
+	end
+	if keep ~= "Index" then
+		LootIndex.close()
+	end
+	if keep ~= "Storage" then
+		Storage.close()
+	end
+	if keep ~= "Sell" then
+		SellPoint.close()
+	end
+end
+
 local hud = Hud.init(screen, {
 	OnShop = function()
-		LootIndex.close()
+		closeWindows("Shop")
 		Shop.toggle()
 	end,
 	OnSpawnCar = function()
 		task.spawn(requestCar)
 	end,
+	OnStorage = function()
+		closeWindows("Storage")
+		Storage.toggle()
+	end,
 	OnIndex = function()
-		Shop.close()
+		closeWindows("Index")
 		LootIndex.toggle()
 	end,
 })
@@ -104,15 +129,25 @@ Remotes.Notify.OnClientEvent:Connect(function(text: string, kind: string?)
 end)
 
 Remotes.Busted.OnClientEvent:Connect(function(lostCount: number, lostValue: number, houseName: string, catcher: string?)
-	Shop.close()
-	LootIndex.close()
+	closeWindows()
 	BustedScreen.show(lostCount, lostValue, houseName, catcher)
 end)
 
+-- Prompts in the world open their window: the market stall's shop counter, the
+-- trader's counter opposite it, and the shelf prompts in your own warehouse.
 ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt, who: Player)
-	if who == player and prompt.Name == "OpenShopPrompt" then -- the counter of the market stall in the yard
-		LootIndex.close()
+	if who ~= player then
+		return
+	end
+	if prompt.Name == "OpenShopPrompt" then
+		closeWindows("Shop")
 		Shop.open()
+	elseif prompt.Name == "OpenSellPrompt" then
+		closeWindows("Sell")
+		SellPoint.open()
+	elseif prompt.Name == "ShelfPrompt" then
+		closeWindows("Storage")
+		Storage.open()
 	end
 end)
 

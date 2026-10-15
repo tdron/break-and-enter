@@ -6,8 +6,9 @@
 	  join -> spawn at your warehouse -> pick a lock -> steal (and discover) ->
 	  alarm -> get busted by the house cat -> steal again and escape -> deposit ->
 	  earn income -> buy upgrades -> AFK-train on your own treadmill -> spawn the
-	  car -> load the trunk -> unload at the dock -> sell -> daytime (houses lock,
-	  everyone is shown out, loot restocks) -> night -> leave (save) -> rejoin (load)
+	  car -> load the trunk -> unload at the dock -> manage storage (take / sell) ->
+	  sell loot at the market stall -> daytime (houses lock, everyone is shown out,
+	  loot restocks) -> night -> leave (save) -> rejoin (load)
 
 	Run with:  python3 tools/run_luau_tests.py
 	(the runner provides `Mock`, `ServerScript`, `SharedFolder` and the map)
@@ -455,11 +456,16 @@ step("a second player gets their own warehouse and can't touch yours", function(
 	eq(rival:GetAttribute("PlotIndex"), 2, "second plot")
 	local mark = #Mock.remoteLog
 	local shelfItem = plot.Display:GetChildren()[1]
+	local shelfId = shelfItem:GetAttribute("ItemId")
 	local cash = thief:GetAttribute("Cash")
-	shelfItem.Root.SellPrompt.Triggered:Fire(rival)
+	local prompt = shelfItem.Root:FindFirstChild("ShelfPrompt")
+	check(prompt, "shelf items carry a storage prompt")
+	eq(prompt:GetAttribute("OwnerUserId"), 101, "the storage prompt belongs to the owner")
+	local rivalList = Remotes.Storage.OnServerInvoke(rival, "List")
+	check(not table.find(rivalList.Items, shelfId), "the item isn't on the rival's shelves")
+	eq(Remotes.Storage.OnServerInvoke(rival, "Sell", shelfId).Ok, false, "rival can't sell your items")
 	eq(thief:GetAttribute("StoredCount"), 2, "rival can't sell your items")
 	eq(thief:GetAttribute("Cash"), cash, "no cash change")
-	check(sawMessage(rival, mark, "own warehouse"), "rival not told off")
 	car.Chassis.TrunkAttachment.TrunkPrompt.Triggered:Fire(rival)
 	check(sawMessage(rival, mark, "Only Thief"), "rival used your trunk")
 	stealFrom(Map.Houses.House3, rival, rivalRoot)
@@ -487,14 +493,108 @@ step("a second player gets their own warehouse and can't touch yours", function(
 	eq(request(rival, "Stop").Ok, true, "rival stops")
 end)
 
-step("sell an item from your shelf", function()
+step("take an item off a shelf and put it back in your bag", function()
+	local before = thief:GetAttribute("StoredCount")
+	local carried = thief:GetAttribute("Carried")
+	local list = Remotes.Storage.OnServerInvoke(thief, "List")
+	eq(#list.Items, before, "the storage list matches the shelves")
+	local itemId = list.Items[1]
+	local take = Remotes.Storage.OnServerInvoke(thief, "Take", itemId)
+	eq(take.Ok, true, "take worked: " .. tostring(take.Message))
+	eq(thief:GetAttribute("StoredCount"), before - 1, "shelf freed")
+	eq(thief:GetAttribute("Carried"), carried + 1, "item is in the bag")
+	local session = moduleOf("PlayerData").get(thief)
+	check(table.find(session.Profile.Stored, itemId) == nil, "item left the shelves")
+	check(table.find(session.Carried, itemId), "item is carried")
+	eq(#take.Items, before - 1, "the window gets the new list back")
+end)
+
+step("a full bag stops you taking an item back", function()
+	-- Fill the bag right up, then try to take another shelf item.
+	local Inventory = moduleOf("Inventory")
+	local capacity = thief:GetAttribute("BagCapacity")
+	while Inventory.getCarriedCount(thief) < capacity do
+		check(Inventory.addCarried(thief, "Toaster"), "the bag should take a filler item")
+	end
+	local list = Remotes.Storage.OnServerInvoke(thief, "List")
+	local before = thief:GetAttribute("StoredCount")
+	local take = Remotes.Storage.OnServerInvoke(thief, "Take", list.Items[1])
+	eq(take.Ok, false, "a full bag can't take more")
+	check(string.find(tostring(take.Message), "bag is full", 1, true), "the message should mention the bag")
+	eq(thief:GetAttribute("StoredCount"), before, "nothing left the shelves")
+	-- Empty the bag again for the steps that follow.
+	Inventory.takeCarried(thief)
+	Inventory.refresh(thief)
+	eq(thief:GetAttribute("Carried"), 0, "bag emptied again")
+end)
+
+step("selling an item from your shelf pays cash", function()
 	local before = thief:GetAttribute("StoredCount")
 	local cash = thief:GetAttribute("Cash")
-	local shelfItem = plot.Display:GetChildren()[1]
-	shelfItem.Root.SellPrompt.Triggered:Fire(thief)
+	local list = Remotes.Storage.OnServerInvoke(thief, "List")
+	local itemId = list.Items[#list.Items]
+	local sell = Remotes.Storage.OnServerInvoke(thief, "Sell", itemId)
+	eq(sell.Ok, true, "sell worked: " .. tostring(sell.Message))
 	Mock.advance(0.1)
 	eq(thief:GetAttribute("StoredCount"), before - 1, "stored after selling")
 	check(thief:GetAttribute("Cash") > cash, "no cash from selling")
+	eq(Remotes.Storage.OnServerInvoke(thief, "Sell", itemId).Ok, false, "can't sell the same item twice")
+end)
+
+step("the sell point buys carried loot and frees the bag", function()
+	local Sell = Map.SellPoint.SellCounter
+	local prompt = Sell:FindFirstChild("OpenSellPrompt")
+	check(prompt, "the trader's counter has a prompt")
+	eq(prompt.ObjectText, "💰 SELL POINT", "the prompt names the stall")
+
+	-- Carry some loot to the stall.
+	local Inventory = moduleOf("Inventory")
+	check(Inventory.addCarried(thief, "Toaster"), "the bag takes the toaster")
+	check(Inventory.addCarried(thief, "DiamondNecklace"), "the bag takes the necklace")
+
+	local listing = Remotes.Sell.OnServerInvoke(thief, "List")
+	eq(listing.Ok, true, "listing worked")
+	eq(#listing.Sales, 2, "both carried items are for sale")
+	eq(listing.Sales[1].Source, "Bag", "carried loot comes from the bag")
+	eq(listing.TrunkReady, false, "the car isn't at the stall yet")
+
+	local cash = thief:GetAttribute("Cash")
+	local expected = Items.getSellValue("Toaster") + Items.getSellValue("DiamondNecklace")
+	local sale = Remotes.Sell.OnServerInvoke(thief, "Sell", "DiamondNecklace", "Bag")
+	eq(sale.Ok, true, "selling one item worked: " .. tostring(sale.Message))
+	eq(thief:GetAttribute("Cash"), cash + Items.getSellValue("DiamondNecklace"), "paid the item's value")
+	eq(thief:GetAttribute("Carried"), 1, "the item left the bag")
+
+	local all = Remotes.Sell.OnServerInvoke(thief, "All")
+	eq(all.Ok, true, "selling the rest worked")
+	eq(all.Count, 1, "one item left to sell")
+	eq(thief:GetAttribute("Cash"), cash + expected, "the lot paid out")
+	eq(thief:GetAttribute("Carried"), 0, "the bag is empty")
+	eq(Remotes.Sell.OnServerInvoke(thief, "All").Ok, false, "nothing left to sell")
+end)
+
+step("the stall buys the trunk too, once the car is parked there", function()
+	local session = moduleOf("PlayerData").get(thief)
+	table.insert(session.Profile.Trunk, "RubyRing")
+	moduleOf("Inventory").refresh(thief)
+
+	-- The car is at the warehouse, far from the stall: the trunk isn't for sale yet.
+	local away = Remotes.Sell.OnServerInvoke(thief, "List")
+	eq(away.TrunkReady, false, "the trunk is out of reach")
+	eq(#away.Sales, 0, "no trunk items while parked away")
+	eq(Remotes.Sell.OnServerInvoke(thief, "Sell", "RubyRing", "Trunk").Ok, false, "can't sell a distant trunk")
+
+	-- Park the car at the stall and try again.
+	car.Chassis.CFrame = Map.SellPoint.SellCounter.CFrame * CFrame.new(0, 0, 16)
+	local nearby = Remotes.Sell.OnServerInvoke(thief, "List")
+	eq(nearby.TrunkReady, true, "the car is parked at the stall")
+	eq(#nearby.Sales, 1, "the trunk item is listed")
+	eq(nearby.Sales[1].Source, "Trunk", "it is listed as trunk loot")
+	local cash = thief:GetAttribute("Cash")
+	local sale = Remotes.Sell.OnServerInvoke(thief, "Sell", "RubyRing", "Trunk")
+	eq(sale.Ok, true, "sold from the trunk: " .. tostring(sale.Message))
+	eq(thief:GetAttribute("Cash"), cash + Items.getSellValue("RubyRing"), "trunk loot paid out")
+	eq(thief:GetAttribute("TrunkCount"), 0, "the trunk is empty")
 end)
 
 step("full warehouse keeps your best items", function()

@@ -186,7 +186,7 @@ def check_structure(roots: list[Item], check: Checker) -> None:
     check.expect(game_map is not None, "Workspace.Map is missing")
     if game_map is None:
         return
-    for folder in ("Ground", "Houses", "Warehouses", "Shop", "MarketStall", "Hub", "Decor", "Cliffs"):
+    for folder in ("Ground", "Houses", "Warehouses", "Shop", "SellPoint", "Hub", "Decor", "Cliffs"):
         check.expect(game_map.child(folder) is not None, f"Map.{folder} is missing")
 
     # Houses: one model per Config.Houses entry, named after its id
@@ -311,9 +311,9 @@ def check_structure(roots: list[Item], check: Checker) -> None:
     check.expect(rows == {"north": 2, "west": 2, "south": 2},
                  f"The garages should be two on each of the U's sides, got {rows}")
 
-    # The two market stalls stand back to back in the middle of the lot
+    # The upgrade shop and the trader's sell point stand back to back in the middle of the lot
     stall_positions = []
-    for name in ("Shop", "MarketStall"):
+    for name in ("Shop", "SellPoint"):
         stall = game_map.child(name)
         check.expect(stall is not None and stall.cls == "Model", f"Map.{name} should be a market stall model")
         if stall is not None:
@@ -321,8 +321,9 @@ def check_structure(roots: list[Item], check: Checker) -> None:
             check.expect(position is not None and abs(position[0] - map_builder.YARD_CX) < 30 and abs(position[2]) < 30,
                          f"Map.{name} should stand in the middle of the parking lot")
             stall_positions.append(position)
-        counter = "ShopCounter" if name == "Shop" else "MarketCounter"
-        check.expect(any(d.name == counter for d in game_map.walk()), f"No {counter} part")
+        counter = "ShopCounter" if name == "Shop" else "SellCounter"
+        counter_part = next((d for d in game_map.walk() if d.name == counter), None)
+        check.expect(counter_part is not None, f"No {counter} part (the prompt for this stall)")
     if len(stall_positions) == 2 and all(stall_positions):
         gap = ((stall_positions[0][0] - stall_positions[1][0]) ** 2 +
                (stall_positions[0][2] - stall_positions[1][2]) ** 2) ** 0.5
@@ -343,7 +344,8 @@ def check_structure(roots: list[Item], check: Checker) -> None:
     remotes = replicated.child("Remotes") if replicated else None
     found = {(c.name, c.cls) for c in (remotes.children if remotes else [])}
     for expected in (("Notify", "RemoteEvent"), ("Busted", "RemoteEvent"), ("Purchase", "RemoteFunction"),
-                     ("SpawnCar", "RemoteFunction"), ("Treadmill", "RemoteFunction")):
+                     ("SpawnCar", "RemoteFunction"), ("Treadmill", "RemoteFunction"), ("Storage", "RemoteFunction"),
+                     ("Sell", "RemoteFunction")):
         check.expect(expected in found, f"Missing remote {expected}")
     shared = replicated.child("Shared") if replicated else None
     check.expect(shared is not None and {"Config", "Items", "ItemModels", "Format", "Guards"} <= {c.name for c in shared.children},

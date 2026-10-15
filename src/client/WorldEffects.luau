@@ -5,6 +5,7 @@
 	Purely visual/audio touches that only the local player needs:
 	  * Flashing sirens + beeping on houses whose alarm is going off
 	  * Moving stripes on the warehouse treadmills while someone runs on them
+	  * Breathing the rarity aura around Epic and Legendary loot
 	  * A "YOUR WAREHOUSE" marker so you can always find your way home
 ]]
 
@@ -170,6 +171,69 @@ local function setupTreadmills(map: Instance)
 end
 
 --------------------------------------------------------------------------------
+-- Rarity auras: Epic and Legendary loot carries a glowing shell (built by
+-- shared/ItemModels.luau in the item's rarity colour). Breathe it gently, and
+-- keep the outline glow in step with it.
+--------------------------------------------------------------------------------
+local AURA_RANGE = 260 -- studs; further away than this the glow is only wasted work
+
+type Aura = {
+	Shell: BasePart,
+	Glow: Highlight?,
+	Size: number,
+}
+
+local function setupAuras()
+	local camera = Workspace.CurrentCamera
+	local auras: { Aura } = {}
+	local elapsed = 0
+
+	local function add(instance: Instance)
+		if instance:IsA("BasePart") and instance.Name == "Aura" and instance.Parent then
+			local stored = instance:GetAttribute("AuraSize")
+			table.insert(auras, {
+				Shell = instance,
+				Glow = instance.Parent:FindFirstChild("AuraGlow") :: Highlight?,
+				Size = if type(stored) == "number" then stored else instance.Size.X,
+			})
+		end
+	end
+
+	Workspace.DescendantAdded:Connect(function(instance)
+		if instance.Name == "Aura" then
+			add(instance)
+		end
+	end)
+	for _, instance in Workspace:GetDescendants() do
+		add(instance)
+	end
+
+	RunService.RenderStepped:Connect(function(dt: number)
+		elapsed += dt
+		local view = camera and camera.CFrame.Position
+		local wave = math.sin(elapsed * 2.2)
+		for index = #auras, 1, -1 do
+			local aura = auras[index]
+			local shell = aura.Shell
+			if not shell.Parent then
+				table.remove(auras, index)
+				continue
+			end
+			-- Only animate what the player could actually see.
+			if view and (shell.Position - view).Magnitude > AURA_RANGE then
+				continue
+			end
+			shell.Transparency = Config.Aura.Transparency + wave * Config.Aura.Pulse
+			shell.Size = Vector3.one * (aura.Size * (1 + wave * 0.04))
+			local glow = aura.Glow
+			if glow then
+				glow.FillTransparency = math.clamp(Config.Aura.FillTransparency + wave * 0.08, 0, 0.95)
+			end
+		end
+	end)
+end
+
+--------------------------------------------------------------------------------
 -- Warehouse marker
 --------------------------------------------------------------------------------
 local function setupWarehouseMarker(map: Instance)
@@ -246,6 +310,7 @@ function WorldEffects.init()
 	task.spawn(setupSirens, map)
 	task.spawn(setupTreadmills, map)
 	task.spawn(setupWarehouseMarker, map)
+	setupAuras()
 end
 
 return WorldEffects

@@ -12,6 +12,7 @@
 	  Vehicles    the getaway car
 	  Treadmills  each warehouse's personal (AFK-able, upgradable) treadmill
 	  Economy     income ticks + the upgrade shop
+	  Market      the sell point stall in the yard (loot -> cash on the spot)
 ]]
 
 local Players = game:GetService("Players")
@@ -20,6 +21,7 @@ local DayNight = require(script.DayNight)
 local Economy = require(script.Economy)
 local Houses = require(script.Houses)
 local Inventory = require(script.Inventory)
+local Market = require(script.Market)
 local Notify = require(script.Notify)
 local PlayerData = require(script.PlayerData)
 local Plots = require(script.Plots)
@@ -32,6 +34,7 @@ Houses.init()
 Vehicles.init()
 Treadmills.init()
 Economy.init()
+Market.init()
 PlayerData.start()
 
 local function onCharacterAdded(player: Player, character: Model)

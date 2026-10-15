@@ -7,6 +7,7 @@
 	the item, so `model:PivotTo(surfaceCFrame)` sets it neatly on a surface.
 ]]
 
+local Config = require(script.Parent.Config)
 local Items = require(script.Parent.Items)
 
 local ItemModels = {}
@@ -63,6 +64,9 @@ function ItemModels.build(itemId: string): Model?
 	local model = Instance.new("Model")
 	model.Name = def.Id
 	model:SetAttribute("ItemId", def.Id)
+	if Items.hasAura(itemId) then
+		model:SetAttribute("Glowing", true)
+	end
 
 	-- An invisible root part the size of the item. Prompts and labels attach to it.
 	local size, center = ItemModels.getBounds(itemId)
@@ -113,6 +117,37 @@ function ItemModels.build(itemId: string): Model?
 
 	-- Put the pivot at the bottom-centre (the model was built around the origin).
 	model.WorldPivot = CFrame.new()
+
+	-- Rare loot glows: an Epic or Legendary item gets a shell plus an outline in its rarity's colour.
+	local rarity = Items.getRarity(itemId)
+	if rarity and rarity.Order >= Config.Aura.MinOrder then
+		local aura = Config.Aura
+		local widest = math.max(size.X, size.Y, size.Z)
+		local shell = Instance.new("Part")
+		shell.Name = "Aura"
+		shell.Shape = Enum.PartType.Ball
+		shell.Size = Vector3.one * math.max(widest * aura.Size, 1.6)
+		shell.CFrame = CFrame.new(center)
+		shell.Color = rarity.Color
+		shell.Material = Enum.Material.Neon
+		shell.Transparency = aura.Transparency
+		shell.Anchored = true
+		shell.CanCollide = false
+		shell.CanQuery = false
+		shell.CanTouch = false
+		shell.CastShadow = false
+		shell:SetAttribute("AuraSize", shell.Size.X) -- the client pulses around this size
+		shell.Parent = model
+		-- The client animates the shell's glow (see client/WorldEffects.luau).
+		local glow = Instance.new("Highlight")
+		glow.Name = "AuraGlow"
+		glow.FillColor = rarity.Color
+		glow.FillTransparency = aura.FillTransparency
+		glow.OutlineColor = rarity.Color
+		glow.OutlineTransparency = aura.OutlineTransparency
+		glow.DepthMode = Enum.HighlightDepthMode.Occluded
+		glow.Parent = model
+	end
 	return model
 end
 

@@ -293,6 +293,7 @@ VIEWS = {
     "overview": dict(eye=(-780, 340, 470), target=(-40, 0, -20), fov=40),
     "top": dict(eye=(45, 900, 0.01), target=(45, 0, 0), ortho=230),
     "yard": dict(eye=(-96, 138, 196), target=(-322, 0, -8), fov=55),
+    "stalls": dict(eye=(-424, 26, 58), target=(-324, 5, -4), fov=55),
     "warehouse": dict(eye=(-296, 34, -18), target=(-357, 8, -114), fov=55),
     "treadmill": dict(eye=(-344, 12, -66), target=(-384, 3, -110), fov=52),
     "houses": dict(eye=(-12, 42, 8), target=(170, 4, -8), fov=55),

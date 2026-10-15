@@ -358,6 +358,29 @@ Config.Vehicle = {
 }
 
 --------------------------------------------------------------------------------
+-- Sell point (the market stall in the yard, where loot you are carrying is sold)
+--------------------------------------------------------------------------------
+Config.Market = {
+	-- How close your car has to be to the stall before its trunk can be sold too.
+	TrunkRange = 45,
+	PromptDistance = 12,
+}
+
+--------------------------------------------------------------------------------
+-- Rarity auras
+-- Items of this rarity and above glow in the world in their rarity's colour
+-- (the same colour the Loot Index and the toasts use).
+--------------------------------------------------------------------------------
+Config.Aura = {
+	MinOrder = 3, -- 1 Common, 2 Rare, 3 Epic, 4 Legendary — so Epic and above
+	Size = 1.18, -- the glow shell is this much wider than the item's widest side
+	Transparency = 0.86,
+	Pulse = 0.06, -- the client breathes the shell's transparency by this much
+	FillTransparency = 0.78, -- the outline glow around the item's silhouette
+	OutlineTransparency = 0.1,
+}
+
+--------------------------------------------------------------------------------
 -- Sounds
 -- These use sounds that ship with every Roblox client so they always work.
 -- Swap in your own "rbxassetid://..." audio for a more polished feel!
