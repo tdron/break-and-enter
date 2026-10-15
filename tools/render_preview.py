@@ -290,11 +290,11 @@ ROOF_PARTS = ["Roof", "Gable", "RoofRidge", "RoofTrim", "Chimney", "PorchRoof", 
               "PorticoRoof", "Pediment", "Leaves"]
 
 VIEWS = {
-    "overview": dict(eye=(-640, 300, 420), target=(-20, 0, -20), fov=40),
+    "overview": dict(eye=(-780, 340, 470), target=(-40, 0, -20), fov=40),
     "top": dict(eye=(45, 900, 0.01), target=(45, 0, 0), ortho=230),
-    "hub": dict(eye=(-60, 70, 140), target=(-150, 4, -10), fov=55),
-    "warehouse": dict(eye=(-330, 40, 10), target=(-394, 6, -80), fov=55),
-    "treadmill": dict(eye=(-402, 13, -30), target=(-423, 3, -50), fov=50),
+    "yard": dict(eye=(-96, 138, 196), target=(-322, 0, -8), fov=55),
+    "warehouse": dict(eye=(-296, 34, -18), target=(-357, 8, -114), fov=55),
+    "treadmill": dict(eye=(-344, 12, -66), target=(-384, 3, -110), fov=52),
     "houses": dict(eye=(-12, 42, 8), target=(170, 4, -8), fov=55),
     "interior": dict(eye=(230, 64, -6), target=(230, 0, -62), fov=62, hide=ROOF_PARTS),
     "mansion": dict(eye=(452, 58, 8), target=(600, 8, 0), fov=55),
@@ -332,7 +332,7 @@ def main():
         target = [float(v) for v in args.target.split(",")]
         render(parts, Camera(eye, target, args.fov, width=width, height=height), args.out or "custom.png")
         return
-    for name in args.view or ["overview", "top", "hub", "warehouse", "houses", "interior", "mansion"]:
+    for name in args.view or ["overview", "top", "yard", "warehouse", "houses", "interior", "mansion"]:
         cfg = VIEWS[name]
         cam = Camera(cfg["eye"], cfg["target"], cfg.get("fov", 55), cfg.get("ortho"), width, height)
         out = args.out if (args.out and args.view and len(args.view) == 1) else os.path.join(args.outdir, f"preview-{name}.png")

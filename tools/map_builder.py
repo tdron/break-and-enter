@@ -3,11 +3,15 @@ Procedurally builds the Steal an Item town into Workspace.Map.
 
 Layout (top-down, X = east, Z = south, the main street runs along Z = 0):
 
-    west  [Warehouses x6 + treadmills] -- [Hub: spawn, shop] -- [10 houses, alternating sides] -- [MANSION]  east
+    west  [THE YARD: 6 garages in a U + spawn parking lot + 2 market stalls] -- [10 houses, alternating sides] -- [MANSION]  east
 
-Every house on the street uses the same design (only the paint changes) and
-backs onto a rocky cliff made of different-sized cubes, so the street feels
-like a canyon that gets harder the further east you go.
+The yard is the spawn area. Two garages sit on each of three sides of a paved
+parking lot, the two market stalls stand back to back in the middle and a cube
+cliff wraps the three closed sides. Only the road east leaves the yard, and the
+cliffs follow it, narrowing into the canyon street where the houses stand.
+Every house uses the same design (only the paint changes) and backs onto the
+same style of rocky cliff, so the street feels like a canyon that gets harder
+the further east you go.
 
 Everything the game scripts rely on is named/attributed exactly as the server
 expects (see the header comments in src/server/*.luau).
@@ -988,6 +992,83 @@ def build_mansion_cliff(parent: Inst, decor: Inst, lot_cf: CF):
     return folder
 
 
+def cliff_wall(cliff: CliffBuilder, decor: Inst, centre: tuple[float, float], normal: tuple[float, float],
+               length: float, heights, *, fill_heights=None, depth: float = 45.0, rubble: float = 0.0,
+               taper=None, trees: Inst | None = None, z_face: float = 0.0):
+    """One straight cliff: a face through `centre` perpendicular to `normal`, with cube rock behind it.
+
+    `normal` points away from the rock, towards the open ground, so (0, 1) is a face looking south and
+    (1, 0) one looking east. `taper`, if given, receives a world X and scales the column heights.
+    """
+    yaw = math.degrees(math.atan2(normal[0], normal[1]))
+    frame = CF(centre[0], 0, centre[1]) * CF.deg(0, yaw, 0)
+    if taper is not None:
+        world_taper = taper
+        cos_yaw = math.cos(math.radians(yaw))
+        taper = lambda lx: world_taper(centre[0] + lx * cos_yaw)  # noqa: E731
+    half = length / 2.0
+    cliff.face(frame, -half, half, heights, taper, z_face)
+    if depth > 0:
+        cliff.fill(frame, -half, half, z_face - 6.0, z_face - 6.0 - depth, fill_heights or heights, taper, trees)
+    if rubble:
+        cliff.rubble(frame, -half, half, rubble)
+
+
+def build_yard_cliffs(parent: Inst, decor: Inst):
+    """Cube cliffs wrap the three closed sides of the yard, hugging the back of the garages."""
+    folder = Inst("Folder", "Yard", parent)
+    cliff = CliffBuilder(folder, 9100)
+    mid_x = (YARD_FACE_X + YARD_MOUTH_X) / 2
+    span = (YARD_MOUTH_X - YARD_FACE_X) + 60.0
+    for z, normal in ((-YARD_FACE_Z, (0, 1)), (YARD_FACE_Z, (0, -1))):
+        cliff_wall(cliff, decor, (mid_x, z), normal, span, YARD_CLIFF_H, fill_heights=(34, 52), depth=44,
+                   trees=decor)
+    cliff_wall(cliff, decor, (YARD_FACE_X, 0), (1, 0), YARD_FACE_Z * 2 + 60.0, YARD_CLIFF_H,
+               fill_heights=(34, 52), depth=44, trees=decor)
+    return folder
+
+
+CORRIDOR_STEPS = 12
+CORRIDOR_START_X = -180.0         # where the yard's own cliffs end, at |z| = YARD_FACE_Z
+CORRIDOR_END_H = (9.0, 13.0)      # the street's cliffs are about this tall where the corridor meets them
+
+
+def build_corridor_cliffs(parent: Inst, decor: Inst):
+    """The cliffs that join the yard to the houses: a canyon that curves in from the yard's mouth until it is
+    as tight as the street it runs into."""
+    folder = Inst("Folder", "Corridor", parent)
+    cliff = CliffBuilder(folder, 9200)
+    end_x = {-1: -16.0, 1: 36.0}  # the street cliffs start at x = -20 on the north side and x = 30 on the south
+    for side, x_end in end_x.items():
+        for i in range(CORRIDOR_STEPS):
+            t0, t1 = i / CORRIDOR_STEPS, (i + 1) / CORRIDOR_STEPS
+
+            # The face swings in from |z| = YARD_FACE_Z to the street's CLIFF_FACE_Z, quickly at first.
+            def z_at(t):
+                return CLIFF_FACE_Z + (YARD_FACE_Z - CLIFF_FACE_Z) * (1 - t) ** 1.6
+
+            def x_at(t):
+                return CORRIDOR_START_X + (x_end - CORRIDOR_START_X) * t
+
+            def heights_at(t):
+                ease = (1 - t) ** 1.6
+                return (CORRIDOR_END_H[0] + (YARD_CLIFF_H[0] - CORRIDOR_END_H[0]) * ease,
+                        CORRIDOR_END_H[1] + (YARD_CLIFF_H[1] - CORRIDOR_END_H[1]) * ease)
+
+            x0, x1 = x_at(t0), x_at(t1)
+            p0, p1 = (x0, side * z_at(t0)), (x1, side * z_at(t1))
+            dx, dz = p1[0] - p0[0], p1[1] - p0[1]
+            # Outward is the perpendicular that points at the road (and back towards the yard).
+            normal = (dz * side, -dx * side)
+            length = math.hypot(dx, dz) * 1.25  # segments overlap, so the curve has no seams
+            heights = heights_at((t0 + t1) / 2)
+            cliff_wall(cliff, decor, ((p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2), normal, length, heights,
+                       fill_heights=(heights[0] + 4, heights[1] + 6), depth=48.0, rubble=0.18, trees=decor)
+            # A treeline along the foot of the wall, like the one in front of the street's cliffs.
+            tree(decor, CF(x0 + dx * 0.35, 0, side * (z_at(t0) - 7.0)), 1.05 + 0.05 * i, "pine" if i % 2 else "round")
+    return folder
+
+
 def build_mansion(folder, info, tier_info, lot_cf):
     hb = HouseBuilder(folder, info["id"], info["display"], 4, lot_cf, 200, 150, 84, 52, 14, 50)
     hb.model.attr(Guard=info["guard"]["id"])
@@ -1270,37 +1351,113 @@ def build_treadmill(plot: Inst, tcf: CF) -> Inst:
 
 
 # ---------------------------------------------------------------------------
-# Hub: spawn plaza, upgrade shop, signs
+# The yard: the spawn area. Six garages in a U around a parking lot, the two
+# back-to-back market stalls in the middle, cliffs on every closed side.
 # ---------------------------------------------------------------------------
 
-def build_hub(map_folder: Inst, ground: Inst, cx: float):
-    hub = model(map_folder, "Hub", CF(cx, 0, 0))
+YARD_CX = -320.0                  # centre of the parking lot
+YARD_HALF_W = 110.0               # the lot spans x = YARD_CX ± YARD_HALF_W
+YARD_HALF_D = 100.0               # the lot spans z = ±YARD_HALF_D
+GARAGE_HALF = 35.0                # a garage's centre sits this far from its row's middle (64 + a 6 stud gap)
+GARAGE_FRONT = 24.0               # half of a garage's depth: the wall its door is in
+YARD_SETBACK = 3.0                # the cliff face sits this far behind the garages' back walls
+YARD_MOUTH_X = YARD_CX + YARD_HALF_W                          # -210: the lot's east edge, where the road starts
+YARD_FACE_Z = YARD_HALF_D + 2 * GARAGE_FRONT + YARD_SETBACK   # 151: the cliff behind the north/south rows
+YARD_FACE_X = YARD_CX - YARD_HALF_W - 2 * GARAGE_FRONT - YARD_SETBACK  # -481: the cliff behind the west row
+YARD_ROW_X = YARD_FACE_X + YARD_SETBACK + GARAGE_FRONT        # -454: centre of the west row's garages
+YARD_CLIFF_H = (30, 46)           # the yard's cliffs stand taller than the garages they sit behind
+STALL_W, STALL_D, STALL_H = 24.0, 14.0, 8.0
 
-    # Plazas
-    part(ground, "NorthPlaza", (120, 0.2, 34), CF(cx, 0.1, -41), (186, 182, 172), "Pavement")
-    part(ground, "SouthPlaza", (120, 0.2, 38), CF(cx, 0.1, 43), (186, 182, 172), "Pavement")
+# PlotIndex order: two garages on the north side, two on the west side, two on the south side.
+YARD_PLOTS = (
+    (YARD_CX - GARAGE_HALF, -(YARD_HALF_D + GARAGE_FRONT), 0),
+    (YARD_CX + GARAGE_HALF, -(YARD_HALF_D + GARAGE_FRONT), 0),
+    (YARD_ROW_X, -GARAGE_HALF, 90),
+    (YARD_ROW_X, +GARAGE_HALF, 90),
+    (YARD_CX + GARAGE_HALF, +(YARD_HALF_D + GARAGE_FRONT), 180),
+    (YARD_CX - GARAGE_HALF, +(YARD_HALF_D + GARAGE_FRONT), 180),
+)
 
-    spawn = Inst("SpawnLocation", "HubSpawn", hub)
+
+def market_stall(parent: Inst, name: str, cf: CF, *, counter_name: str, sign: str, sign_color, blurb: str,
+                 stocked: bool) -> Inst:
+    """One wooden market stall: local +Z is the customer side, the back wall is at local -Z."""
+    stall = model(parent, name, cf)
+    W, D, H = STALL_W, STALL_D, STALL_H
+
+    def p(n, size, pos, col, mat="WoodPlanks", **kw):
+        return part(stall, n, size, cf * CF(*pos), col, mat, **kw)
+
+    p("Deck", (W, 0.3, D), (0, 0.15, 0), (150, 116, 82), "WoodPlanks")
+    p("BackWall", (W, H, 0.7), (0, H / 2, -D / 2 + 0.35), (172, 122, 76), "WoodPlanks")
+    for sx in (-1, 1):
+        p("SideWall", (0.7, H, D - 0.7), (sx * (W / 2 - 0.35), H / 2, 0.35), (172, 122, 76), "WoodPlanks")
+        p("Post", (0.75, H, 0.75), (sx * (W / 2 - 0.4), H / 2, D / 2 + 1.2), (120, 86, 56), "Wood")
+    p("Roof", (W + 2.6, 0.6, D + 4), (0, H + 0.3, 0.6), (88, 60, 40), "Metal")
+    for i in range(6):  # the striped awning valance over the counter
+        p("AwningStripe", (4, 1.6, 0.4), (-W / 2 + 2 + i * 4, H - 0.9, D / 2 + 2.3),
+          sign_color if i % 2 == 0 else (245, 245, 242), "Fabric")
+    p(counter_name, (W - 3, 3.4, 3.2), (0, 1.85, D / 2 - 1.5), (198, 162, 114), "WoodPlanks")
+    p("CounterTop", (W - 2, 0.3, 3.6), (0, 3.7, D / 2 - 1.5), (232, 226, 214), "Marble")
+    p("CounterSkirt", (W - 3, 1.2, 0.4), (0, 1.0, D / 2 + 0.1), (120, 86, 56), "Wood")
+    for y in (3.6, 6.2):  # shelves along the back wall
+        p("Shelf", (W - 4, 0.3, 3.0), (0, y, -D / 2 + 2.0), (170, 128, 84), "WoodPlanks")
+    board = p("StallSign", (W - 2, 3.4, 0.4), (0, H + 2.4, D / 2 + 2.3), (74, 54, 40), "Wood")
+    for face in ("Front", "Back"):
+        surface_text(board, face, sign, color=sign_color, font="Luckiest", stroke=None, pixels_per_stud=40)
+    note = p("StallNote", (W - 8, 2.2, 0.3), (0, 4.6, -D / 2 + 0.75), (24, 26, 34), "SmoothPlastic")
+    surface_text(note, "Front", blurb, color=(240, 240, 245), font="Builder", weight=700, stroke=None,
+                 pixels_per_stud=34)
+    if stocked:
+        for x, color in ((-8, (215, 90, 70)), (-4, (90, 150, 215)), (0, (110, 190, 110)), (4, (230, 180, 60)),
+                         (8, (170, 110, 210))):  # one little crate per upgrade the shop sells
+            p("Crate", (3.0, 2.4, 2.4), (x, 1.4, -D / 2 + 2.6), (170, 130, 80), "WoodPlanks")
+            p("Goods", (1.7, 1.7, 1.7), (x, 3.4, -D / 2 + 2.6), color, "SmoothPlastic", shape="Ball", collide=False)
+        lamp = p("StallLight", (W - 6, 0.4, 2), (0, H - 0.5, 2.0), (255, 246, 226), "Neon", collide=False)
+        point_light(lamp, (255, 244, 224), 1.1, 26)
+    else:
+        for x in (-7.0, 3.0):  # empty crates, waiting for a trader
+            p("EmptyCrate", (2.6, 2.2, 2.2), (x, 1.4, -D / 2 + 2.6), (150, 118, 80), "WoodPlanks")
+    return stall
+
+
+def build_yard(map_folder: Inst, ground: Inst, decor: Inst):
+    """The spawn area: the paved lot and its markings, the two market stalls and the yard's signage."""
+    yard = model(map_folder, "Hub", CF(YARD_CX, 0, 0))
+
+    # The paved site. Every garage keeps its own concrete apron and dock markings; one big asphalt slab
+    # underneath fills the lot between them and the cliffs.
+    part(ground, "LotPad", (YARD_MOUTH_X - YARD_FACE_X + 8.0, 0.2, YARD_FACE_Z * 2 + 8.0),
+         CF((YARD_FACE_X + YARD_MOUTH_X) / 2 - 4.0, 0.0, 0), (74, 76, 80), "Asphalt")
+
+    # Parking bays on both sides of the middle island
+    for side in (-1, 1):
+        for i in range(9):
+            part(decor, "BayLine", (0.6, 0.06, 18.0), CF(YARD_CX - 56 + i * 14, 0.21, side * 29), WHITE,
+                 collide=False, query=False, shadow=False)
+
+    # The two market stalls, back to back in the middle of the lot: the upgrade shop faces the spawn, the
+    # empty one faces back towards the garages. They share the wall down the middle.
+    market_stall(map_folder, "Shop", CF(YARD_CX + STALL_D / 2, 0, 0) * CF.deg(0, 90, 0), counter_name="ShopCounter",
+                 sign="🛒 UPGRADE SHOP", sign_color=(255, 196, 54), blurb="Bag, car, trunk, storage, treadmill",
+                 stocked=True)
+    market_stall(map_folder, "MarketStall", CF(YARD_CX - STALL_D / 2, 0, 0) * CF.deg(0, -90, 0),
+                 counter_name="MarketCounter", sign="🚧 FOR RENT", sign_color=(226, 226, 220),
+                 blurb="Something is coming here soon...", stocked=False)
+
+    # Spawn: in the drive lane at the mouth of the yard, looking at the stalls.
+    spawn = Inst("SpawnLocation", "HubSpawn", yard)
     spawn.set(**{
-        "size": _v3((10, 0.5, 10)), "CFrame": CF(cx, 0.45, -40), "Color3uint8": C3u8(255, 196, 54),
-        "Material": Token(MATERIALS["SmoothPlastic"]), "Anchored": True, "TopSurface": Token(0),
-        "BottomSurface": Token(0), "Neutral": True, "Duration": Int(0), "AllowTeamChangeOnTouch": False,
+        "size": _v3((10, 0.5, 10)), "CFrame": CF(YARD_CX + 70, 0.45, 0) * CF.deg(0, 90, 0),
+        "Color3uint8": C3u8(255, 196, 54), "Material": Token(MATERIALS["SmoothPlastic"]), "Anchored": True,
+        "TopSurface": Token(0), "BottomSurface": Token(0), "Neutral": True, "Duration": Int(0),
+        "AllowTeamChangeOnTouch": False,
     })
 
-    # Title arch over the street
-    arch = model(hub, "TitleArch", CF(cx, 0, 0))
-    for z in (-21.5, 21.5):
-        part(arch, "ArchPillar", (3.5, 26, 3.5), CF(cx, 13, z), (60, 40, 90), "Brick")
-        part(arch, "ArchLight", (3.7, 1, 3.7), CF(cx, 24, z), (255, 196, 54), "Neon", collide=False)
-    beam = part(arch, "ArchBeam", (3.5, 7, 47), CF(cx, 29.5, 0), (40, 28, 64), "SmoothPlastic")
-    for face in ("Right", "Left"):
-        surface_text(beam, face, "🦝 STEAL AN ITEM 🦝", color=(255, 210, 60), font="Luckiest", stroke=0.2,
-                     pixels_per_stud=30)
-
-    # How to play board
-    board = part(hub, "HowToPlay", (1, 15, 26), CF(cx - 54, 8.6, -42), (28, 30, 44), "SmoothPlastic")
-    part(hub, "BoardPost", (0.8, 2, 0.8), CF(cx - 54, 0.9, -51), DARK, "Metal")
-    part(hub, "BoardPost", (0.8, 2, 0.8), CF(cx - 54, 0.9, -33), DARK, "Metal")
+    # How to play board, in the open corner by the way in, facing the arriving players.
+    board = part(yard, "HowToPlay", (1, 15, 26), CF(YARD_MOUTH_X - 3, 8.6, -52), (28, 30, 44), "SmoothPlastic")
+    for z in (-61, -43):
+        part(yard, "BoardPost", (0.8, 3.4, 0.8), CF(YARD_MOUTH_X - 3, 1.7, z), DARK, "Metal")
     howto = ('<font color="#FFC83C">HOW TO PLAY</font>\n'
              '1. Spawn your 🚗 car and drive to a house\n'
              '2. Hold E to pick the lock, then steal loot\n'
@@ -1308,90 +1465,62 @@ def build_hub(map_folder: Inst, ground: Inst, cx: float):
              '4. Load your trunk [F] or carry loot home\n'
              '5. Drop it on your warehouse\'s green DEPOSIT pad\n'
              '6. Stored loot earns 💰 every second!\n'
-             '7. Buy upgrades and run on the treadmill outside your warehouse')
+             '7. Buy upgrades at the market stall, and run on the treadmill outside your warehouse')
     surface_text(board, "Right", howto, color=(240, 240, 250), font="Builder", weight=700, rich=True, stroke=None,
                  pixels_per_stud=34)
 
-    # Little park on the north side, with a signpost to the treadmills
-    for x, z in ((-26, -72), (26, -72), (-14, -94), (14, -94), (0, -100)):
-        tree(hub, CF(cx + x, 0, z), 1.15)
-    for x in (-9, 9):
-        part(hub, "BenchSeat", (6, 0.4, 2), CF(cx + x, 1.6, -74), WOOD, "WoodPlanks")
-        part(hub, "BenchBack", (6, 2, 0.4), CF(cx + x, 2.6, -75), WOOD, "WoodPlanks")
-        for bx in (-2.4, 2.4):
-            part(hub, "BenchLeg", (0.4, 1.4, 1.8), CF(cx + x + bx, 0.7, -74), DARK, "Metal")
-    for x in (-6, 6):
-        part(hub, "SignPost", (0.6, 6, 0.6), CF(cx + x, 3, -64), DARK, "Metal")
-    treadmill_sign = part(hub, "TreadmillSign", (16, 4.5, 0.5), CF(cx, 7.5, -64), (24, 26, 34), "SmoothPlastic")
-    surface_text(treadmill_sign, "Back", "⬅ 🏃 Train speed on the TREADMILL\noutside your warehouse (AFK works!)",
-                 color=(120, 230, 255), font="Builder", weight=700, stroke=None, pixels_per_stud=30)
+    # The game's title arch, over the road where it leaves the yard.
+    gate = YARD_MOUTH_X + 8.0
+    arch = model(yard, "TitleArch", CF(gate, 0, 0))
+    for z in (-21.5, 21.5):
+        part(arch, "ArchPillar", (3.5, 26, 3.5), CF(gate, 13, z), (60, 40, 90), "Brick")
+        part(arch, "ArchLight", (3.7, 1, 3.7), CF(gate, 24, z), (255, 196, 54), "Neon", collide=False)
+    beam = part(arch, "ArchBeam", (3.5, 7, 47), CF(gate, 29.5, 0), (40, 28, 64), "SmoothPlastic")
+    for face in ("Right", "Left"):
+        surface_text(beam, face, "🦝 STEAL AN ITEM 🦝", color=(255, 210, 60), font="Luckiest", stroke=0.2,
+                     pixels_per_stud=30)
 
-    # Upgrade shop (south side, open to the street)
-    sx0, sz0 = cx, 80
-    shop = model(map_folder, "Shop", CF(sx0, 0, sz0))
-    sw, sd, sh = 60, 36, 16
-
-    def sp(name, size, pos, color, material="SmoothPlastic", **kw):
-        return part(shop, name, size, CF(sx0 + pos[0], pos[1], sz0 + pos[2]), color, material, **kw)
-
-    shop_wall = (200, 70, 50)
-    sp("ShopFloor", (sw, 0.2, sd), (0, 0.1, 0), (200, 196, 186), "CeramicTiles")
-    sp("BackWall", (sw, sh, 1), (0, sh / 2, sd / 2 - 0.5), shop_wall, "Brick")
-    for s in (-1, 1):
-        sp("SideWall", (1, sh, sd - 2), (s * (sw / 2 - 0.5), sh / 2, 0), shop_wall, "Brick")
-        sp("FrontWall", (8, sh, 1), (s * 26, sh / 2, -sd / 2 + 0.5), shop_wall, "Brick")
-    sp("FrontWall", (44, 4, 1), (0, sh - 2, -sd / 2 + 0.5), shop_wall, "Brick")
-    sp("Roof", (sw + 2, 1, sd + 2), (0, sh + 0.5, 0), (60, 40, 36), "Metal")
-    shop_sign = sp("ShopSign", (36, 4, 0.5), (0, sh - 2, -sd / 2 - 0.05), (255, 196, 54), "SmoothPlastic")
-    surface_text(shop_sign, "Front", "🛒 UPGRADE SHOP", color=(60, 20, 10), font="Luckiest", stroke=None,
-                 pixels_per_stud=30)
-    counter = sp("ShopCounter", (14, 3.6, 3), (0, 2.0, -6), (60, 62, 72), "Metal")
-    sp("CounterTop", (14.4, 0.3, 3.4), (0, 3.95, -6), (235, 235, 235), "Granite")
-    counter_sign = sp("CounterSign", (10, 2.6, 0.3), (0, 6.6, -6), (30, 32, 44), "SmoothPlastic")
-    surface_text(counter_sign, "Front", "UPGRADES HERE ⬇", color=(255, 210, 60), stroke=0.4, pixels_per_stud=40)
-    sp("SignPost", (0.3, 2.4, 0.3), (0, 4.9, -6), DARK, "Metal")
-    for x in (-18, 0, 18):
-        lamp = sp("ShopLight", (6, 0.4, 2), (x, sh - 0.4, 4), (255, 250, 235), "Neon", collide=False)
-        point_light(lamp, (255, 248, 230), 1.0, 32)
-    # Decor: tire stacks, a car lift, tool wall
-    for x, z in ((-24, 12), (-20.5, 12), (24, 12)):
-        for level in range(3):
-            part(shop, "Tire", (1.2, 3, 3), CF(sx0 + x, 0.8 + level * 1.2, sz0 + z) * CF.deg(0, 0, 90), (26, 26, 28),
-                 "Rubber", shape="Cylinder")
-    sp("LiftPlatform", (8, 0.5, 13), (12, 4, 6), (230, 190, 40), "DiamondPlate")
-    for x in (7.5, 16.5):
-        sp("LiftPost", (0.8, 8, 0.8), (x, 4, 0), (90, 92, 100), "Metal")
-    sp("LiftCar", (6, 1.8, 11), (12, 5.2, 6), (40, 110, 205), "SmoothPlastic", reflectance=0.1)
-    sp("LiftCarCabin", (5.2, 1.8, 5), (12, 7, 6.8), (70, 95, 120), "Glass", transparency=0.3)
-    tools = sp("ToolWall", (20, 6, 0.4), (-10, 6, sd / 2 - 1.2), (90, 70, 50), "WoodPlanks")
-    surface_text(tools, "Front", "🔧 🔩 🪛 🔧 🔩", color=(230, 230, 230), stroke=None, pixels_per_stud=20)
-    return counter
+    # Lamps and planters around the lot
+    for x in (YARD_CX - 65, YARD_CX + 45):
+        for z in (-50.0, 50.0):
+            street_lamp(decor, CF(x, 0.3, z))
+    for sx in (-1, 1):  # a planter at each corner of the island
+        for sz in (-1, 1):
+            x, z = YARD_CX + sx * (STALL_D + 2.0), sz * (STALL_W / 2 - 1.5)
+            part(decor, "Planter", (3.6, 2.0, 3.6), CF(x, 1.0, z), (110, 82, 56), "WoodPlanks")
+            bush(decor, CF(x, 2.0, z), 3.0, LEAF)  # bush() grows its leaves upward from the given base
+    return yard
 
 
 # ---------------------------------------------------------------------------
 # Roads, decor, boundaries
 # ---------------------------------------------------------------------------
 
-ROAD_X0, ROAD_X1 = -570.0, 530.0
-MAP_X0, MAP_X1, MAP_Z = -610.0, 700.0, 215.0
+ROAD_X0, ROAD_X1 = -252.0, 530.0  # the asphalt starts inside the yard's mouth and runs to the Mansion gate
+WALK_X0 = -204.0                  # the pavements start where the parking lot ends
+CROSSWALK_X = -190.0              # where the yard's drive lane empties onto the street
+MAP_X0, MAP_X1, MAP_Z = -580.0, 700.0, 215.0
 
 
 def build_roads(ground: Inst, decor: Inst, entrances: list[tuple[float, float]]):
     length = ROAD_X1 - ROAD_X0
     mid = (ROAD_X0 + ROAD_X1) / 2
+    walk_length = ROAD_X1 - WALK_X0
+    walk_mid = (WALK_X0 + ROAD_X1) / 2
     part(ground, "MainStreet", (length, 0.2, 32), CF(mid, 0.1, 0), ASPHALT, "Asphalt")
     for z in (-20, 20):
-        part(ground, "Sidewalk", (length, 0.3, 8), CF(mid, 0.15, z), SIDEWALK, "Concrete")
-        part(ground, "Curb", (length, 0.34, 0.6), CF(mid, 0.17, z - math.copysign(3.7, z)), (150, 150, 146), "Concrete")
+        part(ground, "Sidewalk", (walk_length, 0.3, 8), CF(walk_mid, 0.15, z), SIDEWALK, "Concrete")
+        part(ground, "Curb", (walk_length, 0.34, 0.6), CF(walk_mid, 0.17, z - math.copysign(3.7, z)),
+             (150, 150, 146), "Concrete")
     x = ROAD_X0 + 10
     while x < ROAD_X1 - 10:
-        if not (-160 < x < -120):
+        if not (CROSSWALK_X - 15 < x < CROSSWALK_X + 15):
             part(decor, "LaneDash", (9, 0.04, 0.6), CF(x, 0.22, 0), YELLOW, collide=False, query=False, shadow=False)
         x += 20
-    # Crosswalk at the hub
+    # Crosswalk where the yard's drive lane meets the street
     for i in range(11):
-        part(decor, "Crosswalk", (6, 0.04, 1.4), CF(-140, 0.22, -14 + i * 2.8), WHITE, collide=False, query=False,
-             shadow=False)
+        part(decor, "Crosswalk", (6, 0.04, 1.4), CF(CROSSWALK_X, 0.22, -14 + i * 2.8), WHITE, collide=False,
+             query=False, shadow=False)
     # Road end at the mansion gate
     part(decor, "RoadEnd", (1.2, 0.3, 32), CF(ROAD_X1 - 0.6, 0.25, 0), (200, 200, 196), "Concrete")
 
@@ -1399,7 +1528,7 @@ def build_roads(ground: Inst, decor: Inst, entrances: list[tuple[float, float]])
     def blocked(px: float) -> bool:
         return any(abs(px - ex) < half + 5 for ex, half in entrances)
 
-    x = ROAD_X0 + 25
+    x = WALK_X0 + 21
     side = 1
     while x < ROAD_X1 - 10:
         z = 23.0 * side
@@ -1494,19 +1623,13 @@ def build_map(workspace: Inst) -> Inst:
 
     entrances: list[tuple[float, float]] = []
 
-    # Warehouses: 3 on each side of the street at the west end
-    index = 0
-    for side in (-1, 1):
-        for x in (-298.0, -394.0, -490.0):
-            index += 1
-            rot = 0 if side < 0 else 180
-            cf = CF(x, 0, side * 88) * CF.deg(0, rot, 0)
-            build_warehouse(warehouses, ground, index, cf)
-            entrances.append((x, 40))
-
-    # Hub
-    build_hub(map_folder, ground, -140.0)
-    entrances.append((-140.0, 60))
+    # The yard at the west end of the street: six garages around the spawn parking lot. Each one sits a
+    # hair higher than the last so the aprons that overlap in the corners never fight over one plane.
+    for index, (x, z, yaw) in enumerate(YARD_PLOTS, start=1):
+        build_warehouse(warehouses, ground, index, CF(x, 0.003 * index, z) * CF.deg(0, yaw, 0))
+    build_yard(map_folder, ground, decor)
+    build_yard_cliffs(cliffs, decor)
+    build_corridor_cliffs(cliffs, decor)
 
     # The street: one house design, alternating sides, harder the further east you go.
     sides: dict[int, list[float]] = {-1: [], 1: []}
@@ -1528,12 +1651,12 @@ def build_map(workspace: Inst) -> Inst:
 
     build_roads(ground, decor, entrances)
     road_sign(decor, -30, -23, "RICH NEIGHBORHOOD ➜", 0)
-    road_sign(decor, -250, 23, "⬅ WAREHOUSES", 0)
+    road_sign(decor, -170, 23, "⬅ YOUR GARAGE", 0)
     build_boundary(map_folder, decor)
 
-    # Street trees between the hub and the neighbourhood
-    for x in (-60.0, -255.0):
-        for z in (-32.0, 32.0):
+    # Street trees on the grass between the yard and the neighbourhood
+    for x in (-170.0, -110.0):
+        for z in (-34.0, 34.0):
             tree(decor, CF(x, 0, z), 1.1)
     return map_folder
 

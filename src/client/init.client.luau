@@ -110,7 +110,7 @@ Remotes.Busted.OnClientEvent:Connect(function(lostCount: number, lostValue: numb
 end)
 
 ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt, who: Player)
-	if who == player and prompt.Name == "OpenShopPrompt" then
+	if who == player and prompt.Name == "OpenShopPrompt" then -- the counter of the market stall in the yard
 		LootIndex.close()
 		Shop.open()
 	end

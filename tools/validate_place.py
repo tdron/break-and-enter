@@ -26,6 +26,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # XML tag -> acceptable reflection data types
 TAG_TYPES = {
@@ -133,6 +134,15 @@ def vector3(prop: ET.Element) -> tuple[float, float, float]:
     return tuple(float(prop.findtext(axis) or 0) for axis in ("X", "Y", "Z"))  # type: ignore[return-value]
 
 
+def cframe_position(item: "Item") -> tuple[float, float, float] | None:
+    """A part's CFrame, or a model's WorldPivot (which is how models are placed in the map builder)."""
+    prop = item.props.get("CFrame")
+    if prop is None:
+        pivot = item.props.get("WorldPivotData")
+        prop = pivot.find("CFrame") if pivot is not None else None
+    return vector3(prop) if prop is not None else None
+
+
 class Checker:
     def __init__(self) -> None:
         self.errors: list[str] = []
@@ -176,7 +186,7 @@ def check_structure(roots: list[Item], check: Checker) -> None:
     check.expect(game_map is not None, "Workspace.Map is missing")
     if game_map is None:
         return
-    for folder in ("Ground", "Houses", "Warehouses", "Shop", "Hub", "Decor", "Cliffs"):
+    for folder in ("Ground", "Houses", "Warehouses", "Shop", "MarketStall", "Hub", "Decor", "Cliffs"):
         check.expect(game_map.child(folder) is not None, f"Map.{folder} is missing")
 
     # Houses: one model per Config.Houses entry, named after its id
@@ -223,7 +233,26 @@ def check_structure(roots: list[Item], check: Checker) -> None:
             for laser in lasers.children if lasers else []:
                 check.expect("Phase" in laser.attributes(), f"{laser.path()} has no Phase attribute")
     check.expect(all(tiers.get(t, 0) >= 1 for t in (1, 2, 3, 4)), f"Expected houses of every tier, got {tiers}")
+
+    # Every house has to hug the canyon street: nothing may be left over from the old open neighbourhood.
+    for house in houses.children if houses else []:
+        position = cframe_position(house)
+        if position is None:
+            check.error(f"{house.path()} has no world pivot")
+            continue
+        check.expect(map_builder.FIRST_HOUSE_X - 80.0 <= position[0] <= map_builder.ROAD_X1 + 200.0,
+                     f"{house.path()} sits at x = {position[0]:.0f}, outside the neighbourhood")
+        if int(house.attributes().get("Tier") or 0) < 4:
+            front = abs(position[2]) - map_builder.HOUSE_D / 2
+            check.expect(abs(front - map_builder.HOUSE_FRONT_Z) < 1.5,
+                         f"{house.path()} should stand on the street with its front wall at |z| = "
+                         f"{map_builder.HOUSE_FRONT_Z}, it is at {front:.0f}")
+            check.expect(abs(position[2]) + map_builder.HOUSE_D / 2 >= map_builder.CLIFF_FACE_Z,
+                         f"{house.path()} does not run back into the cliff")
+
     cliffs = game_map.child("Cliffs")
+    for folder in ("Street", "Mansion", "Yard", "Corridor"):
+        check.expect(cliffs is not None and cliffs.child(folder) is not None, f"Map.Cliffs.{folder} is missing")
     rocks = [d for d in cliffs.walk() if d.name == "Rock"] if cliffs else []
     rock_sizes = [vector3(r.props["size"]) for r in rocks if "size" in r.props]
     sizes = {round(x, 1) for x, _, _ in rock_sizes}
@@ -262,10 +291,52 @@ def check_structure(roots: list[Item], check: Checker) -> None:
             check.expect(any(c.name.startswith("Accent") for c in treadmill.children),
                          f"{treadmill.path()} has no Accent parts to show its level")
 
-    # Shop & hub
-    check.expect(game_map.child("Gym") is None, "Map.Gym is obsolete (treadmills live at the warehouses now)")
-    check.expect(any(d.name == "ShopCounter" for d in game_map.walk()), "No ShopCounter part")
-    check.expect(any(d.name == "HubSpawn" and d.cls == "SpawnLocation" for d in game_map.walk()), "No HubSpawn")
+    # The yard: the garages ring the parking lot in a U, and every one of them faces into it
+    rows = {"north": 0, "west": 0, "south": 0}
+    for plot in plots:
+        position = cframe_position(plot)
+        if position is None:
+            check.error(f"{plot.path()} has no CFrame")
+            continue
+        x, z = position[0], position[2]
+        check.expect(map_builder.YARD_FACE_X - 2 <= x <= map_builder.YARD_MOUTH_X + 2 and
+                     abs(z) <= map_builder.YARD_FACE_Z + 2,
+                     f"{plot.path()} is not inside the yard ({x:.0f}, {z:.0f})")
+        if z < -map_builder.YARD_HALF_D:
+            rows["north"] += 1
+        elif z > map_builder.YARD_HALF_D:
+            rows["south"] += 1
+        elif x < map_builder.YARD_ROW_X + map_builder.GARAGE_HALF:
+            rows["west"] += 1
+    check.expect(rows == {"north": 2, "west": 2, "south": 2},
+                 f"The garages should be two on each of the U's sides, got {rows}")
+
+    # The two market stalls stand back to back in the middle of the lot
+    stall_positions = []
+    for name in ("Shop", "MarketStall"):
+        stall = game_map.child(name)
+        check.expect(stall is not None and stall.cls == "Model", f"Map.{name} should be a market stall model")
+        if stall is not None:
+            position = cframe_position(stall)
+            check.expect(position is not None and abs(position[0] - map_builder.YARD_CX) < 30 and abs(position[2]) < 30,
+                         f"Map.{name} should stand in the middle of the parking lot")
+            stall_positions.append(position)
+        counter = "ShopCounter" if name == "Shop" else "MarketCounter"
+        check.expect(any(d.name == counter for d in game_map.walk()), f"No {counter} part")
+    if len(stall_positions) == 2 and all(stall_positions):
+        gap = ((stall_positions[0][0] - stall_positions[1][0]) ** 2 +
+               (stall_positions[0][2] - stall_positions[1][2]) ** 2) ** 0.5
+        check.expect(gap < 20, f"The two market stalls should be back to back, they are {gap:.0f} studs apart")
+
+    # Hub spawn: in the drive lane of the lot, between the garages
+    hub_spawn = next((d for d in game_map.walk() if d.name == "HubSpawn"), None)
+    check.expect(hub_spawn is not None and hub_spawn.cls == "SpawnLocation", "No HubSpawn")
+    if hub_spawn is not None:
+        position = cframe_position(hub_spawn)
+        check.expect(position is not None and abs(position[0] - map_builder.YARD_CX) < map_builder.YARD_HALF_W and
+                     abs(position[2]) < map_builder.YARD_HALF_D,
+                     "HubSpawn should be in the parking lot")
+    check.expect(game_map.child("Gym") is None, "Map.Gym is obsolete (treadmills live at the garages now)")
 
     # Remotes and scripts
     replicated = services.get("ReplicatedStorage")

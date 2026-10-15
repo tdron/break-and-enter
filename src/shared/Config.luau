@@ -224,7 +224,7 @@ Config.HouseTiers = {
 	},
 } :: { HouseTier }
 
--- Every house on the street, in order from the hub to the Mansion at the end of the road.
+-- Every house on the street, in order from the yard (spawn) to the Mansion at the end of the road.
 -- Keep one house per line: tools/map_builder.py reads this list to build the street.
 Config.Houses = {
 	{ Id = "House1", DisplayName = "Maple Cottage", Tier = 1, Guard = "GingerCat" },

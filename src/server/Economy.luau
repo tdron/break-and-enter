@@ -4,7 +4,7 @@
 	-------
 	* Pays every player their warehouse income once per second.
 	* Handles upgrade purchases from the shop (validated on the server).
-	* Adds the "Browse Upgrades" prompt to the shop counter in the hub.
+	* Adds the "Browse Upgrades" prompt to the shop's market stall in the yard.
 ]]
 
 local Players = game:GetService("Players")
@@ -74,7 +74,7 @@ end
 
 local function addShopPrompt()
 	local map = Workspace:WaitForChild("Map")
-	local counter = map:FindFirstChild("ShopCounter", true)
+	local counter = map:FindFirstChild("ShopCounter", true) -- the counter of one of the yard's two market stalls
 	if not (counter and counter:IsA("BasePart")) then
 		warn("[Economy] No ShopCounter part found; the shop is still available from the HUD button.")
 		return

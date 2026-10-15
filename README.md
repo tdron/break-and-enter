@@ -2,7 +2,7 @@
 
 …actually called **Steal an Item** 🦝
 
-A complete Roblox heist game. Sneak down a canyon street of houses at night, pick the locks, grab the loot and outrun the guards: cats in the cottages, a different dog breed in every other house, and security drones at the Grand Mansion. Stash everything in your warehouse, where it earns you cash every second. Spend the money on a faster getaway car, a bigger loot bag and trunk, more warehouse space and a better treadmill. Your treadmill sits outside your warehouse and trains you even while you're AFK, until you're fast enough to rob the Mansion. Every house has its own loot, and the **📖 Loot Index** shows how many of the 48 items you've collected.
+A complete Roblox heist game. You spawn in a walled yard of garages with the upgrade market in the middle, then sneak down a canyon street of houses at night, pick the locks, grab the loot and outrun the guards: cats in the cottages, a different dog breed in every other house, and security drones at the Grand Mansion. Stash everything in your warehouse, where it earns you cash every second. Spend the money on a faster getaway car, a bigger loot bag and trunk, more warehouse space and a better treadmill. Your treadmill sits outside your warehouse and trains you even while you're AFK, until you're fast enough to rob the Mansion. Every house has its own loot, and the **📖 Loot Index** shows how many of the 48 items you've collected.
 
 ![Overview of the town](docs/preview-overview.png)
 
@@ -20,15 +20,25 @@ Everything is inside that one file: the town, all the scripts and the UI. Nothin
 
 | Step | What to do |
 |---|---|
-| 1 | You spawn in **your own warehouse** (your name is on the sign). Press **🚗 CAR** to get your getaway car. |
+| 1 | You spawn in **the yard**: a parking lot ringed by six garages. One of them is yours (your name is over the door), and you always respawn inside it. Press **🚗 CAR** to get your getaway car. |
 | 2 | Drive east down the street. Walk up to a front door and **hold E to pick the lock** (only at night!). |
 | 3 | Walk up to loot and **hold E to steal** it. Your bag fills up and a loot sack appears on your back. |
 | 4 | **Stealing trips the alarm!** After a short warning, the house's guards wake up and chase you. Get past the front fence to escape. If a guard catches you, you're **BUSTED** and lose everything you're carrying. |
 | 5 | Put loot in your car with **Load Trunk [F]**, or carry it home. |
 | 6 | Step on the **green DEPOSIT pad** in your warehouse, or park on the **yellow LOADING DOCK** to unload the trunk. |
-| 7 | Items on your shelves **earn cash every second**. Buy upgrades at the **🛒 SHOP**. Walk onto **your treadmill** outside the warehouse to get faster (AFK works). |
+| 7 | Items on your shelves **earn cash every second**. Buy upgrades at the **🛒 UPGRADE SHOP** stall in the middle of the yard. Walk onto **your treadmill** outside your garage to get faster (AFK works). |
 
 **Controls:** WASD / arrow keys to walk and drive (W/S throttle, A/D steer). **E** to interact, **F** for the trunk, **Space** to jump, leave the car or hop off the treadmill. Mobile and gamepad use the standard Roblox controls.
+
+### 🅿️ The yard (where you spawn)
+
+The spawn is a walled parking lot at the west end of the street. **Six garages** stand around its edges — two on each of three sides — each one with a loading dock, a car spot and a treadmill outside. A cube cliff wraps the three closed sides, and the only way out is the road east, which the cliffs follow until they meet the canyon street.
+
+Each garage is your **warehouse**: the loading dock, the green DEPOSIT pad, your shelves and your treadmill are all there.
+
+In the middle of the lot stand **two market stalls, back to back**: the **🛒 UPGRADE SHOP** facing the spawn, and an empty stall (🚧 **FOR RENT**) facing the garages.
+
+![The yard](docs/preview-yard.png)
 
 ### The street
 
@@ -81,7 +91,7 @@ Daytime is the only time loot comes back, so a house you've emptied stays empty 
 
 Press **📖 LOOT INDEX** to see every item in the game, grouped by house, each with a little 3D picture. Items you haven't stolen yet are black silhouettes marked **???**. Steal one and it's unlocked for good: it's saved with your progress, and a toast announces each new discovery. A red badge on the button counts discoveries you haven't looked at yet, and completed houses get a ✅.
 
-### Upgrades (shop)
+### Upgrades (at the market stall)
 
 | Upgrade | Levels | What it does |
 |---|---|---|
@@ -95,12 +105,12 @@ If your warehouse is full, depositing better loot automatically sells your cheap
 
 ### 🏃 Your treadmill
 
-Every warehouse has its own treadmill out front, to the left of the loading dock. A **YOUR TREADMILL** sign floats over yours.
+Every garage has its own treadmill out front, to the left of the loading dock. A **YOUR TREADMILL** sign floats over yours.
 
 - **Walk onto the belt** and your character starts running by itself. Your movement keys switch off, so you can go AFK and keep getting faster.
 - Press **ESCAPE**, **Space**, or **A** on a gamepad to hop off beside it. Walk back on to run again.
 - Each speed level adds **+1 walk speed**, from 16 up to 66 at max level.
-- You upgrade the treadmill itself, either in the shop or by holding **E** at its console. Its trim gets flashier with every level, and only you can use or upgrade yours.
+- You upgrade the treadmill itself, either at the market stall in the yard or by holding **E** at its console. Its trim gets flashier with every level, and only you can use or upgrade yours.
 
 | Treadmill level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
 |---|---|---|---|---|---|---|---|---|
@@ -125,7 +135,7 @@ DataStores only work in a **published** game:
 
 Unpublished, the game still runs normally and shows a small "progress won't be saved" message.
 
-> Each server has **6 warehouses**, so set **Max Players = 6** when you publish (Game Settings → Places). If more people join, they can still play: their loot is sold for cash at any deposit pad.
+> The yard has **6 garages**, so set **Max Players = 6** when you publish (Game Settings → Places). If more people join, they can still play: their loot is sold for cash at any deposit pad.
 
 ## 🛠️ Customizing
 
@@ -135,6 +145,7 @@ Every number lives in **[`src/shared/Config.luau`](src/shared/Config.luau)**: up
 - **Add or change loot:** [`src/shared/Items.luau`](src/shared/Items.luau). Each item belongs to one house and is a small model built from parts, so no uploads are needed.
 - **Guard looks:** [`src/shared/Guards.luau`](src/shared/Guards.luau) builds the cats and dogs from parts. Every dog breed is the same builder with different proportions, ears, tail and markings.
 - **Skip to daytime while testing:** during Play, switch the command bar to the server and run `require(game.ServerScriptService.Server.DayNight).advance()`.
+- **The yard:** the garages are laid out by `YARD_PLOTS` in [`tools/map_builder.py`](tools/map_builder.py), which also draws the cliffs around the spawn — edit them together if you move things.
 - **Change the town:** the map is generated by [`tools/map_builder.py`](tools/map_builder.py). You can also edit the map directly in Studio and save the place. Just don't rebuild afterwards, because rebuilding regenerates it.
 - **Sounds:** the game uses sounds that ship with Roblox so they always work. Swap in your own `rbxassetid://` IDs in `Config.Sounds`.
 
@@ -174,7 +185,7 @@ src/
     Config.luau  Items.luau  ItemModels.luau  Guards.luau  Format.luau
 tools/
   build_place.py           builds StealAnItem.rbxlx from src/ + the generated map
-  map_builder.py           procedural town (the house design, cube cliffs, Mansion, warehouses, shop, roads)
+  map_builder.py           procedural town (the house design, cube cliffs, Mansion, the yard + garages, roads)
   rbxlx.py                 Roblox XML place writer
   validate_place.py        checks the place file (structure + Roblox API)
   run_luau_tests.py        runs the Luau test suites
