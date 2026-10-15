@@ -2,7 +2,7 @@
 
 …actually called **Steal an Item** 🦝
 
-A complete Roblox heist game. You spawn in a walled yard of garages with the market in the middle, then sneak down a canyon street of houses at night, pick the locks, grab the loot and outrun the guards: cats in the cottages, a different dog breed in every other house, and security drones at the Grand Mansion. Stash everything in your warehouse, where it earns you cash every second — or walk up to a shelf and **take an item back off it**, or sell it on the spot. The other stall in the yard is the **💰 SELL POINT**, where the trader buys whatever you're carrying (and what's in your car's trunk, if you park it there). Spend the money on a faster getaway car, a bigger loot bag and trunk, more warehouse space and a better treadmill. Your treadmill sits outside your warehouse and trains you even while you're AFK, until you're fast enough to rob the Mansion. Every house has its own loot, **Epic and Legendary items glow in their rarity's colour**, and the **📖 Loot Index** shows how many of the 48 items you've collected.
+A complete Roblox heist game. You spawn in a walled yard of garages with the market in the middle, then run down a canyon street of houses at night, pick the locks, grab the loot and outrun whatever the owner keeps inside — a cat, a puppy, a labrador, a guard dog, a home owner with a rolling pin, an off-duty officer, a wizard, a T-Rex, a squad of security bots, and a security car; the Grand Mansion at the end of the road is the town's **museum**, with a whole fleet of them parked on the drive. Stash everything in your warehouse, where it earns you cash every second — or walk up to a shelf and **take an item back off it**, or sell it on the spot at the **💰 SELL POINT** stall in the yard. Spend the money on a bigger loot bag, more warehouse space and a better treadmill. Your treadmill sits outside your warehouse and trains you even while you're AFK, until you're fast enough to outrun the fastest defenders. Every house has its own loot, **Epic and Legendary items glow in their rarity's colour**, and the **📖 Loot Index** shows how many of the 48 items you've collected.
 
 ![Overview of the town](docs/preview-overview.png)
 
@@ -20,20 +20,20 @@ Everything is inside that one file: the town, all the scripts and the UI. Nothin
 
 | Step | What to do |
 |---|---|
-| 1 | You spawn in **the yard**: a parking lot ringed by six garages. One of them is yours (your name is over the door), and you always respawn inside it. Press **🚗 CAR** to get your getaway car. |
-| 2 | Drive east down the street. Walk up to a front door and **hold E to pick the lock** (only at night!). |
+| 1 | You spawn in **the yard**: a parking lot ringed by six garages. One of them is yours (your name is over the door), and you always respawn inside it. |
+| 2 | Run (or sprint) east down the street. Walk up to a front door and **hold E to pick the lock** (only at night!). |
 | 3 | Walk up to loot and **hold E to steal** it. Your bag fills up and a loot sack appears on your back. |
-| 4 | **Stealing trips the alarm!** After a short warning, the house's guards wake up and chase you. Get past the front fence to escape. If a guard catches you, you're **BUSTED** and lose everything you're carrying. |
-| 5 | Put loot in your car with **Load Trunk [F]**, or carry it home. |
-| 6 | Step on the **green DEPOSIT pad** in your warehouse, or park on the **yellow LOADING DOCK** to unload the trunk. |
+| 4 | **Stealing trips the alarm!** After a short warning, the house's defenders wake up and come after you — out of the front door, through the yard and all the way back down the street. Inside the house everyone moves at the same speed; past the gate they run at their listed speed. Reach the **canyon mouth at the yard** and you're safe. If one catches you, you're **BUSTED** and lose everything you're carrying. |
+| 5 | Sprint home with the loot. The further down the street you rob, the faster they are — train on your treadmill before you take on the T-Rex. |
+| 6 | Step on the **green DEPOSIT pad** in your warehouse to shelve the loot you're carrying. |
 | 7 | Items on your shelves **earn cash every second**. Hold **E** on a shelf to open your **📦 STORAGE**, where you can **take an item back into your bag** or sell it for cash. |
-| 8 | In a hurry? Drive to the **💰 SELL POINT** stall in the middle of the yard and sell your whole bag at once — the trader also buys your trunk while your car is parked at the stall. Buy upgrades at the **🛒 UPGRADE SHOP** stall opposite. Walk onto **your treadmill** outside your garage to get faster (AFK works). |
+| 8 | In a hurry? Sell your whole bag at the **💰 SELL POINT** stall in the middle of the yard. Buy upgrades at the **🛒 UPGRADE SHOP** stall opposite. Walk onto **your treadmill** outside your garage to get faster (AFK works). |
 
-**Controls:** WASD / arrow keys to walk and drive (W/S throttle, A/D steer). **E** to interact, **F** for the trunk, **Space** to jump, leave the car or hop off the treadmill. Mobile and gamepad use the standard Roblox controls.
+**Controls:** WASD / arrow keys to walk and run. **E** to interact, **Space** to jump or hop off the treadmill. Mobile and gamepad use the standard Roblox controls.
 
 ### 🅿️ The yard (where you spawn)
 
-The spawn is a walled parking lot at the west end of the street. **Six garages** stand around its edges — two on each of three sides — each one with a loading dock, a car spot and a treadmill outside. A cube cliff wraps the three closed sides, and the only way out is the road east, which the cliffs follow until they meet the canyon street.
+The spawn is a walled parking lot at the west end of the street. **Six garages** stand around its edges — two on each of three sides — each one with a loading dock, a yellow loading bay and a treadmill outside. A cube cliff wraps the three closed sides, and the only way out is the road east, which the cliffs follow until they meet the canyon street.
 
 Each garage is your **warehouse**: the loading dock, the green DEPOSIT pad, your shelves and your treadmill are all there.
 
@@ -43,16 +43,29 @@ In the middle of the lot stand **two market stalls, back to back**: the **🛒 U
 
 ### The street
 
-All ten houses are the same roomy design (living room, kitchen, bedroom, study and a display pedestal at the end of the hall), painted differently and alternating sides of the road. Each one backs onto a rocky cliff made of different-sized cubes, so the street feels like a canyon. The further east you go, the tougher the guards and the better the loot. The Grand Mansion closes off the end of the road.
+All ten houses are the same roomy design (living room, kitchen, bedroom, study and a display pedestal at the end of the hall), painted differently and alternating sides of the road. Each one backs onto a rocky cliff made of different-sized cubes, so the street feels like a canyon. The further east you go, the tougher the defender and the better the loot. The Grand Mansion — now the town's **museum** — closes off the end of the road.
 
-| Houses | Guards | Lockpick | Guard speed | Loot |
+| House | Waits inside | Lockpick | Chase speed | Loot |
 |---|---|---|---|---|
-| 🏡 1–4: Maple, Willow, Rose & Daisy Cottage | 🐱 one cat each: ginger, tuxedo, Siamese, grey tabby | 0.6 s | 11 (you start at 16, so easy) | $25–$420 |
-| 🏠 5–8: Blue Oak, Cedar, Elm Street & Birch House | 🐶 two dogs each: Chihuahuas, Pugs, Corgis, Dalmatians | 1.2 s | 18 | $160–$1,600 |
-| 🏠 9–10: Pine Ridge & Aspen House (lasers!) | 🐕 two German Shepherds / two Dobermans | 2.0 s | 26 | $1,400–$22,000 |
-| 🏰 Grand Mansion (laser vault!) | 🤖 four security drones | 3.0 s | 34 | $12,000–$120,000 |
+| 🏡 1: Maple Cottage | 🐱 a Tuxedo Cat | 0.6 s | 10 | $25–$420 |
+| 🏡 2: Willow Cottage | 🐶 a Puppy | 0.6 s | 25 | $25–$420 |
+| 🏡 3: Rose Cottage | 🐕 a Labrador | 0.6 s | 70 | $25–$420 |
+| 🏡 4: Daisy Cottage | 🐕‍🦺 a Guard Dog | 0.6 s | 300 | $25–$420 |
+| 🏠 5: Blue Oak House | 🧑 a Home Owner (rolling pin) | 1.2 s | 1,200 | $160–$1,600 |
+| 🏠 6: Cedar House | 👮 an Off Duty Officer (torch) | 1.2 s | 17,500 | $160–$1,600 |
+| 🏠 7: Elm Street House | 🧙 a Wizard | 1.2 s | 50,000 | $160–$1,600 |
+| 🏠 8: Birch House | 🦖 a T-Rex | 1.2 s | 100,000 | $160–$1,600 |
+| 🏠 9: Pine Ridge House (lasers!) | 🤖 three Security Bots | 2.0 s | 1,100,000 | $1,400–$22,000 |
+| 🏠 10: Aspen House (lasers!) | 🚔 a Security Car | 2.0 s | 125,000,000 | $1,400–$22,000 |
+| 🏛️ Grand Mansion **museum** (laser vault!) | 🚔 a fleet of four Security Cars | 3.0 s | 125,000,000 | $12,000–$120,000 |
 
-Cats and dogs sleep in their pet beds until the alarm goes off, then run along the floor after the nearest thief (their eyes turn red). The drones still fly. Each house's sign shows its guard and speed. The two hardest houses and the Mansion have **blinking laser tripwires**: time your run, or jump the low beams.
+**Every defender waits at its own post** — a pet bed for the animals, a chair for the people, a nest for the T-Rex, a charging pad for the bots and a marked parking bay for the cars — and each house's yard sign shows who is in there and how fast they run. When you trip the alarm they wake up (eyes glowing red) and, after a short wind-up, come after you.
+
+**The speed rule.** Inside a property *everyone* — you and them — moves at the standard Roblox speed. It is only out on the street that the numbers above apply, so a chase is a straight footrace: you keep whatever the treadmill has earned you, and they get their listed speed. (They are also quicker off the mark than you are, which is why houses 5+ are a treadmill problem, not a sneak problem.)
+
+**They chase you home.** A defender no longer gives up at its own gate: it follows you out of the house, along the street and into the canyon mouth. The chase only ends when you reach the **yard** (past the canyon mouth), when the daytime locks the houses up, or when someone catches you. The alarm banner at the top of the screen tells you who is coming and how fast they are.
+
+The two hardest houses and the museum have **blinking laser tripwires**: time your run, or jump the low beams.
 
 Every house has **its own loot** (4 to 6 different items): two Commons, a Rare and an Epic, plus Legendaries in the hardest houses.
 
@@ -96,7 +109,7 @@ Press **📖 LOOT INDEX** to see every item in the game, grouped by house, each 
 
 Hold **E** on any item on your shelves — or press the **📦 STORAGE** button on the HUD — to open your warehouse storage. Every stored item is listed with its value and the cash it earns you per second, and each row has two buttons:
 
-- **🎒 TAKE** unequips it: the item comes off the shelf and back into your bag (so you can carry it, load it into a car, or move it to another plot's deposit pad).
+- **🎒 TAKE** unequips it: the item comes off the shelf and back into your bag (so you can carry it around, or move it to another plot's deposit pad).
 - **💰 SELL** sells it for cash on the spot and frees the shelf.
 
 Only you can do either of those in your warehouse; the server checks every action. Taking an item back stops it earning income until you stash it again.
@@ -106,7 +119,6 @@ Only you can do either of those in your warehouse; the server checks every actio
 The second market stall in the middle of the yard is run by a trader who buys loot outright. Hold **E** at the counter to open the window:
 
 - Everything in your **bag** is listed with its price. **💰** sells one item, **🤑 SELL EVERYTHING** sells the lot.
-- Park your **car within 45 studs** of the stall and the **trunk** is included too — handy for unloading a full haul without going home. The window watches for your car and updates itself when it's close enough.
 
 Selling is instant cash (no shelves involved), which makes it the fastest way to fund an upgrade after a big run.
 
@@ -121,8 +133,6 @@ Anything **Epic or Legendary** glows in the colour of its rarity — Epic items 
 | Upgrade | Levels | What it does |
 |---|---|---|
 | 🎒 Loot Bag | 2 → 12 items | Carry more loot on foot |
-| 🏎️ Getaway Engine | 45 → 110 mph | Faster car, plus new paint, a spoiler, racing stripes and underglow |
-| 🧳 Trunk Space | 4 → 25 items | Bigger car trunk |
 | 📦 Warehouse Space | 10 → 50 slots | More shelves means more passive income |
 | 🏃 Treadmill | +1 speed / 4 s → 4,096 speed/s | Your own treadmill trains you faster (see below) |
 
@@ -136,7 +146,7 @@ Every garage has its own treadmill out front, to the left of the loading dock. A
 - Press **ESCAPE**, **Space**, or **A** on a gamepad to hop off beside it. Walk back on to run again.
 - A treadmill hands out **speed**: level 1 gives **+1 speed every 4 seconds**. Every upgrade **doubles the amount** and **halves the wait**, so each level trains you exactly **four times faster**: by level 8 you're getting 128 speed every 1/32 of a second, which is **4,096 a second**.
 - One speed point is **+1 Speed** on your HUD — and your Speed is **a quarter of the speed you actually move**. A fresh player is *Speed 4* at the usual 16 studs/s, and *Speed 4 ➜ 5* really is 16 ➜ 20 studs/s.
-- **There is no speed cap.** Keep running and you'll leave cats, dogs and drones in the dust — the Mansion's drones fly at 34 studs/s, which is only Speed 8.5.
+- **There is no speed cap.** Keep running and you'll leave the whole street in the dust — even the museum's fleet only runs at 125,000,000, which is about Speed 31 million, so a maxed treadmill (4,096 speed per second) eventually gets you there. The T-Rex (100,000) is the first real wall: it's about Speed 25,000.
 - You upgrade the treadmill itself, either at the market stall in the yard or by holding **E** at its console. Its trim gets flashier with every level, and only you can use or upgrade yours.
 - Prices climb the same way the treadmill does: every level costs **four times** the last one.
 
@@ -155,7 +165,7 @@ Every garage has its own treadmill out front, to the left of the loading dock. A
 
 ## 💾 Saving progress
 
-Progress saves with DataStores: cash, upgrades, speed, warehouse items, trunk contents and your Loot Index. Loot you're *carrying* doesn't save, so stash it! (Saves from before the Loot Index start with the items they already own unlocked.)
+Progress saves with DataStores: cash, upgrades, speed, warehouse items and your Loot Index. Loot you're *carrying* doesn't save, so stash it! (Saves from before the Loot Index start with the items they already own unlocked.)
 
 DataStores only work in a **published** game:
 
@@ -168,7 +178,7 @@ Unpublished, the game still runs normally and shows a small "progress won't be s
 
 ## 🛠️ Customizing
 
-Every number lives in **[`src/shared/Config.luau`](src/shared/Config.luau)**: upgrade prices and values (including the treadmill's speed curve), guard speeds, lockpick times, how long the night and daytime last (and the sky colours), income rate, car handling and sounds.
+Every number lives in **[`src/shared/Config.luau`](src/shared/Config.luau)**: upgrade prices and values (including the treadmill's speed curve), each house's defender and chase speed, the chase lane and where it ends, lockpick times, how long the night and daytime last (and the sky colours), income rate and sounds.
 
 - **The street:** `Config.Houses` lists every house in order, with its name, difficulty tier and guard. `Config.Guards` names the guards. The map builder reads both, so rebuild after changing them.
 - **Add or change loot:** [`src/shared/Items.luau`](src/shared/Items.luau). Each item belongs to one house and is a small model built from parts, so no uploads are needed.
@@ -194,12 +204,11 @@ src/
   server/                  → ServerScriptService.Server
     init.server.luau         boots everything, player join/leave
     PlayerData.luau          saving/loading, attributes the UI reads, leaderstats
-    Inventory.luau           carried loot, trunk, loot sack on your back
+    Inventory.luau           carried loot and the loot sack on your back
     Plots.luau               personal warehouses, shelves, deposit pad, storage window back end
     Market.luau              the 💰 SELL POINT: list what you're carrying, sell one or all
     DayNight.luau            the 4-minute clock: 3½ min night, 30 s daytime (houses close + restock)
-    Houses.luau              doors, per-house loot, alarms, guard cats/dogs/drones, lasers, busting
-    Vehicles.luau            getaway car (hover physics, seats, trunk, dock unloading)
+    Houses.luau              doors, per-house loot, alarms, chases (speeds, lanes, catching), lasers
     Treadmills.luau          personal treadmills: AFK speed training, console upgrades
     Economy.luau             income ticks + upgrade purchases
     Notify.luau              toast notifications
@@ -207,10 +216,9 @@ src/
     init.client.luau         builds the UI, listens to the server
     Hud / Shop / Notifications / BustedScreen / UI.luau
     Storage.luau             the warehouse window: take items off the shelves or sell them
-    SellPoint.luau           the trader's window: sell your bag (and your trunk)
+    SellPoint.luau           the trader's window: sell what's in your bag
     LootIndex.luau           the collection book (3D pictures, ??? until stolen)
     DayNight.luau            fades the sky between night and daytime
-    VehicleController.luau   driving
     TreadmillController.luau auto-running on your treadmill, ESCAPE / Space to hop off
     WorldEffects.luau        sirens, treadmill belts, loot auras, "your warehouse" marker
   shared/                  → ReplicatedStorage.Shared
@@ -233,11 +241,11 @@ The scripts are written in strict-mode Luau and checked against the real Roblox 
 ```bash
 python3 tools/build_place.py                                   # build the place
 python3 tools/validate_place.py --database database.json      # check every class/property/enum
-python3 tools/run_luau_tests.py --database database.json      # 71 tests (needs the `luau` CLI)
+python3 tools/run_luau_tests.py --database database.json      # 69 tests (needs the `luau` CLI)
 luau-lsp analyze --settings .vscode/settings.json --platform roblox \
   --sourcemap sourcemap.json --definitions=@roblox=globalTypes.d.luau src   # type-check
 ```
 
 - `database.json` is Rojo's API dump ([rbx-dom](https://github.com/rojo-rbx/rbx-dom/blob/master/rbx_dom_lua/src/database.json)). `luau` and `luau-lsp` come from their GitHub releases.
-- The integration tests run the real server and client scripts against a small mock of the Roblox engine. That mock loads the real generated map and rejects invalid properties, just like Roblox does. They play through joining, lockpicking, stealing (and discovering items), getting busted by a cat, escaping, depositing, earning, upgrading, AFK treadmill training (including hopping off with Space), driving, managing storage (taking an item off a shelf, selling it, a full-bag refusal), selling carried loot and a parked trunk at the sell point, the Loot Index UI, the loot auras, a full daytime (houses locking, everyone shown out, every house restocking), and saving then loading.
+- The integration tests run the real server and client scripts against a small mock of the Roblox engine. That mock loads the real generated map and rejects invalid properties, just like Roblox does. They play through joining, lockpicking, stealing (and discovering items), getting busted by a defender, escaping, the speed change at the property line, being chased down the street to the canyon mouth, depositing, earning, upgrading, AFK treadmill training (including hopping off with Space), managing storage (taking an item off a shelf, selling it, a full-bag refusal), selling carried loot at the sell point, the Loot Index UI, the loot auras, a full daytime (houses locking, everyone shown out, every house restocking), and saving then loading.
 - **Rojo (optional):** open `StealAnItem.rbxlx` in Studio, run `rojo serve`, and connect the Rojo plugin to live-sync `src/` while you edit.

@@ -88,7 +88,7 @@ test("upgrade tables are consistent", function()
 		check(Config.UpgradesById[upgrade.Id] == upgrade, "UpgradesById missing " .. upgrade.Id)
 		check(string.format(upgrade.Format, upgrade.Values[1]) ~= nil, "bad format for " .. upgrade.Id)
 	end
-	for _, id in { "Bag", "Engine", "Trunk", "Storage", "Treadmill" } do
+	for _, id in { "Bag", "Storage", "Treadmill" } do
 		check(seen[id] == true, "missing upgrade " .. id)
 	end
 end)
@@ -170,54 +170,90 @@ test("house tiers get harder", function()
 	eq(#Config.HouseTiers, 4)
 	for tier = 2, 4 do
 		local a, b = Config.HouseTiers[tier - 1], Config.HouseTiers[tier]
-		check(b.GuardSpeed > a.GuardSpeed, "guard speed must increase")
 		check(b.LockpickTime > a.LockpickTime, "lockpick time must increase")
 		check(b.AlarmWindup <= a.AlarmWindup, "alarm windup must not increase")
 	end
-	-- The fastest guard must be beatable by a trained runner, the slowest must outrun a fresh one.
-	check(Config.HouseTiers[4].GuardSpeed < Config.walkSpeedForPoints(50), "mansion drones too fast to ever beat")
-	check(Config.HouseTiers[4].GuardSpeed > Config.Speed.BaseWalkSpeed, "the drones should outrun someone who never trained")
-	check(Config.HouseTiers[1].GuardSpeed < Config.Speed.BaseWalkSpeed, "cottage cats too fast for new players")
 end)
 
-test("the street: cats, then a different dog breed per house, then the Mansion's drones", function()
+test("the street: a tuxedo cat, then worse, ending with the museum's fleet", function()
 	eq(#Config.Houses, 11, "ten houses plus the Mansion")
-	local last = Config.Houses[#Config.Houses]
-	eq(last.Id, "Mansion", "the Mansion is at the end of the street")
-	eq(Config.Guards[last.Guard].Kind, "Drone", "the Mansion keeps its drones")
-	local breeds = {}
+	local expected = {
+		"TuxedoCat", "Puppy", "Labrador", "GuardDog", "HomeOwner",
+		"OffDutyOfficer", "Wizard", "TRex", "SecurityBot", "SecurityCar", "SecurityCar",
+	}
+	local speeds = {}
 	local ids = {}
 	local previousTier = 1
 	for index, house in Config.Houses do
+		local guard = Config.Guards[house.Guard]
+		eq(house.Guard, expected[index], house.DisplayName .. " defender")
 		check(ids[house.Id] == nil, "duplicate house id " .. house.Id)
 		ids[house.Id] = true
 		check(Config.getHouse(house.Id) == house, house.Id .. " lookup failed")
 		check(house.Tier >= previousTier, "houses must get harder (or stay the same) down the street")
 		previousTier = house.Tier
-		local guard = Config.Guards[house.Guard]
-		check(guard ~= nil, house.Id .. " has an unknown guard")
-		if house.Tier == 1 then
-			eq(guard.Kind, "Cat", house.DisplayName .. " should be guarded by a cat")
-		elseif index < #Config.Houses then
-			eq(guard.Kind, "Dog", house.DisplayName .. " should be guarded by dogs")
-			check(breeds[house.Guard] == nil, "every dog house needs its own breed (" .. house.Guard .. " twice)")
-			breeds[house.Guard] = true
-		end
+		check(guard.Speed > 0, house.Id .. " defender needs a speed")
+		table.insert(speeds, guard.Speed)
 	end
-	eq(Config.getGuard("House1").Kind, "Cat")
-	eq(Config.getGuard("NotAHouse").Kind, "Drone", "unknown houses fall back to drones")
+	-- Exactly the speeds the design asks for, and they climb down the street.
+	local want = { 10, 25, 70, 300, 1200, 17500, 50000, 100000, 1100000, 125000000, 125000000 }
+	for index, speed in want do
+		eq(speeds[index], speed, "speed #" .. index)
+	end
+	for index = 2, #speeds - 1 do
+		check(speeds[index] > speeds[index - 1], "defenders must get faster down the street")
+	end
+	check(speeds[#speeds] >= speeds[#speeds - 1], "the museum's fleet is at least as fast as the last house")
+
+	-- The Mansion is now a museum with a fleet of security cars; house 9 has a squad of bots.
+	local last = Config.Houses[#Config.Houses]
+	eq(last.Id, "Mansion")
+	eq(Config.Guards[last.Guard].Kind, "Vehicle")
+	eq(last.GuardCount, 4, "the museum keeps a fleet of security cars")
+	local bots = Config.Houses[9]
+	eq(bots.Guard, "SecurityBot")
+	eq(bots.GuardCount, 3, "three security bots")
+	for _, house in Config.Houses do
+		eq(house.GuardCount or 1, if house.Id == "Mansion" then 4 elseif house.Id == "House9" then 3 else 1,
+			house.Id .. " defender count")
+	end
+	-- Nothing else guards a house.
+	local used = {}
+	for _, house in Config.Houses do
+		used[house.Guard] = true
+	end
+	for guardId in Config.Guards do
+		check(used[guardId], guardId .. " is not used by any house")
+	end
+
+	eq(Config.getGuard("House1").DisplayName, "Tuxedo Cat")
+	eq(Config.getGuard("NotAHouse").DisplayName, "Tuxedo Cat", "unknown houses fall back to the first defender")
+end)
+
+test("defenders are only fast once they are out of the house", function()
+	-- Everything about the speed rule hangs off these two numbers.
+	eq(Config.Alarm.InsideSpeed, 16, "the standard Roblox movement speed")
+	eq(Config.Speed.BaseWalkSpeed, 16, "which is what a fresh player walks at")
+	eq(Config.walkSpeedForPoints(0), Config.Alarm.InsideSpeed, "so a new player is never the slow one indoors")
+	check(Config.Alarm.SafeX < 0, "the safe zone is back at the yard")
+	check(Config.Alarm.LaneHalfWidth > 0, "chases follow the street")
+	-- Only the cat is slower than a fresh player; everything past the puppy is faster than you
+	-- will ever be without a treadmill.
+	check(Config.Guards.TuxedoCat.Speed < Config.Alarm.InsideSpeed, "you can outrun the cat")
+	for _, guardId in { "GuardDog", "HomeOwner", "OffDutyOfficer", "Wizard", "TRex", "SecurityBot", "SecurityCar" } do
+		check(Config.Guards[guardId].Speed > Config.Alarm.InsideSpeed * 10, guardId .. " should be terrifying outside")
+	end
 end)
 
 test("guard models", function()
+	-- Every defender has a model that stands on the ground, faces -Z and fits in the house it
+	-- guards (the door is 9 studs tall, the rooms 12).
+	local tallest = { Cat = 2.8, Dog = 4.8, Human = 7.4, Wizard = 8.2, Beast = 8.6, Robot = 6.6, Vehicle = 5.0 }
 	for guardId, info in Config.Guards do
 		local look = Guards.getLook(guardId)
-		if info.Kind == "Drone" then
-			check(look == nil, "drones are built separately")
-			continue
-		end
 		check(look ~= nil, guardId .. " has no model")
 		assert(look)
-		eq(#look.Eyes, 2, guardId .. " eyes")
+		check(#look.Eyes >= 2, guardId .. " needs eyes (they glow red during an alarm)")
 		local minCorner, maxCorner = Vector3.new(1e9, 1e9, 1e9), Vector3.new(-1e9, -1e9, -1e9)
 		for _, spec in look.Parts do
 			check(spec.Size.X > 0 and spec.Size.Y > 0 and spec.Size.Z > 0, guardId .. " has an empty part")
@@ -226,11 +262,18 @@ test("guard models", function()
 		end
 		local size = maxCorner - minCorner
 		check(math.abs(minCorner.Y) < 0.05, string.format("%s should stand on the ground (feet at %.2f)", guardId, minCorner.Y))
-		check(size.Y < (if info.Kind == "Cat" then 2.5 else 4.2), string.format("%s is too tall (%.2f)", guardId, size.Y))
-		check(size.Z < 5.5 and size.X < 2.2, string.format("%s is too big (%.2f x %.2f)", guardId, size.X, size.Z))
-		for _, eye in look.Eyes do
-			check(eye.Z < minCorner.Z + size.Z * 0.35, guardId .. "'s eyes should be at the front (-Z)")
-		end
+		check(size.Y < tallest[info.Kind], string.format("%s is too tall (%.2f)", guardId, size.Y))
+		-- (People carry things: the torch, the wand and the rolling pin stick out sideways a bit.)
+		local maxX = if info.Kind == "Beast" then 5.2
+			elseif info.Kind == "Vehicle" then 5.9
+			elseif info.Kind == "Human" or info.Kind == "Wizard" then 3.4
+			elseif info.Kind == "Robot" then 2.9
+			else 2.6
+		local maxZ = if info.Kind == "Beast" then 13.5 elseif info.Kind == "Vehicle" then 11.5 else 10.5
+		check(size.Z < maxZ and size.X < maxX, string.format("%s is too big (%.2f x %.2f)", guardId, size.X, size.Z))
+		-- The first eye is the face; extra entries in the list are glowing props (a torch,
+		-- a wand tip, a car's light bar) that turn red with the rest of it during an alarm.
+		check(look.Eyes[1].Z < minCorner.Z + size.Z * 0.35, guardId .. "'s eyes should be at the front (-Z)")
 	end
 end)
 
@@ -371,7 +414,12 @@ end)
 
 test("selling pays the item's value and the stall's trunk range is sane", function()
 	check(Config.Economy.SellRatio > 0, "selling has to pay something")
-	check(Config.Market.TrunkRange >= 20, "the trunk range should cover the stall's apron")
+	-- The getaway car is gone (spawn, engine, trunk and all).
+	check(Config.Vehicle == nil, "there is no car config any more")
+	check(Config.Market.TrunkRange == nil, "and no trunk range at the sell point")
+	for _, id in { "Engine", "Trunk" } do
+		check(Config.UpgradesById[id] == nil, id .. " should no longer be a shop upgrade")
+	end
 	check(Config.Market.PromptDistance >= 6, "the stall prompt has to be reachable")
 	for _, def in Items.List do
 		eq(Items.getSellValue(def.Id), math.floor(def.Value * Config.Economy.SellRatio), def.Id .. " sell value")

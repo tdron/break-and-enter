@@ -7,10 +7,11 @@
 
 	Important numbers are mirrored onto Player attributes so the client UI can
 	react to them without any extra remotes:
-	  Cash, Income, Carried, CarriedList, BagCapacity, TrunkCount, TrunkCapacity,
+	  Cash, Income, Carried, CarriedList, BagCapacity,
 	  StoredCount, StorageCapacity, Speed, SpeedPoints, SpeedProgress,
-	  WalkSpeed, Level_<UpgradeId>, Discovered (comma-separated item ids for
-	  the Loot Index)
+	  WalkSpeed (the real speed; WalkSpeed is held at Config.Alarm.InsideSpeed
+	  while InHouse is true), InHouse, Level_<UpgradeId>, Discovered
+	  (comma-separated item ids for the Loot Index)
 
 	Saving uses DataStoreService. When the place is unpublished or Studio API
 	access is off, the game still works but progress is session-only.
@@ -27,7 +28,6 @@ export type Profile = {
 	Levels: { [string]: number },
 	SpeedPoints: number, -- trained speed; the Speed stat is its whole part (see Config.Speed)
 	Stored: { string },
-	Trunk: { string },
 	TotalStolen: number,
 	TotalEarned: number,
 	Discovered: { string }, -- every item this player has ever stolen (the Loot Index)
@@ -55,6 +55,9 @@ local MAX_LOAD_ATTEMPTS = 3
 local PlayerData = {}
 
 local sessions: { [Player]: Session } = {}
+-- Players standing on someone's property: everyone moves at the standard Roblox
+-- speed in there, so their treadmill speed is held back until they are back out.
+local insideHouse: { [Player]: boolean? } = {}
 local store: DataStore? = nil
 local saveWarning = "Progress will not be saved in this session."
 
@@ -86,7 +89,6 @@ local function defaultProfile(): Profile
 		Levels = levels,
 		SpeedPoints = 0,
 		Stored = {},
-		Trunk = {},
 		TotalStolen = 0,
 		TotalEarned = 0,
 		Discovered = {},
@@ -141,12 +143,19 @@ local function sanitize(raw: any): Profile
 	local legacyLevel = readNumber(raw.SpeedLevel, 0, 0, 1e9)
 	profile.SpeedPoints = readNumber(raw.SpeedPoints, legacyLevel / Config.Speed.SpeedDivisor, 0, 1e15)
 	profile.Stored = readItemList(raw.Stored, Config.getUpgradeValue("Storage", profile.Levels.Storage))
-	profile.Trunk = readItemList(raw.Trunk, Config.getUpgradeValue("Trunk", profile.Levels.Trunk))
+	-- The getaway car (and its trunk) is gone. Anything an old save still had in the trunk is
+	-- moved onto the warehouse shelves so nobody loses loot; the overflow is written off.
+	local legacyTrunk = readItemList(raw.Trunk, 0)
+	for _, itemId in legacyTrunk do
+		if #profile.Stored < Config.getUpgradeValue("Storage", profile.Levels.Storage) then
+			table.insert(profile.Stored, itemId)
+		end
+	end
 	profile.TotalStolen = math.floor(readNumber(raw.TotalStolen, 0, 0, 1e12))
 	profile.TotalEarned = math.floor(readNumber(raw.TotalEarned, 0, 0, 1e18))
 	-- Saves from before the Loot Index count the items they already own as discovered.
 	local discovered = if type(raw.Discovered) == "table" then raw.Discovered else nil
-	local source = discovered or table.move(profile.Trunk, 1, #profile.Trunk, #profile.Stored + 1, table.clone(profile.Stored))
+	local source = discovered or table.move(legacyTrunk, 1, #legacyTrunk, #profile.Stored + 1, table.clone(profile.Stored))
 	local seen: { [string]: boolean } = {}
 	for _, itemId in readItemList(source, #Items.List * 4) do
 		if not seen[itemId] then
@@ -252,11 +261,9 @@ function PlayerData.replicate(player: Player)
 		player:SetAttribute("Level_" .. upgrade.Id, profile.Levels[upgrade.Id])
 	end
 	player:SetAttribute("BagCapacity", PlayerData.getUpgradeValue(player, "Bag"))
-	player:SetAttribute("TrunkCapacity", PlayerData.getUpgradeValue(player, "Trunk"))
 	player:SetAttribute("StorageCapacity", PlayerData.getUpgradeValue(player, "Storage"))
 	player:SetAttribute("Carried", #session.Carried)
 	player:SetAttribute("CarriedList", table.concat(session.Carried, ","))
-	player:SetAttribute("TrunkCount", #profile.Trunk)
 	player:SetAttribute("StoredCount", #profile.Stored)
 	player:SetAttribute("Discovered", table.concat(profile.Discovered, ","))
 
@@ -340,13 +347,28 @@ function PlayerData.applyWalkSpeed(player: Player)
 	local character = player.Character
 	local humanoid = if character then character:FindFirstChildOfClass("Humanoid") else nil
 	if humanoid then
-		humanoid.WalkSpeed = walkSpeed
+		-- Inside a house the thief moves at the same standard speed as the defenders.
+		humanoid.WalkSpeed = if insideHouse[player] then math.min(walkSpeed, Config.Alarm.InsideSpeed) else walkSpeed
 	end
 	local session = sessions[player]
 	local stats = if session then session.Leaderstats else nil
 	if stats then
 		stats.Speed.Value = walkSpeed
 	end
+end
+
+-- Called by Houses when a player steps onto (or off) a house's property.
+function PlayerData.setInsideHouse(player: Player, inside: boolean)
+	if (insideHouse[player] == true) == inside then
+		return
+	end
+	insideHouse[player] = if inside then true else nil
+	player:SetAttribute("InHouse", inside)
+	PlayerData.applyWalkSpeed(player)
+end
+
+function PlayerData.isInsideHouse(player: Player): boolean
+	return insideHouse[player] == true
 end
 
 -- Adds treadmill training. Returns how many whole speed points were gained.
@@ -435,7 +457,6 @@ function PlayerData.save(player: Player): boolean
 		Levels = table.clone(profile.Levels),
 		SpeedPoints = profile.SpeedPoints,
 		Stored = table.clone(profile.Stored),
-		Trunk = table.clone(profile.Trunk),
 		TotalStolen = profile.TotalStolen,
 		TotalEarned = profile.TotalEarned,
 		Discovered = table.clone(profile.Discovered),
@@ -453,6 +474,7 @@ end
 
 -- Saves and forgets a player (call when they leave).
 function PlayerData.release(player: Player)
+	insideHouse[player] = nil
 	if sessions[player] then
 		PlayerData.save(player)
 		sessions[player] = nil

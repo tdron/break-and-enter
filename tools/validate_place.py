@@ -214,6 +214,10 @@ def check_structure(roots: list[Item], check: Checker) -> None:
             tiers[int(tier or 0)] = tiers.get(int(tier or 0), 0) + 1
             zone = house.child("Zone")
             check.expect(zone is not None and zone.cls == "Part", f"{house.path()} has no Zone part")
+            if zone is not None:
+                inset = zone.attributes().get("FrontInset")
+                check.expect(isinstance(inset, float) and inset > 0,
+                             f"{zone.path()} needs a positive FrontInset (where the front wall sits)")
             spots = house.child("ItemSpots")
             count = len(spots.children) if spots else 0
             total_spots += count
@@ -221,6 +225,9 @@ def check_structure(roots: list[Item], check: Checker) -> None:
             docks = house.child("GuardDocks")
             check.expect(docks is not None and len(docks.children) >= 1, f"{house.path()} has no guard docks")
             check.expect(house.child("DroneDocks") is None, f"{house.path()} still has an old DroneDocks folder")
+            if docks is not None and info:
+                check.expect(len(docks.children) == info["count"],
+                             f"{house.path()} should have {info['count']} guard post(s), has {len(docks.children)}")
             total_guards += len(docks.children) if docks else 0
             doors = house.child("Doors")
             check.expect(doors is not None and len(doors.children) >= 1, f"{house.path()} has no doors")
@@ -263,6 +270,13 @@ def check_structure(roots: list[Item], check: Checker) -> None:
     check.expect(game_map.child("Decor") is None or all(d.name != "Park" for d in game_map.child("Decor").children),
                  "The old park should be gone (the street runs up to the Mansion now)")
 
+    safe_x = game_map.attributes().get("SafeX")
+    check.expect(isinstance(safe_x, float) and safe_x < 0,
+                 "Map needs a SafeX attribute (west of it, chases are over)")
+
+    # The getaway car is gone: no car folder, no car spawns on any plot.
+    check.expect(workspace.child("Cars") is None, "Workspace.Cars should be gone (there is no getaway car)")
+
     # Warehouses
     warehouses = game_map.child("Warehouses")
     plots = warehouses.children if warehouses else []
@@ -270,10 +284,11 @@ def check_structure(roots: list[Item], check: Checker) -> None:
     for plot in plots:
         attrs = plot.attributes()
         check.expect(isinstance(attrs.get("PlotIndex"), float), f"{plot.path()} has no PlotIndex")
-        for name, cls in (("Spawn", "SpawnLocation"), ("DepositPad", "Part"), ("Dock", "Part"), ("CarSpawn", "Part"),
+        for name, cls in (("Spawn", "SpawnLocation"), ("DepositPad", "Part"), ("Dock", "Part"),
                           ("Marker", "Part")):
             child = plot.child(name)
             check.expect(child is not None and child.cls == cls, f"{plot.path()}.{name} ({cls}) is missing")
+        check.expect(plot.child("CarSpawn") is None, f"{plot.path()} still has a CarSpawn marker")
         slots = plot.child("Slots")
         indices = sorted(int(s.attributes().get("Index", 0)) for s in (slots.children if slots else []))
         check.expect(indices == list(range(1, 51)), f"{plot.path()} slots should be indexed 1..50")
@@ -344,7 +359,7 @@ def check_structure(roots: list[Item], check: Checker) -> None:
     remotes = replicated.child("Remotes") if replicated else None
     found = {(c.name, c.cls) for c in (remotes.children if remotes else [])}
     for expected in (("Notify", "RemoteEvent"), ("Busted", "RemoteEvent"), ("Purchase", "RemoteFunction"),
-                     ("SpawnCar", "RemoteFunction"), ("Treadmill", "RemoteFunction"), ("Storage", "RemoteFunction"),
+                     ("Treadmill", "RemoteFunction"), ("Storage", "RemoteFunction"),
                      ("Sell", "RemoteFunction")):
         check.expect(expected in found, f"Missing remote {expected}")
     shared = replicated.child("Shared") if replicated else None

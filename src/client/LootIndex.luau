@@ -127,7 +127,7 @@ end
 local function makeSection(parent: Instance, order: number, house: Config.HouseInfo): Section
 	local tier = Config.HouseTiers[house.Tier]
 	local guard = Config.Guards[house.Guard]
-	local guardCount = if guard.Kind == "Drone" then 4 elseif house.Tier == 1 then 1 else 2
+	local guardCount = house.GuardCount or 1
 	local frame: Frame = UI.new("Frame", {
 		Name = house.Id,
 		BackgroundColor3 = Theme.PanelLight,
@@ -166,11 +166,12 @@ local function makeSection(parent: Instance, order: number, house: Config.HouseI
 		Size = UDim2.new(1, -90, 0, 18),
 		Font = Theme.BodyFont,
 		Text = string.format(
-			"%s%s %s · guarded by %s",
+			"%s%s %s · guarded by %s · %s speed",
 			string.rep("★", tier.Stars),
 			string.rep("☆", 4 - tier.Stars),
 			tier.Name,
-			if guardCount == 1 then "a " .. guard.DisplayName else string.format("%d %ss", guardCount, guard.DisplayName)
+			if guardCount == 1 then "a " .. guard.DisplayName else string.format("%d %ss", guardCount, guard.DisplayName),
+			Format.commas(guard.Speed)
 		),
 		TextColor3 = Theme.SubText,
 		TextSize = 14,

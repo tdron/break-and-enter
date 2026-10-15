@@ -3,10 +3,7 @@
 	SellPoint
 	---------
 	The trader's window at the yard's market stall. Opens from the stall's prompt
-	and lists everything you could sell right now:
-
-	  * the loot in your bag,
-	  * plus the loot in your car's trunk while the car is parked at the stall.
+	and lists everything you could sell right now: the loot in your bag.
 
 	One button sells a single item, the big button sells the lot. The server
 	(Market.luau) decides what really gets sold and pays the cash.
@@ -15,7 +12,6 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
 local Items = require(ReplicatedStorage.Shared.Items)
 local Notifications = require(script.Parent.Notifications)
@@ -37,7 +33,7 @@ local list: ScrollingFrame? = nil
 local cashLabel: TextLabel? = nil
 local totalLabel: TextLabel? = nil
 local empty: TextLabel? = nil
-local trunkHint: TextLabel? = nil
+local tipLabel: TextLabel? = nil
 local sellAll: TextButton? = nil
 local isOpen = false
 local busy = false
@@ -82,7 +78,6 @@ local function makeRow(parent: Instance, order: number, sale: any): Frame?
 	end
 	local rarity = Items.getRarity(def.Id)
 	local color = if rarity then rarity.Color else Theme.SubText
-	local fromTrunk = sale.Source == "Trunk"
 	local frame: Frame = UI.new("Frame", {
 		Name = def.Id .. order,
 		BackgroundColor3 = CARD_COLOR,
@@ -112,8 +107,7 @@ local function makeRow(parent: Instance, order: number, sale: any): Frame?
 		Position = UDim2.fromOffset(88, 32),
 		Size = UDim2.new(1, -300, 0, 20),
 		Font = Theme.BoldFont,
-		Text = string.format("%s · %s%s", def.Rarity, if fromTrunk then "🚗 trunk · " else "🎒 bag · ",
-			Format.money(Items.getSellValue(def.Id))),
+		Text = string.format("%s · 🎒 bag · %s", def.Rarity, Format.money(Items.getSellValue(def.Id))),
 		TextColor3 = color,
 		TextSize = 16,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -164,18 +158,13 @@ function SellPoint.refresh()
 	end
 	local result = request(nil)
 	local sales: { any } = if result then result.Sales or {} else {}
-	local bagCount, trunkCount = 0, 0
+	local bagCount = 0
 	local parts = {}
 	for index, sale in sales do
-		if sale.Source == "Trunk" then
-			trunkCount += 1
-		else
-			bagCount += 1
-		end
-		table.insert(parts, string.format("%d:%s:%s", index, tostring(sale.ItemId), tostring(sale.Source)))
+		bagCount += 1
+		table.insert(parts, string.format("%d:%s", index, tostring(sale.ItemId)))
 	end
-	-- The car can drive up at any time, so only touch the rows when the list really changed.
-	table.insert(parts, if result and result.TrunkReady == true then "trunk-ready" else "trunk-away")
+	-- Only touch the rows when the list really changed.
 	local signature = table.concat(parts, "|")
 	if signature ~= lastSignature then
 		lastSignature = signature
@@ -193,9 +182,8 @@ function SellPoint.refresh()
 		if #sales == 0 then
 			totalLabel.Text = "Nothing to sell — steal something first!"
 		else
-			totalLabel.Text = string.format("%d item%s in your bag%s · worth %s", bagCount,
-				if bagCount == 1 then "" else "s",
-				if trunkCount > 0 then string.format(" and %d in the trunk", trunkCount) else "", Format.money(total))
+			totalLabel.Text = string.format("%d item%s in your bag · worth %s", bagCount,
+				if bagCount == 1 then "" else "s", Format.money(total))
 		end
 	end
 	if sellAll then
@@ -206,14 +194,8 @@ function SellPoint.refresh()
 	if empty then
 		empty.Visible = #sales == 0
 	end
-	local hint = trunkHint
-	if hint then
-		local ready = result ~= nil and result.TrunkReady == true
-		hint.Text = if ready
-			then "🚗 Your car is at the stall — its trunk is included."
-			else string.format("🚗 Park your car within %d studs of the stall to sell the trunk too.",
-				Config.Market.TrunkRange)
-		hint.TextColor3 = if ready then Theme.Green else Theme.SubText
+	if tipLabel then
+		tipLabel.Text = "💡 Shelf loot in your warehouse instead: stored items pay you every second."
 	end
 end
 
@@ -309,7 +291,7 @@ function SellPoint.init(screen: ScreenGui)
 	list = scrolling
 
 	local hint: TextLabel = UI.new("TextLabel", {
-		Name = "TrunkHint",
+		Name = "Tip",
 		BackgroundTransparency = 1,
 		Position = UDim2.fromOffset(22, 396),
 		Size = UDim2.new(1, -44, 0, 22),
@@ -320,7 +302,7 @@ function SellPoint.init(screen: ScreenGui)
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = frame,
 	})
-	trunkHint = hint
+	tipLabel = hint
 	UI.new("TextLabel", {
 		Name = "Empty",
 		BackgroundTransparency = 1,
@@ -363,7 +345,7 @@ function SellPoint.init(screen: ScreenGui)
 			cash.Text = "💰 " .. Format.money(number("Cash", 0))
 		end
 	end)
-	for _, name in { "Carried", "TrunkCount" } do
+	for _, name in { "Carried" } do
 		player:GetAttributeChangedSignal(name):Connect(function()
 			task.spawn(SellPoint.refresh)
 		end)
@@ -383,15 +365,6 @@ function SellPoint.open()
 	scale.Scale = target * 0.8
 	UI.tween(scale, 0.18, { Scale = target }, Enum.EasingStyle.Back)
 	task.spawn(SellPoint.refresh)
-	task.spawn(function()
-		-- Keep an eye out for the car pulling up at the stall while the trader's window is open.
-		while isOpen do
-			task.wait(1)
-			if isOpen then
-				SellPoint.refresh()
-			end
-		end
-	end)
 end
 
 function SellPoint.close()

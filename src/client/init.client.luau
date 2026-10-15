@@ -20,7 +20,7 @@ for _, name in { "Config", "Items", "ItemModels", "Format" } do
 	sharedFolder:WaitForChild(name)
 end
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
-for _, name in { "Notify", "Busted", "Purchase", "SpawnCar", "Treadmill", "Storage", "Sell" } do
+for _, name in { "Notify", "Busted", "Purchase", "Treadmill", "Storage", "Sell" } do
 	remotesFolder:WaitForChild(name)
 end
 
@@ -34,7 +34,6 @@ local Shop = require(script.Shop)
 local Storage = require(script.Storage)
 local TreadmillController = require(script.TreadmillController)
 local UI = require(script.UI)
-local VehicleController = require(script.VehicleController)
 local WorldEffects = require(script.WorldEffects)
 
 local Remotes = ReplicatedStorage.Remotes
@@ -53,23 +52,6 @@ local function updateScale()
 	end
 	local viewport = camera.ViewportSize
 	UI.setScale(math.clamp(math.min(viewport.X / 1280, viewport.Y / 760), 0.55, 1.1))
-end
-
-local spawnBusy = false
-local function requestCar()
-	if spawnBusy then
-		return
-	end
-	spawnBusy = true
-	local ok, result = pcall(function()
-		return Remotes.SpawnCar:InvokeServer()
-	end)
-	spawnBusy = false
-	if ok and type(result) == "table" then
-		Notifications.show(tostring(result.Message), if result.Ok == true then "success" else "error")
-	else
-		Notifications.show("Couldn't reach your mechanic. Try again!", "error")
-	end
 end
 
 Notifications.init(screen)
@@ -100,9 +82,6 @@ local hud = Hud.init(screen, {
 		closeWindows("Shop")
 		Shop.toggle()
 	end,
-	OnSpawnCar = function()
-		task.spawn(requestCar)
-	end,
 	OnStorage = function()
 		closeWindows("Storage")
 		Storage.toggle()
@@ -114,7 +93,6 @@ local hud = Hud.init(screen, {
 })
 LootIndex.attachBadge(hud.IndexButton)
 BustedScreen.init(screen)
-VehicleController.init()
 TreadmillController.init(screen)
 WorldEffects.init()
 
@@ -151,8 +129,8 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 	end
 end)
 
--- Hide owner-only prompts (selling from someone else's shelves, their car trunk, upgrading
--- their treadmill) for everyone else.
+-- Hide owner-only prompts (selling from someone else's shelves, upgrading their treadmill)
+-- for everyone else.
 ProximityPromptService.PromptShown:Connect(function(prompt: ProximityPrompt)
 	local ownerUserId = prompt:GetAttribute("OwnerUserId")
 	if ownerUserId ~= nil and ownerUserId ~= player.UserId then

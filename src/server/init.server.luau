@@ -5,11 +5,10 @@
 	Boots every gameplay module and wires up the player lifecycle.
 
 	  PlayerData  saving/loading + attributes the UI reads
-	  Inventory   loot you're carrying and loot in your trunk
+	  Inventory   the loot you're carrying
 	  Plots       personal warehouses (storage = passive income)
 	  DayNight    the 4-minute heist clock (night = steal, daytime = houses closed + restock)
-	  Houses      lockpicking, loot, alarms, guard cats/dogs/drones, lasers
-	  Vehicles    the getaway car
+	  Houses      lockpicking, loot, alarms, chases, guard defenders, lasers
 	  Treadmills  each warehouse's personal (AFK-able, upgradable) treadmill
 	  Economy     income ticks + the upgrade shop
 	  Market      the sell point stall in the yard (loot -> cash on the spot)
@@ -26,12 +25,10 @@ local Notify = require(script.Notify)
 local PlayerData = require(script.PlayerData)
 local Plots = require(script.Plots)
 local Treadmills = require(script.Treadmills)
-local Vehicles = require(script.Vehicles)
 
 Plots.init()
 DayNight.init()
 Houses.init()
-Vehicles.init()
 Treadmills.init()
 Economy.init()
 Market.init()
@@ -59,7 +56,6 @@ end
 local function onPlayerAdded(player: Player)
 	-- Assign a warehouse right away so the first spawn happens there.
 	Plots.assign(player)
-	Vehicles.onPlayerAdded(player)
 	player.CharacterAdded:Connect(function(character: Model)
 		onCharacterAdded(player, character)
 	end)
@@ -85,7 +81,6 @@ local function onPlayerAdded(player: Player)
 end
 
 local function onPlayerRemoving(player: Player)
-	Vehicles.onPlayerRemoving(player)
 	Houses.onPlayerRemoving(player)
 	Treadmills.onPlayerRemoving(player)
 	Economy.onPlayerRemoving(player)

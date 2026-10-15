@@ -76,7 +76,7 @@ def _config_text() -> str:
 
 
 def read_house_tiers() -> list[dict]:
-    """Reads tier names / stars / guard speeds from Config.luau so signs always match the game."""
+    """Reads tier names / stars / lockpick times from Config.luau so signs always match the game."""
     text = _config_text()
     block = text[text.index("Config.HouseTiers = {"):]
     block = block[: block.index("} :: { HouseTier }")]
@@ -85,7 +85,6 @@ def read_house_tiers() -> list[dict]:
         tiers.append({
             "name": re.match(r'"([^"]+)"', chunk).group(1),
             "stars": int(re.search(r"Stars = (\d+)", chunk).group(1)),
-            "speed": int(re.search(r"GuardSpeed = (\d+)", chunk).group(1)),
             "lockpick": float(re.search(r"LockpickTime = ([\d.]+)", chunk).group(1)),
         })
     return tiers
@@ -95,15 +94,25 @@ def read_houses() -> list[dict]:
     """The street, in order, from Config.Houses (one house per line) joined with Config.Guards."""
     text = _config_text()
     guards = {}
-    for gid, name, kind, icon in re.findall(
-            r'^\t(\w+) = \{ DisplayName = "([^"]+)", Kind = "(\w+)", Icon = "([^"]+)" \},$', text, re.M):
-        guards[gid] = {"id": gid, "name": name, "kind": kind, "icon": icon}
+    for gid, name, kind, icon, speed in re.findall(
+            r'^\t(\w+) = \{ DisplayName = "([^"]+)", Kind = "(\w+)", Icon = "([^"]+)", Speed = (\d+) \},$',
+            text, re.M):
+        guards[gid] = {"id": gid, "name": name, "kind": kind, "icon": icon, "speed": int(speed)}
     houses = []
-    for hid, display, tier, guard in re.findall(
-            r'^\t\{ Id = "(\w+)", DisplayName = "([^"]+)", Tier = (\d+), Guard = "(\w+)" \},$', text, re.M):
-        houses.append({"id": hid, "display": display, "tier": int(tier), "guard": guards[guard]})
+    for hid, display, tier, guard, count in re.findall(
+            r'^\t\{ Id = "(\w+)", DisplayName = "([^"]+)", Tier = (\d+), Guard = "(\w+)"'
+            r'(?:, GuardCount = (\d+))? \},$', text, re.M):
+        houses.append({"id": hid, "display": display, "tier": int(tier), "guard": guards[guard],
+                       "count": int(count) if count else 1})
     assert houses and houses[-1]["id"] == "Mansion", "Config.Houses must end with the Mansion"
     return houses
+
+
+def speed_text(value: float) -> str:
+    """Guard speeds on the yard signs: 10, 1,200, 17,500, 1.1M, 125M."""
+    if value >= 1_000_000:
+        return f"{value / 1_000_000:.1f}".rstrip("0").rstrip(".") + "M"
+    return f"{value:,.0f}"
 
 def part(parent: Inst, name: str, size, cf: CF, color, material: str = "SmoothPlastic", *,
          cls: str = "Part", shape: str | None = None, collide: bool = True, transparency: float = 0.0,
@@ -265,8 +274,11 @@ class HouseBuilder:
         self.spot_count = 0
         self.spot_budget: int | None = None  # stop adding loot spots after this many (furniture stays)
         self.laser_count = 0
-        part(self.model, "Zone", (lot_w, 40, lot_d), lot_cf * CF(0, 20, 0), (255, 60, 60), transparency=1,
-             collide=False, query=False, touch=False, shadow=False)
+        zone = part(self.model, "Zone", (lot_w, 40, lot_d), lot_cf * CF(0, 20, 0), (255, 60, 60), transparency=1,
+                    collide=False, query=False, touch=False, shadow=False)
+        # How far the front wall sits inside the property: the server uses this to tell whether a
+        # defender is still indoors (where everyone moves at the standard Roblox speed) or outside.
+        zone.attr(FrontInset=front_yard)
 
     # -- generic placement -------------------------------------------------
     def p(self, name, size, pos, color, material="SmoothPlastic", rot=None, parent=None, frame=None, **kw) -> Inst:
@@ -475,6 +487,94 @@ class HouseBuilder:
             part(fur, "ScratchBase", (1.6, 0.2, 1.6), post * CF(0, 0.1, 0), cushion, "Fabric", collide=False)
             part(fur, "ScratchTop", (1.3, 0.2, 1.3), post * CF(0, 2.8, 0), cushion, "Fabric", collide=False)
         return d
+
+    def chair_post(self, f: CF, wizard: bool):
+        """A reading chair for the people; the wizard gets a cauldron and a shelf of books."""
+        self.chair_at(f, (92, 64, 46) if wizard else WOOD_DARK)
+        fur = self.furniture
+        if wizard:
+            part(fur, "Cauldron", (2.1, 1.8, 1.8), f * CF(3.4, 0.9, 0.4) * CF.deg(0, 0, 90), (48, 50, 58), "Metal",
+                 shape="Cylinder")
+            part(fur, "CauldronBrew", (0.3, 1.7, 1.7), f * CF(3.4, 1.55, 0.4) * CF.deg(0, 0, 90), (110, 240, 120),
+                 "Neon", shape="Cylinder", collide=False)
+            part(fur, "BrewLight", (0.4, 0.4, 0.4), f * CF(3.4, 2.4, 0.4), (150, 255, 170), "Neon", shape="Ball",
+                 collide=False)
+            for i in range(3):
+                part(fur, "SpellBook", (0.5, 1.5, 1.9),
+                     f * CF(-2.6, 0.3 + i * 0.32, 0.6) * CF.deg(0, 8 * i, 0),
+                     (150, 60, 60) if i % 2 else (60, 90, 150), "SmoothPlastic")
+        else:
+            part(fur, "SideTable", (1.8, 2.0, 1.8), f * CF(2.6, 1.0, 0.4), WOOD, "Wood")
+            part(fur, "SideLamp", (0.9, 0.9, 0.9), f * CF(2.6, 2.5, 0.4), (255, 226, 160), "Neon", shape="Ball")
+            part(fur, "Fireplace", (4.4, 7.0, 1.6), f * CF(-4.2, 3.5, 1.2), (150, 82, 62), "Brick")
+            part(fur, "FireGlow", (3.0, 2.6, 0.4), f * CF(-4.2, 1.9, 0.35), (255, 140, 60), "Neon", collide=False)
+
+    def nest_post(self, f: CF):
+        """A nest of rocks and bones for the T-Rex."""
+        fur = self.furniture
+        rng = random.Random(4242)
+        for i in range(8):
+            angle = i * 45.0
+            size = rng.uniform(2.2, 3.6)
+            part(fur, "NestRock", (size, size, size),
+                 f * CF(math.cos(math.radians(angle)) * 6.0, size * 0.38, math.sin(math.radians(angle)) * 6.0) * CF.deg(0, angle, 0),
+                 ROCK_COLORS[i % len(ROCK_COLORS)], "Rock")
+        part(fur, "NestFloor", (0.5, 8.6, 8.6), f * CF(0, 0.25, 0) * CF.deg(0, 0, 90), (122, 104, 78), "Fabric",
+             shape="Cylinder", collide=False)
+        for x, z, yaw in ((-3.0, 2.4, 20), (3.6, -1.8, -35)):
+            bone = f * CF(x, 0.3, z) * CF.deg(0, yaw, 0)
+            part(fur, "Bone", (3.4, 0.42, 0.42), bone, (236, 232, 216), "SmoothPlastic", collide=False)
+            for sx in (-1.6, 1.6):
+                for sz in (-0.22, 0.22):
+                    part(fur, "BoneKnob", (0.6, 0.6, 0.6), bone * CF(sx, 0, sz), (236, 232, 216), shape="Ball",
+                         collide=False)
+
+    def charger_post(self, f: CF):
+        """A charging pad for a security bot."""
+        fur = self.furniture
+        part(fur, "ChargePad", (3.8, 0.3, 3.8), f * CF(0, 0.15, 0), DARK, "Metal", collide=False)
+        part(fur, "ChargeRing", (0.14, 3.3, 3.3), f * CF(0, 0.36, 0) * CF.deg(0, 0, 90), (90, 220, 255), "Neon",
+             shape="Cylinder", collide=False, query=False)
+        for sx in (-1, 1):
+            part(fur, "ChargePylon", (0.5, 2.6, 0.5), f * CF(sx * 2.2, 1.3, 1.9), DARK, "Metal")
+            part(fur, "ChargeTip", (0.42, 0.42, 0.42), f * CF(sx * 2.2, 2.8, 1.9), (90, 220, 255), "Neon",
+                 shape="Ball", collide=False)
+        return part(self.docks, "Dock", (2.8, 0.2, 2.8), f * CF(0, 0.36, 0), DARK, transparency=1, collide=False,
+                    query=False, touch=False, shadow=False)
+
+    def bay_post(self, f: CF):
+        """A marked parking bay for a security car."""
+        fur = self.furniture
+        part(fur, "BayPad", (7.0, 0.24, 12.0), f * CF(0, 0.12, 0), (152, 152, 148), "Concrete")
+        for sx in (-1, 1):
+            part(fur, "BayLine", (0.44, 0.3, 11.6), f * CF(sx * 3.2, 0.15, 0), WHITE, "SmoothPlastic",
+                 collide=False, query=False)
+        post = f * CF(-4.2, 0, 5.2)
+        part(fur, "BayPost", (0.5, 7.0, 0.5), post * CF(0, 3.5, 0), DARK, "Metal")
+        board = part(fur, "BaySign", (4.8, 2.0, 0.24), post * CF(0, 7.6, 0), (244, 244, 240), "SmoothPlastic")
+        surface_text(board, "Front", "SECURITY", color=(200, 40, 40), pixels_per_stud=56)
+        surface_text(board, "Back", "SECURITY", color=(200, 40, 40), pixels_per_stud=56)
+        return part(self.docks, "Dock", (5.6, 0.2, 5.6), f * CF(0, 0.26, 0), (152, 152, 148), transparency=1,
+                    collide=False, query=False, touch=False, shadow=False)
+
+    def guard_post(self, x, z, facing, guard, tier, color):
+        """Where one defender waits. Returns the invisible Dock part the server uses as its home."""
+        kind = guard["kind"]
+        f = self.frame(x, z, facing)
+        if kind == "Cat":
+            return self.pet_bed(x, z, facing, "Cat", PET_BED_SIZES.get(guard["id"], PET_BEDS["Cat"]), color)
+        if kind == "Dog":
+            return self.pet_bed(x, z, facing, "Dog", PET_BED_SIZES.get(guard["id"], PET_BEDS[tier]), color)
+        if kind in ("Human", "Wizard"):
+            self.chair_post(f, kind == "Wizard")
+        elif kind == "Beast":
+            self.nest_post(f)
+        elif kind == "Robot":
+            return self.charger_post(f)
+        elif kind == "Vehicle":
+            return self.bay_post(f)
+        return part(self.docks, "Dock", (2.8, 0.2, 2.8), f * CF(0, 0.3, -2.6), color, transparency=1,
+                    collide=False, query=False, touch=False, shadow=False)
 
     def lamp(self, x, z, light_range=22, brightness=0.9):
         f = self.cf * CF(x, self.H - 0.45, z)
@@ -705,7 +805,7 @@ class HouseBuilder:
         who = guard["name"] if guard_count == 1 else f'{guard_count} {guard["name"]}s'
         text = (f'<font color="#{_hex(TIER_COLORS[tier])}">{display.upper()}</font>\n'
                 f'<font color="#E8B000">{stars}</font>  {tier_info["name"]}\n'
-                f'{guard["icon"]} {who} · speed {tier_info["speed"]}')
+                f'{guard["icon"]} {who} · speed {speed_text(guard["speed"])}')
         surface_text(board, "Back", text, color=(40, 40, 46), rich=True, stroke=None, pixels_per_stud=50)
         surface_text(board, "Front", text, color=(40, 40, 46), rich=True, stroke=None, pixels_per_stud=50)
 
@@ -731,6 +831,26 @@ HOUSE_FRONT_Z = SIDEWALK_EDGE + FRONT_YARD
 CLIFF_FACE_Z = HOUSE_FRONT_Z + CLIFF_SETBACK
 FENCE_STYLES = {1: "picket", 2: "hedge", 3: "modern"}
 PET_BEDS = {"Cat": 2.8, 1: 2.8, 2: 3.4, 3: 4.2}
+# Beds sized to the animal that sleeps in them (guard id -> bed size).
+PET_BED_SIZES = {"TuxedoCat": 2.8, "Puppy": 2.6, "Labrador": 3.6, "GuardDog": 4.2}
+# Where each kind of defender waits, in house coordinates (x, z, facing). The first post is the
+# one a house with a single defender uses; a car defender parks on the drive instead.
+GUARD_POSTS = {
+    "Cat": ((-8.4, 16.4, "e"), (-22.5, 16.5, "e"), (-7.5, 5.0, "e")),
+    "Dog": ((-8.4, 16.4, "e"), (9.2, -5.4, "w"), (-22.5, 16.5, "e")),
+    "Human": ((-8.4, 16.4, "e"), (-22.5, 16.5, "e"), (-7.5, 5.0, "e")),
+    "Wizard": ((-8.4, 16.4, "e"),),
+    "Beast": ((-15.0, 11.0, "e"),),
+    "Robot": ((-7.5, 5.0, "e"), (-7.5, 15.5, "e"), (-22.5, 16.5, "e")),
+    "Vehicle": ((12.0, 29.0, "s"),),
+}
+
+
+def guard_posts(guard, count, tier) -> list[tuple[float, float, str]]:
+    posts = list(GUARD_POSTS.get(guard["kind"], GUARD_POSTS["Dog"]))
+    while len(posts) < count:
+        posts.append(posts[-1])
+    return posts[:count]
 
 
 def build_house(folder, info, tier_info, lot_cf, palette):
@@ -810,12 +930,10 @@ def build_house(folder, info, tier_info, lot_cf, palette):
     for x, z in ((-16, 10), (-15, -9), (0, 14), (0, -6), (16, -9), (16, 11)):
         hb.lamp(x, z)
 
-    # Guards sleep on pet beds (the cat in the living room; dogs in the living room and the bedroom).
-    bed = PET_BEDS["Cat"] if guard["kind"] == "Cat" else PET_BEDS[tier]
-    hb.pet_bed(-8.4, 16.4, "e", guard["kind"], bed, palette["pet"])
-    guard_count = 1 if tier == 1 else 2
-    if guard_count > 1:
-        hb.pet_bed(9.2, -5.4, "w", guard["kind"], bed, palette["pet"])
+    # The defenders wait at their own posts (pet beds, chairs, a nest, charging pads, a parking bay).
+    guard_count = info.get("count", 1)
+    for post_x, post_z, post_facing in guard_posts(guard, guard_count, tier):
+        hb.guard_post(post_x, post_z, post_facing, guard, tier, palette["pet"])
     if tier >= 3:
         hb.laser((-3.6, 2.4, 0), (3.6, 2.4, 0), 0.0)  # across the hallway
         hb.laser((4, 3.4, -11.3), (4, 3.4, -6.7), 1.8)  # across the bedroom door
@@ -825,7 +943,10 @@ def build_house(folder, info, tier_info, lot_cf, palette):
     # Front yard (lot coordinates)
     front = LOT_D / 2 - FRONT_YARD  # lot z of the house's front wall
     hb.path(0, front + 4.6, LOT_D / 2 - 0.6, 4)
-    hb.fence(FENCE_STYLES.get(tier, "picket"), [(0, 6)], back_z=front - CLIFF_SETBACK)
+    fence_gaps = [(0, 6)]  # the garden gate
+    if guard["kind"] == "Vehicle":
+        fence_gaps.append((12, 13))  # the driveway the security car pulls out of
+    hb.fence(FENCE_STYLES.get(tier, "picket"), fence_gaps, back_z=front - CLIFF_SETBACK)
     hb.sign(-8.5, LOT_D / 2 - 3.2, info["display"], tier_info, tier, guard, guard_count)
     for x in (-24, -16, 16, 24):
         bush(hb.yard, lot_cf * CF(x, 0, front + 1.6), 2.6, palette["bush"])
@@ -1151,17 +1272,17 @@ def build_mansion(folder, info, tier_info, lot_cf):
     hb.laser((-13, 3.4, -16.2), (13, 3.4, -16.2), 2.4)
     for x, z in ((-27, 12), (-27, -12), (28, 12), (28, -12), (0, -15)):
         hb.lamp(x, z, 26, 1.0)
-    hb.dock(-10, 22)
-    hb.dock(0, -23)
-    hb.dock(38.5, -22.5)
-    hb.dock(-38.5, -22.5)
+    # The museum's fleet of security cars, parked on the drive (see Config.Houses: GuardCount).
+    for fleet_x in (-3.6, 3.6):
+        for fleet_z in (42.0, 54.0):
+            hb.guard_post(fleet_x, fleet_z, "s", info["guard"], 4, (30, 34, 46))
     hb.siren((0, 12.4, 26.6))
     hb.siren((0, H - 0.6, 18))
     hb.siren((0, H - 0.6, -12))
     # Grounds (house front wall at lot z = 25)
     hb.y("Driveway", (14, 0.14, 40.6), (0, 0.07, 54.7), (160, 150, 140), "Cobblestone")
     hb.fence("estate", [(0, 16)], back_z=25 - CLIFF_SETBACK)
-    hb.sign(-15, 71, info["display"], tier_info, 4, info["guard"], 4)
+    hb.sign(-15, 71, info["display"], tier_info, 4, info["guard"], info.get("count", 1))
     for sx in (-1, 1):
         hb.y("GatePillar", (3.6, 12, 3.6), (sx * 9.6, 6, 74.4), (190, 176, 150), "Limestone")
         lamp_part = hb.y("GateLamp", (1.6, 1.6, 1.6), (sx * 9.6, 12.8, 74.4), (255, 230, 170), "Neon", shape="Ball")
@@ -1278,21 +1399,16 @@ def build_warehouse(folder: Inst, ground: Inst, index: int, cf: CF) -> Inst:
     for i, (x, z) in enumerate(((-28, 20), (-28, 16.5), (28, 20), (28, 16.4), (27.8, 12.8))):
         p("Crate", (3.2, 3.2, 3.2), (x, 2.0, z), (170, 130, 80), "WoodPlanks", rot=(0, (i * 17) % 30, 0))
 
-    # Outside: apron, loading dock, car spot
+    # Outside: apron and loading dock
     part(ground, "Apron", (80, 0.2, 40), cf * CF(0, 0.1, 44), (150, 150, 148), "Concrete")
     dock = p("Dock", (22, 2, 18), (0, 1, 35), (255, 220, 0), parent=plot, transparency=1, collide=False, query=False,
              touch=False, shadow=False)
-    dock.attr(Purpose="Park your car here to unload the trunk")
+    dock.attr(Purpose="Loading bay")
     for x, z, w, d in ((0, 26.4, 22.8, 0.8), (0, 43.6, 22.8, 0.8), (11, 35, 0.8, 18), (-11, 35, 0.8, 18)):
         p("DockStripe", (w, 0.06, d), (x, 0.23, z), YELLOW, "SmoothPlastic", parent=shell, collide=False, query=False)
     dock_label = p("DockLabel", (16, 0.05, 5), (0, 0.23, 35), (40, 40, 40), "SmoothPlastic", parent=shell,
                    collide=False, query=False, transparency=1)
-    surface_text(dock_label, "Top", "LOADING DOCK\nPark here to unload", color=YELLOW, stroke=0.3,
-                 pixels_per_stud=18)
-    marker(plot, "CarSpawn", cf * CF(25, 0.2, 46) * CF.deg(0, 180, 0), (6, 0.2, 11))
-    for x in (20.6, 29.4):
-        p("ParkingLine", (0.5, 0.06, 13), (x, 0.23, 46), WHITE, "SmoothPlastic", parent=shell, collide=False,
-          query=False)
+    surface_text(dock_label, "Top", "LOADING BAY", color=YELLOW, stroke=0.3, pixels_per_stud=18)
     marker(plot, "Marker", cf * CF(0, 28, 0), (1, 1, 1))
 
     # The owner's personal treadmill, out front on the left. The runner faces the street.
@@ -1469,7 +1585,7 @@ def build_yard(map_folder: Inst, ground: Inst, decor: Inst):
     # trader's sell point faces back towards the garages. They share the wall down the middle.
     market_stall(map_folder, "Shop", CF(YARD_CX + STALL_D / 2, 0, 0) * CF.deg(0, 90, 0), variant="shop",
                  counter_name="ShopCounter", sign="🛒 UPGRADE SHOP", sign_color=(255, 196, 54),
-                 blurb="Bag, car, trunk, storage, treadmill")
+                 blurb="Bag, storage, treadmill")
     market_stall(map_folder, "SellPoint", CF(YARD_CX - STALL_D / 2, 0, 0) * CF.deg(0, -90, 0), variant="sell",
                  counter_name="SellCounter", sign="💰 SELL POINT", sign_color=(120, 235, 150),
                  blurb="Bag it, bring it, cash it in")
@@ -1488,10 +1604,10 @@ def build_yard(map_folder: Inst, ground: Inst, decor: Inst):
     for z in (-61, -43):
         part(yard, "BoardPost", (0.8, 3.4, 0.8), CF(YARD_MOUTH_X - 3, 1.7, z), DARK, "Metal")
     howto = ('<font color="#FFC83C">HOW TO PLAY</font>\n'
-             '1. Spawn your 🚗 car and drive to a house\n'
+             '1. Run down the street to a house\n'
              '2. Hold E to pick the lock, then steal loot\n'
-             '3. Stealing trips the alarm! Escape the yard before a drone catches you\n'
-             '4. Load your trunk [F] or carry loot home\n'
+             '3. Stealing trips the alarm! They chase you back to the yard\n'
+             '4. Sprint home with the loot — inside a house everyone moves at the same speed\n'
              '5. Drop it on your warehouse\'s green DEPOSIT pad\n'
              '6. Stored loot earns 💰 every second!\n'
              '7. Buy upgrades at the market stall, and run on the treadmill outside your warehouse')
@@ -1639,6 +1755,8 @@ def build_map(workspace: Inst) -> Inst:
     street = read_houses()
     mansion = street.pop()
     map_folder = Inst("Folder", "Map", workspace)
+    # West of the canyon mouth is the yard, where a chase is over (the server reads this).
+    map_folder.attr(SafeX=YARD_MOUTH_X)
     ground = Inst("Folder", "Ground", map_folder)
     decor = Inst("Folder", "Decor", map_folder)
     houses = Inst("Folder", "Houses", map_folder)

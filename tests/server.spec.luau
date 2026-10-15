@@ -6,7 +6,7 @@
 	  join -> spawn at your warehouse -> pick a lock -> steal (and discover) ->
 	  alarm -> get busted by the house cat -> steal again and escape -> deposit ->
 	  earn income -> buy upgrades -> AFK-train on your own treadmill -> spawn the
-	  car -> load the trunk -> unload at the dock -> manage storage (take / sell) ->
+	  manage storage (take / sell) -> sell at the stall -> save/reload ->
 	  sell loot at the market stall -> daytime (houses lock, everyone is shown out,
 	  loot restocks) -> night -> leave (save) -> rejoin (load)
 
@@ -123,28 +123,38 @@ step("server boots without errors or warnings", function()
 		items += #loot:GetChildren()
 	end
 	eq(items, 103, "loot spawned in houses")
-	local kinds = { Cat = 0, Dog = 0, Drone = 0 }
+	local kinds = {}
+	local total = 0
 	for _, house in Map.Houses:GetChildren() do
 		local info = Config.getHouse(house.Name)
 		check(info, house.Name .. " isn't in Config.Houses")
 		local guardInfo = Config.Guards[info.Guard]
+		local found = 0
 		for _, child in house:GetChildren() do
 			if child.Name == "Guard" then
+				found += 1
+				total += 1
 				local kind = child:GetAttribute("Kind")
 				eq(kind, guardInfo.Kind, house.Name .. " guard kind")
 				eq(child:GetAttribute("Breed"), guardInfo.DisplayName, house.Name .. " guard breed")
-				kinds[kind] += 1
+				kinds[kind] = (kinds[kind] or 0) + 1
 			end
 		end
+		eq(found, info.GuardCount or 1, house.Name .. " defender count")
 		-- Every house only ever spawns its own loot.
 		for _, item in house.Loot:GetChildren() do
 			local def = Items.get(item:GetAttribute("ItemId"))
 			check(def and def.House == house.Name, tostring(item.Name) .. " spawned in the wrong house: " .. house.Name)
 		end
 	end
-	eq(kinds.Cat, 4, "one cat in each of the 4 cottages")
-	eq(kinds.Dog, 6 * 2, "two dogs in each of the 6 dog houses")
-	eq(kinds.Drone, 4, "the Mansion keeps its 4 drones")
+	eq(total, 16, "one defender for eight houses, three bots in house 9, one car in house 10, a fleet of four at the Mansion")
+	eq(kinds.Cat, 1, "the tuxedo cat guards Maple Cottage")
+	eq(kinds.Dog, 3, "a puppy, a labrador and a guard dog")
+	eq(kinds.Human, 2, "the home owner and the off-duty officer")
+	eq(kinds.Wizard, 1, "a wizard on Elm Street")
+	eq(kinds.Beast, 1, "a T-Rex in Birch House")
+	eq(kinds.Robot, 3, "three security bots in Pine Ridge House")
+	eq(kinds.Vehicle, 5, "a security car in Aspen House and four parked outside the museum")
 	eq(workspace:GetAttribute("Daytime"), false, "the game starts at night")
 	local left = workspace:GetAttribute("PhaseEndsAt") - workspace:GetServerTimeNow()
 	check(math.abs(left - Config.DayNight.NightLength) < 1, "night should last 3½ minutes, got " .. left)
@@ -203,10 +213,14 @@ step("steal an item and trip the alarm", function()
 	eq(item.Parent, nil, "stolen item removed")
 	eq(cottage:GetAttribute("AlarmActive"), true, "alarm")
 	eq(thief:GetAttribute("AlarmHouse"), "Maple Cottage", "AlarmHouse banner")
-	eq(thief:GetAttribute("AlarmGuard"), "the Ginger Cat", "the banner names the guard")
+	eq(thief:GetAttribute("AlarmGuard"), "the Tuxedo Cat", "the banner names the guard")
+	eq(thief:GetAttribute("AlarmSpeed"), Config.Guards.TuxedoCat.Speed, "the banner knows how fast it is")
+	eq(thief:GetAttribute("InHouse"), true, "the thief is inside a house")
+	eq(humanoid.WalkSpeed, Config.Alarm.InsideSpeed, "where everyone moves at the standard Roblox speed")
 	check(character:FindFirstChild("LootSack"), "loot sack not shown")
 	check(sawMessage(thief, mark, "Stole"), "no steal message")
-	check(sawMessage(thief, mark, "Ginger Cat woke up"), "the alarm message should name the cat")
+	check(sawMessage(thief, mark, "Tuxedo Cat woke up"), "the alarm message should name the cat")
+	check(sawMessage(thief, mark, "through the gate it runs at 10 studs/s"), "the alarm warns about the gate")
 	eq(#cottage.Loot:GetChildren(), 5, "loot left")
 	-- First time stealing this item: it's unlocked in the Loot Index
 	local itemId = item:GetAttribute("ItemId")
@@ -236,7 +250,7 @@ step("standing still gets you busted by the cat", function()
 	end
 	check(busted, "the cat never caught the thief")
 	eq(busted.args[3], "Maple Cottage", "busted at")
-	eq(busted.args[4], "The Ginger Cat", "busted by")
+	eq(busted.args[4], "The Tuxedo Cat", "busted by")
 	eq(thief:GetAttribute("Carried"), 0, "carried loot lost")
 	eq(character:FindFirstChild("LootSack"), nil, "sack removed")
 	Mock.advance(0.5)
@@ -249,18 +263,68 @@ step("alarm calms down once the property is empty", function()
 	eq(cottage:GetAttribute("AlarmActive"), false, "alarm should reset")
 end)
 
-step("steal again and escape before the drone arrives", function()
+step("they chase you out of the house and all the way back down the street", function()
 	local mark = #Mock.remoteLog
+	local PlayerData = moduleOf("PlayerData")
+	-- Train a pile of speed first: inside a house it must not matter one bit.
+	PlayerData.addSpeed(thief, 400)
+	Mock.advance(0.2)
+	local realSpeed = thief:GetAttribute("WalkSpeed")
+	check(realSpeed > 1000, "training should have made you quick, got " .. tostring(realSpeed))
+
+	local cat = cottage:FindFirstChild("Guard")
+	local post = cat.Root.AlignPosition.Position
 	stealFrom(cottage, thief, root)
 	Mock.advance(0.2)
-	-- Run to the sidewalk (outside the lot) before the drone winds up
-	root.CFrame = CFrame.new(cottage.Zone.Position.X, 3, -20)
-	Mock.advance(1)
-	eq(thief:GetAttribute("Carried"), 1, "still carrying the loot")
-	eq(thief:GetAttribute("AlarmHouse"), "", "banner cleared after escaping")
+	eq(thief:GetAttribute("InHouse"), true, "the thief is in the house")
+	eq(humanoid.WalkSpeed, Config.Alarm.InsideSpeed, "inside everyone moves at the standard Roblox speed")
+	eq(thief:GetAttribute("AlarmGuard"), "the Tuxedo Cat", "the cat is awake")
+
+	-- Step outside to the street: the chase follows you, and outside the real speeds apply.
+	root.CFrame = CFrame.new(cottage.Zone.Position.X, 3, -12)
+	Mock.advance(Config.HouseTiers[1].AlarmWindup + 0.3)
+	eq(humanoid.WalkSpeed, realSpeed, "your real speed applies again outside")
+	eq(thief:GetAttribute("InHouse"), false, "off the property")
+	eq(thief:GetAttribute("AlarmHouse"), "Maple Cottage", "they do NOT give up at the property line")
+	-- It is out in the yard by now, but still on the property, so still at the standard speed.
+	eq(cat.Root.AlignPosition.MaxVelocity, Config.Alarm.InsideSpeed, "on the property it still moves at the standard speed")
+
+	-- The gate is where the property ends: the street is not "on property" any more, and that
+	-- is what hands the defender its real speed back (a guard post is still on the property).
+	local Houses = moduleOf("Houses")
+	check(not Houses.isOnProperty(Vector3.new(0, 3, -12)), "the street is outside the properties")
+	check(Houses.isOnProperty(post), "a defender's post is on the property")
+
+	-- Run west at your real speed: the cat comes after you the whole way down the street.
+	local tracked = true
+	for _, x in { 10, -50, -110, -170 } do
+		root.CFrame = CFrame.new(x, 3, -12)
+		Mock.advance(0.6)
+		if math.abs(cat.Root.AlignPosition.Position.X - x) > 24 then
+			tracked = false
+		end
+	end
+
+	-- Through the canyon mouth and into the yard: the chase is over.
+	root.CFrame = CFrame.new(-230, 3, -12)
+	Mock.advance(0.6)
+
+	-- Back to an untrained thief for the rest of the spec (before the asserts below, so a
+	-- failure there can never leak a trained thief into the treadmill step).
+	PlayerData.get(thief).Profile.SpeedPoints = 0
+	PlayerData.replicate(thief)
+	PlayerData.applyWalkSpeed(thief)
+	Mock.advance(0.2)
+	eq(thief:GetAttribute("SpeedPoints"), 0, "and no trained speed on the books")
+	eq(humanoid.WalkSpeed, 16, "back to the standard walking speed")
+	check(tracked, "the cat should have kept coming for you: " .. tostring(cat.Root.AlignPosition.Position))
+	eq(thief:GetAttribute("Carried"), 1, "you keep the loot once you are back in the yard")
+	eq(thief:GetAttribute("AlarmHouse"), "", "banner cleared in the yard")
 	check(sawMessage(thief, mark, "escaped"), "no escape message")
+	check(cat.Root.AlignPosition.Position.X > Config.Alarm.SafeX - 2, "the chase stops at the mouth")
 	Mock.advance(6)
-	eq(cottage:GetAttribute("AlarmActive"), false, "alarm resets after escape")
+	eq(cottage:GetAttribute("AlarmActive"), false, "the alarm resets once you are safe")
+	check((cat.Root.AlignPosition.Position - post).Magnitude < 10, "the cat should be back at its post, at " .. tostring(cat.Root.AlignPosition.Position))
 end)
 
 step("deposit loot on the warehouse pad for passive income", function()
@@ -277,6 +341,15 @@ step("deposit loot on the warehouse pad for passive income", function()
 	local cashBefore = thief:GetAttribute("Cash")
 	Mock.advance(3.05)
 	check(thief:GetAttribute("Cash") >= cashBefore + 3 * thief:GetAttribute("Income"), "income not paid")
+
+	-- A second shelf item, so the storage steps below have something to take and sell.
+	stealFrom(cottage, thief, root)
+	Mock.advance(0.2)
+	root.CFrame = plot.DepositPad.CFrame + Vector3.new(0, 2, 0)
+	plot.DepositPad.Touched:Fire(root)
+	Mock.advance(0.2)
+	eq(thief:GetAttribute("StoredCount"), 2, "two items on the shelves")
+	eq(#plot.Display:GetChildren(), 2, "both are shown on the shelf")
 end)
 
 step("buy upgrades in the shop", function()
@@ -421,57 +494,6 @@ step("AFK training on your own treadmill", function()
 	check(string.find(console.Text, "+4 speed / 1s", 1, true), "console rate for level 3: " .. console.Text)
 end)
 
-local car
-step("spawn the getaway car, load the trunk and unload at the dock", function()
-	root.CFrame = CFrame.new(-140, 3, -40) -- hub plaza
-	Mock.advance(0.2)
-	local result = Remotes.SpawnCar.OnServerInvoke(thief)
-	eq(result.Ok, true, "spawn car: " .. tostring(result.Message))
-	car = workspace.Cars:GetChildren()[1]
-	check(car, "no car in Workspace.Cars")
-	eq(car:GetAttribute("MaxSpeed"), 45, "engine speed")
-	eq(Remotes.SpawnCar.OnServerInvoke(thief).Ok, false, "spawn cooldown")
-	-- steal something from another cottage and load it into the trunk
-	stealFrom(Map.Houses.House2, thief, root)
-	Mock.advance(0.1)
-	root.CFrame = CFrame.new(-140, 3, -40)
-	Mock.advance(0.5)
-	local trunkPrompt = car.Chassis.TrunkAttachment.TrunkPrompt
-	eq(trunkPrompt:GetAttribute("OwnerUserId"), 101, "trunk prompt owner")
-	trunkPrompt.Triggered:Fire(thief)
-	eq(thief:GetAttribute("TrunkCount"), 1, "trunk count")
-	eq(thief:GetAttribute("Carried"), 0, "carried after loading")
-	-- drive into the loading dock
-	local stored = thief:GetAttribute("StoredCount")
-	car:PivotTo(plot.Dock.CFrame + Vector3.new(0, 1.2, 0))
-	Mock.advance(1)
-	eq(thief:GetAttribute("TrunkCount"), 0, "trunk unloaded at the dock")
-	eq(thief:GetAttribute("StoredCount"), stored + 1, "unloaded loot stored")
-end)
-
-step("drive the car and upgrade the engine", function()
-	local seat = car.DriverSeat
-	seat.DrivePrompt.Triggered:Fire(thief)
-	Mock.advance(0.1)
-	eq(seat.Occupant, humanoid, "driver seated")
-	eq(rawget(car.Chassis, "_networkOwner"), thief, "driver owns the car physics")
-	moduleOf("PlayerData").addCash(thief, 2000)
-	eq(Remotes.Purchase.OnServerInvoke(thief, "Engine").Ok, true, "engine purchase")
-	eq(car:GetAttribute("MaxSpeed"), 55, "max speed updated while driving")
-	humanoid.Sit = false
-	Mock.advance(0.1)
-	eq(seat.Occupant, nil, "driver left")
-	eq(rawget(car.Chassis, "_networkOwner"), nil, "server owns the parked car")
-	moduleOf("PlayerData").addCash(thief, 2000)
-	Mock.advance(0.3)
-	eq(Remotes.Purchase.OnServerInvoke(thief, "Engine").Ok, true, "second engine purchase")
-	local rebuilt = workspace.Cars:GetChildren()[1]
-	check(rebuilt ~= car, "car should be rebuilt with the new look")
-	eq(rebuilt:GetAttribute("MaxSpeed"), 66, "rebuilt car speed")
-	check(rebuilt:FindFirstChild("Spoiler"), "level 3 engine adds a spoiler")
-	car = rebuilt
-end)
-
 local rival
 step("a second player gets their own warehouse and can't touch yours", function()
 	rival = newPlayer(202, "Rival")
@@ -490,8 +512,6 @@ step("a second player gets their own warehouse and can't touch yours", function(
 	eq(Remotes.Storage.OnServerInvoke(rival, "Sell", shelfId).Ok, false, "rival can't sell your items")
 	eq(thief:GetAttribute("StoredCount"), 2, "rival can't sell your items")
 	eq(thief:GetAttribute("Cash"), cash, "no cash change")
-	car.Chassis.TrunkAttachment.TrunkPrompt.Triggered:Fire(rival)
-	check(sawMessage(rival, mark, "Only Thief"), "rival used your trunk")
 	stealFrom(Map.Houses.House3, rival, rivalRoot)
 	Mock.advance(0.1)
 	rivalRoot.CFrame = plot.DepositPad.CFrame + Vector3.new(0, 2, 0)
@@ -580,11 +600,10 @@ step("the sell point buys carried loot and frees the bag", function()
 	eq(listing.Ok, true, "listing worked")
 	eq(#listing.Sales, 2, "both carried items are for sale")
 	eq(listing.Sales[1].Source, "Bag", "carried loot comes from the bag")
-	eq(listing.TrunkReady, false, "the car isn't at the stall yet")
 
 	local cash = thief:GetAttribute("Cash")
 	local expected = Items.getSellValue("Toaster") + Items.getSellValue("DiamondNecklace")
-	local sale = Remotes.Sell.OnServerInvoke(thief, "Sell", "DiamondNecklace", "Bag")
+	local sale = Remotes.Sell.OnServerInvoke(thief, "Sell", "DiamondNecklace")
 	eq(sale.Ok, true, "selling one item worked: " .. tostring(sale.Message))
 	eq(thief:GetAttribute("Cash"), cash + Items.getSellValue("DiamondNecklace"), "paid the item's value")
 	eq(thief:GetAttribute("Carried"), 1, "the item left the bag")
@@ -595,30 +614,6 @@ step("the sell point buys carried loot and frees the bag", function()
 	eq(thief:GetAttribute("Cash"), cash + expected, "the lot paid out")
 	eq(thief:GetAttribute("Carried"), 0, "the bag is empty")
 	eq(Remotes.Sell.OnServerInvoke(thief, "All").Ok, false, "nothing left to sell")
-end)
-
-step("the stall buys the trunk too, once the car is parked there", function()
-	local session = moduleOf("PlayerData").get(thief)
-	table.insert(session.Profile.Trunk, "RubyRing")
-	moduleOf("Inventory").refresh(thief)
-
-	-- The car is at the warehouse, far from the stall: the trunk isn't for sale yet.
-	local away = Remotes.Sell.OnServerInvoke(thief, "List")
-	eq(away.TrunkReady, false, "the trunk is out of reach")
-	eq(#away.Sales, 0, "no trunk items while parked away")
-	eq(Remotes.Sell.OnServerInvoke(thief, "Sell", "RubyRing", "Trunk").Ok, false, "can't sell a distant trunk")
-
-	-- Park the car at the stall and try again.
-	car.Chassis.CFrame = Map.SellPoint.SellCounter.CFrame * CFrame.new(0, 0, 16)
-	local nearby = Remotes.Sell.OnServerInvoke(thief, "List")
-	eq(nearby.TrunkReady, true, "the car is parked at the stall")
-	eq(#nearby.Sales, 1, "the trunk item is listed")
-	eq(nearby.Sales[1].Source, "Trunk", "it is listed as trunk loot")
-	local cash = thief:GetAttribute("Cash")
-	local sale = Remotes.Sell.OnServerInvoke(thief, "Sell", "RubyRing", "Trunk")
-	eq(sale.Ok, true, "sold from the trunk: " .. tostring(sale.Message))
-	eq(thief:GetAttribute("Cash"), cash + Items.getSellValue("RubyRing"), "trunk loot paid out")
-	eq(thief:GetAttribute("TrunkCount"), 0, "the trunk is empty")
 end)
 
 step("full warehouse keeps your best items", function()
@@ -728,13 +723,14 @@ step("progress saves on leave and loads on rejoin", function()
 	check(saved, "nothing saved")
 	eq(#saved.Stored, #stored, "saved stored items")
 	eq(saved.Levels.Bag, 2, "saved bag level")
-	eq(saved.Levels.Engine, 3, "saved engine level")
+	eq(saved.Levels.Engine, nil, "the getaway car's upgrades are gone from the save")
+	eq(saved.Trunk, nil, "and so is the trunk")
 	eq(saved.Levels.Treadmill, 3, "saved treadmill level")
 	check(type(saved.SpeedPoints) == "number" and saved.SpeedPoints > 0, "trained speed is saved")
 	check(type(saved.Discovered) == "table" and #saved.Discovered >= 2, "the Loot Index is saved")
 	eq(plot:FindFirstChild("OwnerText", true).Text, "EMPTY WAREHOUSE", "plot released")
 	eq(#plot.Display:GetChildren(), 0, "shelves cleared")
-	eq(#workspace.Cars:GetChildren(), 0, "car removed")
+	check(workspace:FindFirstChild("Cars") == nil, "there is no cars folder any more")
 	Mock.advance(0.3)
 	eq(plot.Treadmill:GetAttribute("OwnerUserId"), 0, "treadmill released")
 	eq(plot.Treadmill.Console:FindFirstChild("TreadmillText", true).Text, "EMPTY", "treadmill console reset")

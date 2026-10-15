@@ -6,11 +6,17 @@
 	  * Locked doors you open with a "Pick Lock" prompt (harder houses take longer).
 	  * Every house has its own set of loot (see Items) that spawns on furniture.
 	  * Stealing anything trips the alarm: after a short wind-up the house's
-	    guards chase the nearest thief on the property. A cat guards each
-	    cottage, a different dog breed guards every other house and the Grand
-	    Mansion has flying security drones. Get caught = BUSTED (you drop
-	    everything you're carrying and get sent back to your warehouse).
-	  * Leave the property (the lot) and the guards give up.
+	    defenders give chase. Who lives where is Config.Houses / Config.Guards:
+	    a tuxedo cat, then a puppy, a labrador, a guard dog, the home owner, an
+	    off-duty officer, a wizard, a T-Rex, security bots and finally the museum's
+	    fleet of security cars. Get caught = BUSTED (you drop everything you're
+	    carrying and get sent back to your warehouse).
+	  * They do NOT give up at the property line any more: they chase you all the
+	    way back down the street and turn around at the canyon mouth, so the yard
+	    is the only safe place. While anybody is on a property (you or them)
+	    everyone moves at the standard Roblox speed; the moment you are through
+	    the front gate the real speeds apply — yours from the treadmill, theirs
+	    from Config.Guards.Speed (and the late-game ones are very, very fast).
 	  * The hardest houses also have blinking laser tripwires.
 	  * DAYTIME (see DayNight): houses lock up, anyone inside is shown the door
 	    and every house restocks. That's the only time loot comes back.
@@ -59,6 +65,7 @@ type Guard = {
 	State: string, -- "Idle" | "Windup" | "Chase"
 	ActivateAt: number,
 	Bob: number, -- phase offset for the trotting bounce
+	Trot: number, -- how bouncy this kind of defender is (cars don't bounce)
 }
 
 type Door = {
@@ -81,6 +88,9 @@ type House = {
 	GuardInfo: Config.GuardInfo,
 	ZoneCFrame: CFrame,
 	ZoneHalfSize: Vector3,
+	FrontInset: number, -- how far the front wall sits inside the property
+	GuardSpeed: number, -- the defenders' speed once they are out on the street
+	ChaseMaxX: number, -- chases never go further east than this house's own property
 	Loot: Folder,
 	Spots: { Spot },
 	Guards: { Guard },
@@ -97,10 +107,14 @@ local FEET_BELOW_ROOT = 3 -- a standard character's HumanoidRootPart floats this
 local CATCH_HEIGHT = 7 -- guards can't reach thieves this far above/below them
 local SLEEPING = "💤"
 local ALERT = "❗"
+-- How much each kind of defender bounces while it runs (its size sets the catch radius).
+local TROT = { Cat = 0.4, Dog = 0.4, Beast = 0.55, Human = 0.12, Wizard = 0.12, Robot = 0, Vehicle = 0 }
 
 local Houses = {}
 
 local houses: { House } = {}
+-- Declared up here because the alarm opens the front door before the door code is defined.
+local setDoorOpen: (door: Door, open: boolean) -> ()
 local rng = Random.new()
 local bustedUntil: { [Player]: number } = {}
 local laserCooldown: { [Player]: number } = {}
@@ -119,15 +133,52 @@ local function isInZone(house: House, position: Vector3): boolean
 	return math.abs(relative.X) <= half.X and math.abs(relative.Y) <= half.Y and math.abs(relative.Z) <= half.Z
 end
 
-local function clampToZone(house: House, position: Vector3): Vector3
-	local relative = house.ZoneCFrame:PointToObjectSpace(position)
+-- A point on the ground, in the property's own coordinates: +Z points from the house out to the street.
+local function lotPoint(house: House, localX: number, localZ: number): Vector3
 	local half = house.ZoneHalfSize
-	local clamped = Vector3.new(
-		math.clamp(relative.X, -half.X, half.X),
-		math.clamp(relative.Y, -half.Y, half.Y),
-		math.clamp(relative.Z, -half.Z, half.Z)
+	return house.ZoneCFrame:PointToWorldSpace(Vector3.new(localX, -half.Y + FEET_BELOW_ROOT, localZ))
+end
+
+-- Is this position still inside the building (rather than out in the front yard)?
+local function insideHouse(house: House, position: Vector3): boolean
+	return house.ZoneCFrame:PointToObjectSpace(position).Z < house.ZoneHalfSize.Z - house.FrontInset
+end
+
+-- How far a chase can go: this house's own property, plus the street from the front door
+-- all the way back west to the canyon mouth. Inside the yard (past the mouth) it is over.
+local function inChaseArea(house: House, position: Vector3): boolean
+	if isInZone(house, position) then
+		return true
+	end
+	if position.X < Config.Alarm.SafeX or position.X > house.ChaseMaxX then
+		return false
+	end
+	return math.abs(position.Z) <= Config.Alarm.LaneHalfWidth
+end
+
+-- Keeps a chasing defender inside that area (but it is free to roam its own property).
+local function clampToChase(house: House, position: Vector3): Vector3
+	if isInZone(house, position) then
+		return position
+	end
+	return Vector3.new(
+		math.clamp(position.X, Config.Alarm.SafeX, house.ChaseMaxX),
+		position.Y,
+		math.clamp(position.Z, -Config.Alarm.LaneHalfWidth, Config.Alarm.LaneHalfWidth)
 	)
-	return house.ZoneCFrame:PointToWorldSpace(clamped)
+end
+
+-- Inside a property everybody moves at the standard Roblox speed: a defender only gets to use
+-- its listed speed once it is out on the street (and so does the thief, with whatever the
+-- treadmill has given them).
+local function chaseSpeed(house: House, position: Vector3): number
+	return if Houses.isOnProperty(position) then Config.Alarm.InsideSpeed else house.GuardSpeed
+end
+
+-- Big defenders (the T-Rex, the cars) catch you with their body, not their centre point.
+local function catchRadius(guard: Guard): number
+	local size = guard.Look.Size
+	return math.max(Config.Alarm.CatchRadius, math.max(size.X, size.Z) * 0.5)
 end
 
 local function isImmune(player: Player, now: number): boolean
@@ -169,17 +220,21 @@ local function triggerAlarm(house: House, culprit: Player?)
 		-- Drones rise up and animals jump out of bed during the wind-up, so players see them coming.
 		guard.AlignPosition.Position = guard.Home.Position + Vector3.new(0, if guard.Flying then 1.5 else 0.6, 0)
 	end
+	-- They come out after you, so the way out is open.
+	for _, door in house.Doors do
+		if not door.IsOpen then
+			setDoorOpen(door, true)
+		end
+	end
 	if culprit then
-		local single = #house.Guards == 1
 		local phrase = guardPhrase(house)
 		Notify.send(
 			culprit,
 			string.format(
-				"🚨 ALARM! %s%s woke up! Get off the property before %s catch%s you!",
+				"🚨 ALARM! %s%s woke up! It moves at your speed in here — through the gate it runs at %s studs/s!",
 				string.upper(string.sub(phrase, 1, 1)),
 				string.sub(phrase, 2),
-				if single then "it" else "they",
-				if single then "es" else ""
+				Format.commas(house.GuardSpeed)
 			),
 			"warning"
 		)
@@ -191,6 +246,7 @@ local function clearIntruder(player: Player, house: House)
 	if player.Parent and player:GetAttribute("AlarmHouse") == house.Name then
 		player:SetAttribute("AlarmHouse", "")
 		player:SetAttribute("AlarmGuard", "")
+		player:SetAttribute("AlarmSpeed", 0)
 	end
 end
 
@@ -245,22 +301,21 @@ local function bust(player: Player, house: House)
 	end
 end
 
--- Where a guard heads to catch this thief.
-local function aimAt(guard: Guard, thief: Thief, now: number): Vector3
-	local position = thief.Root.Position
+-- Where a guard heads to catch this position.
+local function aimAt(guard: Guard, position: Vector3, now: number): Vector3
 	if guard.Flying then
 		return position + Vector3.new(0, Config.Alarm.DroneAimHeight, 0)
 	end
-	-- Animals run along the floor the thief is standing on, with a little trotting bounce.
+	-- Animals run along the floor, with a little trotting bounce (cars and people keep their wheels on it).
 	local feet = position.Y - FEET_BELOW_ROOT
-	local bounce = math.abs(math.sin(now * 14 + guard.Bob)) * 0.35
+	local bounce = if guard.Trot > 0 then math.abs(math.sin(now * 14 + guard.Bob)) * guard.Trot else 0
 	return Vector3.new(position.X, feet + guard.Look.RootHeight + bounce, position.Z)
 end
 
 local function updateAlarm(house: House, thieves: { Thief }, now: number)
 	local intruders: { Thief } = {}
 	for _, thief in thieves do
-		if isInZone(house, thief.Root.Position) and not isImmune(thief.Player, now) then
+		if inChaseArea(house, thief.Root.Position) and not isImmune(thief.Player, now) then
 			table.insert(intruders, thief)
 		end
 	end
@@ -273,6 +328,7 @@ local function updateAlarm(house: House, thieves: { Thief }, now: number)
 			house.Intruders[thief.Player] = true
 			thief.Player:SetAttribute("AlarmGuard", guardPhrase(house))
 			thief.Player:SetAttribute("AlarmHouse", house.Name)
+			thief.Player:SetAttribute("AlarmSpeed", house.GuardSpeed)
 		end
 	end
 	for player in house.Intruders do
@@ -307,15 +363,23 @@ local function updateAlarm(house: House, thieves: { Thief }, now: number)
 				end
 			end
 			if target then
-				local aim = aimAt(guard, target, now)
-				guard.AlignPosition.Position = clampToZone(house, aim)
-				guard.AlignPosition.MaxVelocity = house.Settings.GuardSpeed
+				local aimed = target.Root.Position
+				-- A defender that is still indoors while the thief has made it outside heads for the
+				-- front door first, so it leaves the way you would expect it to.
+				if insideHouse(house, from) and not insideHouse(house, aimed) then
+					local porch = lotPoint(house, 0, house.ZoneHalfSize.Z - house.FrontInset + 3)
+					aimed = Vector3.new(porch.X, from.Y + guard.Look.RootHeight, porch.Z)
+				end
+				local aim = aimAt(guard, aimed, now)
+				guard.AlignPosition.Position = clampToChase(house, aim)
+				-- The standard speed in the house, its real (often terrifying) speed outside.
+				guard.AlignPosition.MaxVelocity = chaseSpeed(house, from)
 				local flat = Vector3.new(aim.X - from.X, 0, aim.Z - from.Z)
 				if flat.Magnitude > 0.1 then
 					guard.AlignOrientation.CFrame = CFrame.lookAt(Vector3.zero, flat.Unit)
 				end
-				local height = math.abs(target.Root.Position.Y - from.Y)
-				if bestDistance <= Config.Alarm.CatchRadius and height <= CATCH_HEIGHT then
+				local height = math.abs(aimed.Y - from.Y)
+				if bestDistance <= catchRadius(guard) and height <= CATCH_HEIGHT then
 					bust(target.Player, house)
 				end
 			end
@@ -340,11 +404,16 @@ end
 
 local function onHeartbeat()
 	local now = os.clock()
-	local thieves: { Thief }? = nil
+	local thieves = getThieves()
+
+	-- Inside a property everyone is held at the standard Roblox speed (see PlayerData).
+	for _, thief in thieves do
+		PlayerData.setInsideHouse(thief.Player, Houses.isOnProperty(thief.Root.Position))
+	end
+
 	for _, house in houses do
 		if house.AlarmActive then
-			thieves = thieves or getThieves()
-			updateAlarm(house, thieves :: { Thief }, now)
+			updateAlarm(house, thieves, now)
 		end
 	end
 end
@@ -537,13 +606,14 @@ local function buildGuard(house: House, dock: BasePart): Guard
 		State = "Idle",
 		ActivateAt = 0,
 		Bob = rng:NextNumber() * math.pi * 2,
+		Trot = TROT[house.GuardInfo.Kind] or 0.4,
 	}
 end
 
 --------------------------------------------------------------------------------
 -- Doors
 --------------------------------------------------------------------------------
-local function setDoorOpen(door: Door, open: boolean)
+setDoorOpen = function(door: Door, open: boolean)
 	door.IsOpen = open
 	if open then
 		door.Prompt.Enabled = false
@@ -768,7 +838,8 @@ local function setupHouse(model: Model)
 		#Config.HouseTiers
 	)
 	local displayName = model:GetAttribute("DisplayName")
-	local guardId = if info then info.Guard else "Drone"
+	local guardId = if info then info.Guard else "TuxedoCat"
+	local guardInfo = Config.Guards[guardId] or Config.Guards.TuxedoCat
 
 	-- Houses added by hand in Studio borrow the loot of a listed house of the same tier.
 	local lootHouse = model.Name
@@ -785,6 +856,17 @@ local function setupHouse(model: Model)
 	loot.Name = "Loot"
 	loot.Parent = model
 
+	-- The map marks where the front wall sits inside the property; fall back to the Config default.
+	local inset = zone:GetAttribute("FrontInset")
+	local half = zone.Size / 2
+	-- How far east a chase is allowed to go: the east edge of this house's own lot.
+	local maxX = -math.huge
+	for _, sx in { -1, 1 } do
+		for _, sz in { -1, 1 } do
+			maxX = math.max(maxX, zone.CFrame:PointToWorldSpace(Vector3.new(sx * half.X, 0, sz * half.Z)).X)
+		end
+	end
+
 	local house: House = {
 		Model = model,
 		Id = model.Name,
@@ -793,9 +875,12 @@ local function setupHouse(model: Model)
 		Tier = tier,
 		Settings = Config.HouseTiers[tier],
 		GuardId = guardId,
-		GuardInfo = Config.Guards[guardId],
+		GuardInfo = guardInfo,
 		ZoneCFrame = zone.CFrame,
-		ZoneHalfSize = zone.Size / 2,
+		ZoneHalfSize = half,
+		FrontInset = if type(inset) == "number" then inset else Config.Alarm.HouseFrontInset,
+		GuardSpeed = guardInfo.Speed,
+		ChaseMaxX = maxX + 4,
 		Loot = loot,
 		Spots = {},
 		Guards = {},

@@ -2,10 +2,10 @@
 --[[
 	Guards
 	------
-	3D models for every house guard, built from plain parts (no meshes):
-	  * a cat in each of the four cottages,
-	  * a different dog breed in every other house,
-	  * the Grand Mansion's flying security drones.
+	3D models for every house defender, built from plain parts (no meshes):
+	  * a tuxedo cat in Maple Cottage, then a puppy, a labrador and a guard dog,
+	  * the owners themselves: a home owner, an off-duty officer and a wizard,
+	  * a T-Rex, a squad of security bots and the museum's fleet of security cars.
 
 	Which guard lives where is set by Config.Houses / Config.Guards; this module
 	only knows what they look like. Model conventions (like Items):
@@ -41,6 +41,7 @@ export type GuardModel = {
 	Light: PointLight?, -- drones carry a red searchlight
 	Status: TextLabel, -- "💤" / "❗" bubble above the guard
 	RootHeight: number, -- how far the root's centre sits above the guard's origin
+	Size: Vector3, -- bounds of the visible parts (how big the guard is)
 	Kind: string,
 }
 
@@ -252,22 +253,279 @@ local function dog(o: DogOptions): Look
 end
 
 --------------------------------------------------------------------------------
+-- People: the home owner, the off-duty officer and the wizard
+--------------------------------------------------------------------------------
+type HumanOptions = {
+	Scale: number,
+	Skin: Color3,
+	Shirt: Color3,
+	Trousers: Color3,
+	Shoes: Color3,
+	Hair: Color3,
+	HairStyle: string, -- "Short" | "Bun" | "Bald" | "Cap" | "Pointed"
+	Hat: Color3?, -- cap / pointed hat colour
+	Beard: Color3?, -- wizard beard
+	Badge: Color3?, -- police badge on the chest
+	Prop: string?, -- "Pan" | "Torch" | "Wand"
+	Robe: boolean?, -- a long robe instead of a shirt and trousers
+	EyeColor: Color3,
+	GlowingEyes: boolean?,
+}
+
+local function human(o: HumanOptions): Look
+	local s = o.Scale
+	local parts: { PartSpec } = {}
+	local eyes: { Vector3 } = {}
+	local function add(spec: PartSpec)
+		table.insert(parts, spec)
+	end
+
+	local lower = if o.Robe then o.Shirt else o.Trousers
+	-- Legs, feet
+	for _, side in { -1, 1 } do
+		add(P(BLOCK, V(0.62 * s, 2.05 * s, 0.72 * s), V(side * 0.4 * s, 1.02 * s, 0), lower))
+		add(P(BLOCK, V(0.76 * s, 0.3 * s, 1.08 * s), V(side * 0.4 * s, 0.15 * s, -0.12 * s), o.Shoes))
+	end
+	-- Torso (a robe flares out into a wide skirt instead)
+	if o.Robe then
+		add(P(BLOCK, V(2.0 * s, 1.5 * s, 1.3 * s), V(0, 1.75 * s, 0), o.Shirt))
+		add(P(BLOCK, V(2.2 * s, 0.5 * s, 1.45 * s), V(0, 0.3 * s, 0), o.Shirt))
+		add(P(BLOCK, V(1.5 * s, 1.6 * s, 1.0 * s), V(0, 3.15 * s, 0), o.Shirt))
+	else
+		add(P(BLOCK, V(1.5 * s, 1.8 * s, 0.95 * s), V(0, 3.0 * s, 0), o.Shirt))
+		add(P(BLOCK, V(1.56 * s, 0.24 * s, 1.0 * s), V(0, 3.84 * s, 0), o.Trousers))
+	end
+	local badge = o.Badge
+	if badge then
+		add(P(BLOCK, V(0.34 * s, 0.34 * s, 0.1 * s), V(-0.36 * s, 3.4 * s, -0.5 * s), badge, M.Metal))
+		add(P(BLOCK, V(1.5 * s, 0.16 * s, 0.06 * s), V(0, 3.05 * s, -0.49 * s), C(30, 34, 44), nil, V(0, 0, 12)))
+	end
+	-- Arms, hands
+	for _, side in { -1, 1 } do
+		add(P(BLOCK, V(0.46 * s, 1.6 * s, 0.58 * s), V(side * 1.04 * s, 2.95 * s, 0), o.Shirt))
+		add(P(BALL, V(0.5 * s, 0.36 * s, 0.58 * s), V(side * 1.04 * s, 2.05 * s, 0), o.Skin))
+	end
+	-- Head
+	add(P(BALL, V(1.0 * s, 1.06 * s, 1.0 * s), V(0, 4.5 * s, 0), o.Skin))
+	add(P(BALL, V(0.22 * s, 0.2 * s, 0.22 * s), V(0, 4.4 * s, -0.5 * s), o.Skin))
+	add(P(BLOCK, V(0.42 * s, 0.1 * s, 0.14 * s), V(0, 4.2 * s, -0.46 * s), C(150, 92, 86)))
+	table.insert(eyes, V(-0.23 * s, 4.56 * s, -0.45 * s))
+	table.insert(eyes, V(0.23 * s, 4.56 * s, -0.45 * s))
+	-- Brows
+	for _, side in { -1, 1 } do
+		add(P(BLOCK, V(0.34 * s, 0.1 * s, 0.16 * s), V(side * 0.23 * s, 4.71 * s, -0.44 * s), o.Hair))
+	end
+	-- Hair (and hats)
+	local hat = o.Hat
+	if o.HairStyle == "Short" then
+		add(P(BLOCK, V(1.08 * s, 0.34 * s, 1.08 * s), V(0, 4.98 * s, 0.02 * s), o.Hair))
+		add(P(BLOCK, V(1.08 * s, 0.6 * s, 0.3 * s), V(0, 4.66 * s, 0.42 * s), o.Hair))
+	elseif o.HairStyle == "Bun" then
+		add(P(BLOCK, V(1.08 * s, 0.3 * s, 1.08 * s), V(0, 4.96 * s, 0.02 * s), o.Hair))
+		add(P(BALL, V(0.62 * s, 0.62 * s, 0.62 * s), V(0, 5.05 * s, 0.5 * s), o.Hair))
+	elseif o.HairStyle == "Bald" then
+		for _, side in { -1, 1 } do
+			add(P(BLOCK, V(0.16 * s, 0.4 * s, 0.72 * s), V(side * 0.5 * s, 4.66 * s, 0.1 * s), o.Hair))
+		end
+	elseif o.HairStyle == "Cap" then
+		local cap = hat or o.Hair
+		add(P(BLOCK, V(1.1 * s, 0.32 * s, 1.1 * s), V(0, 5.0 * s, 0.02 * s), cap))
+		add(P(BLOCK, V(1.02 * s, 0.14 * s, 0.6 * s), V(0, 4.88 * s, -0.55 * s), cap))
+		add(P(BALL, V(0.2 * s, 0.2 * s, 0.2 * s), V(0, 4.9 * s, -0.56 * s), C(230, 190, 60), M.Metal))
+	elseif o.HairStyle == "Pointed" then
+		local cone = hat or o.Hair
+		add(P(CYLINDER, V(0.16 * s, 2.15 * s, 2.15 * s), V(0, 4.98 * s, 0.04 * s), cone, nil, V(0, 0, 90)))
+		add(P(BLOCK, V(1.05 * s, 0.55 * s, 1.05 * s), V(0, 5.3 * s, 0.06 * s), cone))
+		add(P(BLOCK, V(0.74 * s, 0.5 * s, 0.74 * s), V(0, 5.78 * s, 0.12 * s), cone))
+		add(P(BLOCK, V(0.46 * s, 0.44 * s, 0.46 * s), V(0, 6.2 * s, 0.18 * s), cone))
+		add(P(BLOCK, V(0.2 * s, 0.4 * s, 0.2 * s), V(0, 6.56 * s, 0.24 * s), cone))
+		add(P(BALL, V(0.24 * s, 0.24 * s, 0.24 * s), V(0, 6.78 * s, 0.27 * s), C(255, 236, 140), M.Neon))
+	end
+	local beard = o.Beard
+	if beard then
+		add(P(BLOCK, V(0.74 * s, 0.85 * s, 0.36 * s), V(0, 4.02 * s, -0.32 * s), beard))
+		add(P(BLOCK, V(0.56 * s, 0.16 * s, 0.18 * s), V(0, 4.28 * s, -0.5 * s), beard))
+		add(P(BLOCK, V(0.3 * s, 0.7 * s, 0.16 * s), V(0, 4.3 * s, -0.42 * s), beard))
+	end
+	-- Something to wave at a thief
+	local prop = o.Prop
+	if prop == "Pan" then
+		add(P(CYLINDER, V(0.9 * s, 0.36 * s, 0.36 * s), V(1.04 * s, 2.5 * s, -0.2 * s), C(214, 178, 120), M.Wood, V(0, 0, 90)))
+		add(P(BLOCK, V(0.16 * s, 0.5 * s, 0.16 * s), V(1.04 * s, 1.9 * s, -0.2 * s), C(160, 128, 84), M.Wood))
+	elseif prop == "Torch" then
+		add(P(CYLINDER, V(0.66 * s, 0.4 * s, 0.4 * s), V(1.04 * s, 2.15 * s, -0.34 * s), C(40, 44, 52), M.Metal, V(0, 0, 90)))
+		local lens = P(BALL, V(0.4 * s, 0.4 * s, 0.4 * s), V(1.04 * s, 2.55 * s, -0.34 * s), C(255, 238, 170), M.Neon)
+		add(lens)
+		table.insert(eyes, lens.Position)
+	elseif prop == "Wand" then
+		add(P(CYLINDER, V(0.9 * s, 0.12 * s, 0.12 * s), V(1.04 * s, 2.5 * s, -0.25 * s), C(92, 62, 40), M.Wood, V(0, 0, 90)))
+		local tip = P(BALL, V(0.32 * s, 0.32 * s, 0.32 * s), V(1.04 * s, 2.98 * s, -0.2 * s), C(150, 240, 255), M.Neon)
+		add(tip)
+		table.insert(eyes, tip.Position)
+	end
+
+	return {
+		Parts = parts,
+		Eyes = eyes,
+		EyeSize = 0.17 * s,
+		EyeColor = o.EyeColor,
+		EyeGlows = o.GlowingEyes == true,
+	}
+end
+
+--------------------------------------------------------------------------------
+-- The T-Rex
+--------------------------------------------------------------------------------
+local function trex(): Look
+	local hide = C(96, 138, 78)
+	local belly = C(196, 190, 140)
+	local dark = C(62, 96, 54)
+	local claw = C(238, 232, 208)
+	local parts: { PartSpec } = {
+		-- Legs
+		P(BLOCK, V(1.5, 3.6, 1.9), V(-0.95, 1.8, 0.2), hide),
+		P(BLOCK, V(1.5, 3.6, 1.9), V(0.95, 1.8, 0.2), hide),
+		P(BLOCK, V(1.8, 0.62, 2.7), V(-0.95, 0.31, -0.35), hide),
+		P(BLOCK, V(1.8, 0.62, 2.7), V(0.95, 0.31, -0.35), hide),
+		-- Body, with a pale belly and a darker back
+		P(BLOCK, V(2.9, 3.2, 4.6), V(0, 4.1, 0.4), hide, nil, V(-6, 0, 0)),
+		P(BLOCK, V(2.4, 2.1, 4.1), V(0, 3.4, 0.2), belly, nil, V(-6, 0, 0)),
+		P(BALL, V(3.0, 2.9, 2.9), V(0, 4.0, 2.1), hide),
+		-- Tail
+		P(BLOCK, V(2.3, 2.1, 2.4), V(0, 4.6, 3.9), hide, nil, V(22, 0, 0)),
+		P(BLOCK, V(1.5, 1.4, 2.2), V(0, 5.3, 5.6), hide, nil, V(30, 0, 0)),
+		P(BLOCK, V(0.85, 0.8, 1.8), V(0, 5.9, 7.0), dark, nil, V(36, 0, 0)),
+		-- Neck and head
+		P(BLOCK, V(1.9, 2.2, 1.9), V(0, 5.5, -1.6), hide, nil, V(-24, 0, 0)),
+		P(BLOCK, V(2.05, 1.95, 3.3), V(0, 6.4, -3.3), hide, nil, V(-8, 0, 0)),
+		P(BLOCK, V(1.75, 0.7, 2.5), V(0, 5.6, -3.1), dark, nil, V(10, 0, 0)),
+		P(BLOCK, V(1.6, 0.6, 1.1), V(0, 7.0, -2.2), hide),
+		-- Arms
+		P(BLOCK, V(0.5, 1.5, 0.55), V(-1.55, 3.6, -1.4), hide, nil, V(40, 0, 0)),
+		P(BLOCK, V(0.5, 1.5, 0.55), V(1.55, 3.6, -1.4), hide, nil, V(40, 0, 0)),
+		-- Back plates
+		P(BLOCK, V(0.5, 0.75, 0.6), V(0, 5.9, -0.7), dark),
+		P(BLOCK, V(0.5, 0.9, 0.6), V(0, 6.1, 0.4), dark),
+		P(BLOCK, V(0.5, 0.75, 0.6), V(0, 6.0, 1.5), dark),
+		P(BLOCK, V(0.45, 0.6, 0.5), V(0, 5.6, 2.6), dark),
+	}
+	-- Toes and claws
+	for _, side in { -1, 1 } do
+		for _, offset in { -0.5, 0, 0.5 } do
+			table.insert(parts, P(BLOCK, V(0.36, 0.36, 0.7), V(side * 0.95 + offset, 0.34, -1.6), claw))
+		end
+		table.insert(parts, P(BLOCK, V(0.3, 0.4, 0.6), V(side * 1.55, 2.9, -1.9), claw))
+	end
+	-- Teeth
+	for _, side in { -1.1, -0.55, 0, 0.55, 1.1 } do
+		table.insert(parts, P(BLOCK, V(0.24, 0.42, 0.2), V(side * 0.5, 5.95, -4.35), claw))
+	end
+	local eyes = { V(-0.62, 6.75, -4.0), V(0.62, 6.75, -4.0) }
+	local look: Look = {
+		Parts = parts,
+		Eyes = eyes,
+		EyeSize = 0.34,
+		EyeColor = C(240, 226, 90),
+		EyeGlows = true,
+	}
+	return look
+end
+
+--------------------------------------------------------------------------------
+-- Security bot
+--------------------------------------------------------------------------------
+local function securityBot(): Look
+	local shell = C(196, 202, 214)
+	local dark = C(52, 58, 70)
+	local parts: { PartSpec } = {
+		P(CYLINDER, V(1.7, 0.55, 0.55), V(-0.44, 0.85, 0), dark, M.Metal, V(0, 0, 90)),
+		P(CYLINDER, V(1.7, 0.55, 0.55), V(0.44, 0.85, 0), dark, M.Metal, V(0, 0, 90)),
+		P(BLOCK, V(0.9, 0.26, 1.25), V(-0.44, 0.13, -0.16), dark, M.Metal),
+		P(BLOCK, V(0.9, 0.26, 1.25), V(0.44, 0.13, -0.16), dark, M.Metal),
+		P(BLOCK, V(1.75, 1.95, 1.2), V(0, 2.75, 0), shell, M.Metal),
+		P(BLOCK, V(1.2, 0.55, 0.14), V(0, 2.35, -0.62), dark, M.Metal),
+		P(BLOCK, V(0.5, 0.42, 0.12), V(0, 3.3, -0.62), C(90, 220, 255), M.Neon),
+		P(BALL, V(0.56, 0.56, 0.56), V(-1.0, 3.4, 0), shell, M.Metal),
+		P(BALL, V(0.56, 0.56, 0.56), V(1.0, 3.4, 0), shell, M.Metal),
+		P(BLOCK, V(0.42, 1.6, 0.48), V(-1.06, 2.6, 0), shell, M.Metal),
+		P(BLOCK, V(0.42, 1.6, 0.48), V(1.06, 2.6, 0), shell, M.Metal),
+		P(BLOCK, V(0.52, 0.42, 0.58), V(-1.06, 1.7, 0), dark, M.Metal),
+		P(BLOCK, V(0.52, 0.42, 0.58), V(1.06, 1.7, 0), dark, M.Metal),
+		P(CYLINDER, V(0.34, 0.42, 0.42), V(0, 3.9, 0), dark, M.Metal, V(0, 0, 90)),
+		P(BLOCK, V(1.1, 0.9, 1.0), V(0, 4.45, 0), shell, M.Metal),
+		P(BLOCK, V(0.55, 0.22, 0.3), V(-0.9, 4.05, 0), C(255, 170, 60), M.Neon),
+		P(CYLINDER, V(0.7, 0.09, 0.09), V(0, 5.2, 0.22), dark, M.Metal, V(0, 0, 90)),
+	}
+	local visor = P(BLOCK, V(0.94, 0.34, 0.14), V(0, 4.5, -0.55), C(255, 70, 60), M.Neon)
+	table.insert(parts, visor)
+	local antenna = P(BALL, V(0.24, 0.24, 0.24), V(0, 5.5, 0.22), C(255, 70, 60), M.Neon)
+	table.insert(parts, antenna)
+	return {
+		Parts = parts,
+		Eyes = { visor.Position, antenna.Position },
+		EyeSize = 0.3,
+		EyeColor = C(255, 70, 60),
+		EyeGlows = true,
+	}
+end
+
+--------------------------------------------------------------------------------
+-- Security car (the museum's fleet)
+--------------------------------------------------------------------------------
+local function securityCar(): Look
+	local body = C(28, 32, 44)
+	local stripe = C(240, 240, 240)
+	local glass = C(30, 46, 66)
+	local parts: { PartSpec } = {
+		-- Chassis and skirts
+		P(BLOCK, V(4.7, 0.95, 9.6), V(0, 1.15, 0), body),
+		P(BLOCK, V(4.9, 0.28, 1.0), V(0, 0.62, -4.9), C(20, 22, 28)),
+		P(BLOCK, V(4.9, 0.28, 1.0), V(0, 0.62, 4.9), C(20, 22, 28)),
+		-- Bonnet and boot
+		P(BLOCK, V(4.55, 0.5, 3.0), V(0, 1.72, -3.1), body),
+		P(BLOCK, V(4.55, 0.5, 2.6), V(0, 1.72, 3.3), body),
+		-- Cabin and glass
+		P(BLOCK, V(4.25, 1.15, 4.5), V(0, 2.35, 0.1), body),
+		P(BLOCK, V(4.0, 0.95, 0.18), V(0, 2.4, -2.22), glass),
+		P(BLOCK, V(4.0, 0.9, 0.18), V(0, 2.4, 2.42), glass),
+		P(BLOCK, V(0.18, 0.9, 3.6), V(-2.16, 2.4, 0.1), glass),
+		P(BLOCK, V(0.18, 0.9, 3.6), V(2.16, 2.4, 0.1), glass),
+		P(BLOCK, V(4.5, 0.28, 4.7), V(0, 3.0, 0.1), C(18, 20, 26)),
+		-- Livery: a white stripe and a gold number plate
+		P(BLOCK, V(4.78, 0.4, 9.62), V(0, 1.35, 0), stripe),
+		P(BLOCK, V(1.5, 0.4, 0.12), V(0, 1.0, -4.84), C(255, 214, 90), M.Neon),
+		P(BLOCK, V(0.9, 0.3, 0.12), V(-1.9, 1.0, 4.84), C(255, 255, 255), M.SmoothPlastic),
+		-- Wheels
+		P(CYLINDER, V(0.8, 2.3, 2.3), V(-2.3, 1.15, -3.0), C(18, 18, 22), M.Rubber),
+		P(CYLINDER, V(0.8, 2.3, 2.3), V(2.3, 1.15, -3.0), C(18, 18, 22), M.Rubber),
+		P(CYLINDER, V(0.8, 2.3, 2.3), V(-2.3, 1.15, 3.0), C(18, 18, 22), M.Rubber),
+		P(CYLINDER, V(0.8, 2.3, 2.3), V(2.3, 1.15, 3.0), C(18, 18, 22), M.Rubber),
+		-- Light bar (the eyes: it flashes red when the alarm goes off)
+		P(BLOCK, V(1.9, 0.18, 0.7), V(0, 3.2, -0.4), C(24, 26, 32), M.Metal),
+	}
+	local redLight = P(BLOCK, V(0.85, 0.26, 0.6), V(-0.5, 3.35, -0.4), C(255, 60, 60), M.Neon)
+	local blueLight = P(BLOCK, V(0.85, 0.26, 0.6), V(0.5, 3.35, -0.4), C(70, 140, 255), M.Neon)
+	local headlightLeft = P(BALL, V(0.5, 0.5, 0.4), V(-1.5, 1.55, -4.8), C(255, 248, 210), M.Neon)
+	local headlightRight = P(BALL, V(0.5, 0.5, 0.4), V(1.5, 1.55, -4.8), C(255, 248, 210), M.Neon)
+	table.insert(parts, redLight)
+	table.insert(parts, blueLight)
+	table.insert(parts, headlightLeft)
+	table.insert(parts, headlightRight)
+	return {
+		Parts = parts,
+		Eyes = { headlightLeft.Position, headlightRight.Position, redLight.Position, blueLight.Position },
+		EyeSize = 0.42,
+		EyeColor = C(255, 248, 210),
+		EyeGlows = true,
+	}
+end
+
+--------------------------------------------------------------------------------
 -- The roster (keys match Config.Guards)
 --------------------------------------------------------------------------------
 local WHITE = C(246, 246, 244)
-local BLACK = C(32, 30, 30)
 
 local looks: { [string]: Look } = {
-	GingerCat = cat({
-		Fur = C(232, 140, 58),
-		Chest = C(244, 196, 140),
-		Muzzle = C(250, 226, 190),
-		Paws = C(244, 196, 140),
-		Ears = C(232, 140, 58),
-		Tail = C(232, 140, 58),
-		Stripes = C(186, 96, 34),
-		Eyes = C(130, 235, 80),
-	}),
 	TuxedoCat = cat({
 		Fur = C(30, 30, 34),
 		Chest = WHITE,
@@ -277,131 +535,103 @@ local looks: { [string]: Look } = {
 		Tail = C(30, 30, 34),
 		Eyes = C(245, 220, 60),
 	}),
-	SiameseCat = cat({
-		Fur = C(240, 226, 202),
-		Chest = C(246, 236, 218),
-		Muzzle = C(88, 60, 44),
-		Paws = C(88, 60, 44),
-		Ears = C(88, 60, 44),
-		Tail = C(88, 60, 44),
-		Eyes = C(80, 170, 255),
-	}),
-	GreyTabby = cat({
-		Fur = C(150, 150, 158),
-		Chest = C(206, 206, 212),
-		Muzzle = C(226, 226, 230),
-		Paws = C(206, 206, 212),
-		Ears = C(150, 150, 158),
-		Tail = C(150, 150, 158),
-		Stripes = C(96, 96, 104),
-		Eyes = C(245, 180, 40),
-	}),
-	Chihuahua = dog({
-		Scale = 0.62,
-		LegLength = 0.9,
+	Puppy = dog({
+		Scale = 0.68,
+		LegLength = 0.62,
 		BodyLength = 1.7,
-		BodyHeight = 0.8,
-		BodyWidth = 0.75,
-		Head = V(0.95, 0.88, 0.8),
-		Snout = 0.26,
-		Ears = "Big",
-		Tail = "Up",
-		Fur = C(226, 186, 130),
-		Chest = C(246, 226, 192),
-		Paws = C(246, 226, 192),
-		SnoutColor = C(236, 206, 160),
-		EarColor = C(226, 186, 130),
-		Collar = C(255, 90, 170),
-	}),
-	Pug = dog({
-		Scale = 0.75,
-		LegLength = 0.72,
-		BodyLength = 1.6,
-		BodyHeight = 1.0,
-		BodyWidth = 1.0,
-		Head = V(0.98, 0.92, 0.76),
-		Snout = 0.14,
-		Ears = "Floppy",
-		Tail = "Curly",
-		Fur = C(222, 192, 142),
-		Chest = C(230, 204, 158),
-		Paws = C(222, 192, 142),
-		SnoutColor = C(44, 38, 36),
-		EarColor = C(44, 38, 36),
-		Collar = C(60, 130, 230),
-	}),
-	Corgi = dog({
-		Scale = 0.85,
-		LegLength = 0.42,
-		BodyLength = 2.1,
 		BodyHeight = 0.85,
-		BodyWidth = 0.86,
-		Head = V(0.82, 0.76, 0.76),
-		Snout = 0.42,
-		Ears = "Big",
+		BodyWidth = 0.85,
+		Head = V(1.05, 1.0, 0.95),
+		Snout = 0.34,
+		Ears = "Floppy",
 		Tail = "Stub",
-		Fur = C(226, 146, 62),
-		Chest = WHITE,
-		Paws = WHITE,
-		SnoutColor = WHITE,
-		EarColor = C(226, 146, 62),
-		Collar = C(220, 40, 60),
+		Fur = C(226, 196, 148),
+		Chest = C(246, 228, 196),
+		Paws = C(246, 228, 196),
+		SnoutColor = C(232, 206, 166),
+		EarColor = C(196, 162, 116),
+		Collar = C(255, 120, 60),
 	}),
-	Dalmatian = dog({
-		Scale = 1.1,
+	Labrador = dog({
+		Scale = 1.15,
 		LegLength = 1.0,
-		BodyLength = 2.0,
-		BodyHeight = 0.8,
-		BodyWidth = 0.75,
-		Head = V(0.7, 0.72, 0.8),
+		BodyLength = 2.2,
+		BodyHeight = 0.95,
+		BodyWidth = 0.9,
+		Head = V(0.85, 0.85, 0.9),
 		Snout = 0.5,
 		Ears = "Floppy",
 		Tail = "Long",
-		Fur = WHITE,
-		Chest = WHITE,
-		Paws = WHITE,
-		SnoutColor = WHITE,
-		EarColor = BLACK,
-		Collar = C(220, 40, 40),
-		Spots = BLACK,
+		Fur = C(222, 172, 92),
+		Chest = C(238, 200, 130),
+		Paws = C(238, 200, 130),
+		SnoutColor = C(196, 148, 78),
+		EarColor = C(196, 148, 78),
+		Collar = C(60, 130, 230),
+		Saddle = C(200, 146, 70),
 	}),
-	GermanShepherd = dog({
-		Scale = 1.25,
-		LegLength = 0.95,
+	GuardDog = dog({
+		Scale = 1.35,
+		LegLength = 1.05,
 		BodyLength = 2.1,
-		BodyHeight = 0.85,
-		BodyWidth = 0.8,
-		Head = V(0.72, 0.72, 0.8),
+		BodyHeight = 1.0,
+		BodyWidth = 0.95,
+		Head = V(0.9, 0.9, 0.95),
 		Snout = 0.55,
 		Ears = "Pointy",
-		Tail = "Long",
-		Fur = C(200, 140, 72),
-		Chest = C(214, 160, 92),
-		Paws = C(214, 160, 92),
-		SnoutColor = C(44, 36, 30),
-		EarColor = C(44, 36, 30),
-		Collar = C(40, 120, 60),
-		Saddle = C(44, 36, 30),
-	}),
-	Doberman = dog({
-		Scale = 1.25,
-		LegLength = 1.1,
-		BodyLength = 2.0,
-		BodyHeight = 0.8,
-		BodyWidth = 0.7,
-		Head = V(0.62, 0.68, 0.86),
-		Snout = 0.62,
-		Ears = "Pointy",
 		Tail = "Docked",
-		Fur = C(36, 30, 30),
-		Chest = C(170, 92, 42),
-		Paws = C(170, 92, 42),
-		SnoutColor = C(170, 92, 42),
-		EarColor = C(36, 30, 30),
-		Collar = C(200, 200, 210),
-		Brows = C(170, 92, 42),
+		Fur = C(58, 44, 36),
+		Chest = C(176, 116, 60),
+		Paws = C(176, 116, 60),
+		SnoutColor = C(40, 30, 26),
+		EarColor = C(58, 44, 36),
+		Collar = C(190, 40, 40),
+		Brows = C(176, 116, 60),
 	}),
+	HomeOwner = human({
+		Scale = 1.05,
+		Skin = C(238, 196, 158),
+		Shirt = C(122, 172, 236),
+		Trousers = C(72, 92, 152),
+		Shoes = C(122, 86, 62),
+		Hair = C(182, 182, 188),
+		HairStyle = "Bun",
+		Prop = "Pan",
+		EyeColor = C(64, 82, 110),
+	}),
+	OffDutyOfficer = human({
+		Scale = 1.08,
+		Skin = C(206, 158, 116),
+		Shirt = C(46, 66, 120),
+		Trousers = C(38, 44, 62),
+		Shoes = C(28, 28, 32),
+		Hair = C(60, 48, 40),
+		HairStyle = "Cap",
+		Hat = C(38, 52, 96),
+		Badge = C(238, 200, 90),
+		Prop = "Torch",
+		EyeColor = C(70, 110, 170),
+	}),
+	Wizard = human({
+		Scale = 1.12,
+		Skin = C(226, 186, 156),
+		Shirt = C(96, 66, 178),
+		Trousers = C(66, 46, 130),
+		Shoes = C(48, 36, 78),
+		Hair = C(232, 232, 236),
+		HairStyle = "Pointed",
+		Hat = C(88, 58, 168),
+		Beard = C(234, 234, 238),
+		Robe = true,
+		Prop = "Wand",
+		EyeColor = C(120, 220, 255),
+		GlowingEyes = true,
+	}),
+	TRex = trex(),
+	SecurityBot = securityBot(),
+	SecurityCar = securityCar(),
 }
+
 
 --------------------------------------------------------------------------------
 -- Building
@@ -492,6 +722,7 @@ local function buildDrone(home: CFrame): GuardModel
 		Light = light,
 		Status = statusBubble(body, 2.4),
 		RootHeight = 0,
+		Size = V(2.2, 2.2, 2.2),
 		Kind = "Drone",
 	}
 end
@@ -546,6 +777,7 @@ function Guards.build(guardId: string, home: CFrame): GuardModel
 		Light = nil,
 		Status = statusBubble(root, size.Y / 2 + 1.4),
 		RootHeight = center.Y,
+		Size = size,
 		Kind = info.Kind,
 	}
 end

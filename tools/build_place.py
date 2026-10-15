@@ -34,7 +34,7 @@ from rbxlx import C3, Float, Inst, Protected, Token, serialize  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 REMOTE_EVENTS = ["Notify", "Busted"]
-REMOTE_FUNCTIONS = ["Purchase", "SpawnCar", "Treadmill", "Storage", "Sell"]
+REMOTE_FUNCTIONS = ["Purchase", "Treadmill", "Storage", "Sell"]
 
 
 def script_class_for(filename: str) -> tuple[str, str] | None:
@@ -113,7 +113,6 @@ def build_datamodel() -> list[Inst]:
     workspace = Inst("Workspace", "Workspace")
     workspace.set(StreamingEnabled=False)
     map_builder.build_map(workspace)
-    Inst("Folder", "Cars", workspace)
 
     replicated = Inst("ReplicatedStorage", "ReplicatedStorage")
     replicated.add(load_script_dir(os.path.join(ROOT, "src", "shared"), "Shared"))

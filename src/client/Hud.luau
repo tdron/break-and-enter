@@ -4,11 +4,11 @@
 	---
 	The always-on-screen interface:
 	  * Cash + income (top left), inventory stats underneath
-	  * SHOP, CAR and LOOT INDEX buttons
+	  * SHOP, STORAGE and LOOT INDEX buttons
 	  * Night/daytime clock (top centre) counting down to the next restock
 	  * Alarm banner while a house's guards are chasing you
 	  * Objective hint telling new players what to do next
-	  * Treadmill training bar (while you run on your treadmill) and car speedometer
+	  * Treadmill training bar (while you run on your treadmill)
 ]]
 
 local Players = game:GetService("Players")
@@ -20,7 +20,6 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
 local DayNight = require(script.Parent.DayNight)
 local UI = require(script.Parent.UI)
-local VehicleController = require(script.Parent.VehicleController)
 
 local Hud = {}
 
@@ -29,7 +28,6 @@ local Theme = UI.Theme
 
 export type Callbacks = {
 	OnShop: () -> (),
-	OnSpawnCar: () -> (),
 	OnStorage: () -> (),
 	OnIndex: () -> (),
 }
@@ -187,28 +185,15 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		UI.new("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }),
 	})
 	local bagValue = makeStatRow(statsPanel, 1, "🎒", "Loot Bag")
-	local trunkValue = makeStatRow(statsPanel, 2, "🧳", "Car Trunk")
-	local storageValue = makeStatRow(statsPanel, 3, "📦", "Warehouse")
-	local speedValue = makeStatRow(statsPanel, 4, "👟", "Speed")
+	local storageValue = makeStatRow(statsPanel, 2, "📦", "Warehouse")
+	local speedValue = makeStatRow(statsPanel, 3, "👟", "Speed")
 
 	----------------------------------------------------------------------------
 	-- Buttons
 	----------------------------------------------------------------------------
-	local buttonColumn: Frame = UI.new("Frame", {
-		Name = "Buttons",
-		Size = UDim2.fromOffset(270, 52),
-		BackgroundTransparency = 1,
-		LayoutOrder = 3,
-		Parent = column,
-	}, {
-		UI.new("UIListLayout", {
-			Padding = UDim.new(0, 6),
-			FillDirection = Enum.FillDirection.Horizontal,
-			SortOrder = Enum.SortOrder.LayoutOrder,
-		}),
-	})
-	makeButton(buttonColumn, 1, "🛒 SHOP", Color3.fromRGB(255, 176, 40), callbacks.OnShop)
-	makeButton(buttonColumn, 2, "🚗 CAR", Color3.fromRGB(60, 150, 255), callbacks.OnSpawnCar)
+	local shopButton = makeButton(column, 1, "🛒 SHOP", Color3.fromRGB(255, 176, 40), callbacks.OnShop)
+	shopButton.Size = UDim2.fromOffset(270, 46)
+	shopButton.TextSize = 21
 	local storageButton = makeButton(column, 3, "📦 STORAGE", Color3.fromRGB(90, 190, 130), callbacks.OnStorage)
 	storageButton.Size = UDim2.fromOffset(270, 46)
 	storageButton.TextSize = 21
@@ -373,43 +358,6 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 	}, { UI.corner(8) })
 
 	----------------------------------------------------------------------------
-	-- Speedometer
-	----------------------------------------------------------------------------
-	local speedo: Frame = UI.new("Frame", {
-		Name = "Speedometer",
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -70),
-		Size = UDim2.fromOffset(170, 86),
-		BackgroundColor3 = Theme.Panel,
-		BackgroundTransparency = 0.1,
-		Visible = false,
-		Parent = screen,
-	}, {
-		UI.corner(14),
-		UI.stroke(Theme.Blue, 2, 0.3),
-		UI.scaled(),
-	})
-	local speedoValue: TextLabel = UI.new("TextLabel", {
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 58),
-		Font = Theme.TitleFont,
-		Text = "0",
-		TextColor3 = Theme.Text,
-		TextSize = 48,
-		Parent = speedo,
-	})
-	UI.new("TextLabel", {
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(0, 54),
-		Size = UDim2.new(1, 0, 0, 24),
-		Font = Theme.BoldFont,
-		Text = "MPH",
-		TextColor3 = Theme.SubText,
-		TextSize = 16,
-		Parent = speedo,
-	})
-
-	----------------------------------------------------------------------------
 	-- Updating
 	----------------------------------------------------------------------------
 	local displayedCash = getNumber("Cash", 0)
@@ -420,7 +368,6 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		local carried, bag = getNumber("Carried", 0), getNumber("BagCapacity", 2)
 		bagValue.Text = string.format("%d / %d", carried, bag)
 		bagValue.TextColor3 = if carried >= bag then Theme.Red else Theme.Text
-		trunkValue.Text = string.format("%d / %d", getNumber("TrunkCount", 0), getNumber("TrunkCapacity", 4))
 		local stored, storage = getNumber("StoredCount", 0), getNumber("StorageCapacity", 10)
 		storageValue.Text = string.format("%d / %d", stored, storage)
 		storageValue.TextColor3 = if stored >= storage then Theme.Orange else Theme.Text
@@ -429,26 +376,23 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 
 	local function updateObjective()
 		local carried, bag = getNumber("Carried", 0), getNumber("BagCapacity", 2)
-		local trunk = getNumber("TrunkCount", 0)
 		local text: string
 		if getString("AlarmHouse") ~= "" then
-			text = "🚨 Escape the property! Guards won't follow you past the front fence."
+			text = "🚨 Alarm! Run back up the street — defenders chase you to the yard mouth."
 		elseif player:GetAttribute("DataLoaded") ~= true then
 			text = "Loading your hideout..."
 		elseif player:GetAttribute("Training") == true then
 			text = "🏃 Training! You can go AFK, you'll keep getting faster. Press ESCAPE to hop off."
 		elseif carried >= bag then
-			text = "🎒 Bag full! Load your car trunk [F] or drop the loot on your warehouse's green DEPOSIT pad."
+			text = "🎒 Bag full! Drop the loot on your warehouse's green DEPOSIT pad."
 		elseif carried > 0 then
 			text = "💰 Bring your loot to the green DEPOSIT pad in your warehouse (or keep stealing!)"
-		elseif trunk > 0 then
-			text = "🧳 Park your car on your warehouse's yellow LOADING DOCK to unload the trunk."
 		elseif DayNight.isDaytime() then
 			text = "☀️ Daytime: the owners are home and every house is locked. Upgrade or train until dark!"
 		elseif getNumber("StoredCount", 0) == 0 then
-			text = "🏠 Spawn your 🚗 CAR, drive to a house, pick the lock and steal something!"
+			text = "🏠 Run down the street to a house, pick the lock and steal something!"
 		else
-			text = "🦝 Houses get harder down the street. Train on your treadmill to outrun the faster guard dogs!"
+			text = "🦝 Houses get harder down the street. Train on your treadmill to outrun the faster defenders!"
 		end
 		objective.Text = text
 	end
@@ -476,7 +420,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		end
 	end
 
-	for _, name in { "Income", "Carried", "BagCapacity", "TrunkCount", "TrunkCapacity", "StoredCount", "StorageCapacity", "WalkSpeed" } do
+	for _, name in { "Income", "Carried", "BagCapacity", "StoredCount", "StorageCapacity", "WalkSpeed" } do
 		player:GetAttributeChangedSignal(name):Connect(function()
 			updateStats()
 			updateObjective()
@@ -541,11 +485,6 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 			alarmBanner.BackgroundColor3 = Color3.fromRGB(150 + math.floor(70 * math.abs(math.sin(pulse))), 20, 30)
 		end
 		updateClock()
-		-- Speedometer
-		speedo.Visible = VehicleController.Driving
-		if VehicleController.Driving then
-			speedoValue.Text = tostring(math.floor(VehicleController.Speed + 0.5))
-		end
 	end)
 	cashLabel.Text = "💰 " .. Format.money(displayedCash)
 	return { IndexButton = indexButton }

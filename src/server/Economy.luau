@@ -15,7 +15,6 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
 local PlayerData = require(script.Parent.PlayerData)
 local Plots = require(script.Parent.Plots)
-local Vehicles = require(script.Parent.Vehicles)
 
 local Economy = {}
 
@@ -25,10 +24,6 @@ local function applyUpgrade(player: Player, upgradeId: string)
 	PlayerData.replicate(player)
 	if upgradeId == "Storage" then
 		Plots.refresh(player)
-	elseif upgradeId == "Engine" then
-		Vehicles.onEngineUpgraded(player)
-	elseif upgradeId == "Trunk" then
-		Vehicles.updateLabel(player)
 	end
 	-- "Treadmill": Treadmills notices the new level by itself (its console updates every tick).
 end

@@ -97,8 +97,6 @@ for name, value in {
 	Income = 0,
 	Carried = 0,
 	BagCapacity = 2,
-	TrunkCount = 0,
-	TrunkCapacity = 4,
 	StoredCount = 0,
 	StorageCapacity = 10,
 	WalkSpeed = 16,
@@ -106,8 +104,6 @@ for name, value in {
 	SpeedProgress = 0,
 	Speed = 4,
 	Level_Bag = 1,
-	Level_Engine = 1,
-	Level_Trunk = 1,
 	Level_Storage = 1,
 	Level_Treadmill = 1,
 	AlarmHouse = "",
@@ -120,11 +116,6 @@ local purchases = {}
 Mock.invokeHandlers.Purchase = function(upgradeId)
 	table.insert(purchases, upgradeId)
 	return { Ok = true, Message = "Bought " .. tostring(upgradeId) }
-end
-local carRequests = 0
-Mock.invokeHandlers.SpawnCar = function()
-	carRequests += 1
-	return { Ok = true, Message = "🚗 Your getaway car pulled up!" }
 end
 -- A tiny stand-in for the server's treadmill handler.
 local treadmillRequests = {}
@@ -190,7 +181,6 @@ step("client boots and builds the HUD", function()
 	check(hud, "no HUD ScreenGui")
 	eq(hud.ResetOnSpawn, false, "HUD survives respawns")
 	check(findText(hud, "SHOP"), "no shop button")
-	check(findText(hud, "CAR"), "no car button")
 	check(findText(hud, "📦 STORAGE"), "no storage button")
 	check(#Mock.warnings == 0, "warnings: " .. table.concat(Mock.warnings, "; "))
 end)
@@ -235,7 +225,7 @@ step("alarm banner and objective react to being chased", function()
 	player:SetAttribute("AlarmHouse", "Maple Cottage")
 	Mock.advance(0.1)
 	check(findText(banner, "before the Ginger Cat catches you"), "the hint should name the cat")
-	check(findText(hud, "Escape the property"), "objective should say escape")
+	check(findText(hud, "Run back up the street"), "objective should say escape: " .. tostring(hud:FindFirstChild("Objective", true) and hud:FindFirstChild("Objective", true).Text))
 	player:SetAttribute("AlarmHouse", "")
 	Mock.advance(0.3)
 	eq(banner.Visible, false, "banner hidden")
@@ -277,57 +267,6 @@ step("shop opens from the HUD and buys upgrades", function()
 	Mock.service("ProximityPromptService").PromptTriggered:Fire(prompt, player)
 	Mock.advance(0.1)
 	eq(shop.Visible, true, "shop opens from the counter prompt")
-end)
-
-step("car button requests a car", function()
-	findButton(hud, "🚗 CAR").Activated:Fire()
-	Mock.advance(0.2)
-	eq(carRequests, 1, "spawn request sent")
-	check(findText(hud, "getaway car pulled up"), "spawn result shown")
-end)
-
-step("driving the car moves it and shows the speedometer", function()
-	local car = Instance.new("Model")
-	local chassis = Instance.new("Part")
-	chassis.Name = "Chassis"
-	chassis.CFrame = CFrame.new(0, 2, 0)
-	chassis.Parent = car
-	car.PrimaryPart = chassis
-	car:SetAttribute("MaxSpeed", 45)
-	local attachment = Instance.new("Attachment")
-	attachment.Parent = chassis
-	local drive = Instance.new("LinearVelocity")
-	drive.Name = "Drive"
-	drive.Attachment0 = attachment
-	drive.Parent = chassis
-	local orient = Instance.new("AlignOrientation")
-	orient.Name = "Orient"
-	orient.Attachment0 = attachment
-	orient.Parent = chassis
-	local seat = Instance.new("VehicleSeat")
-	seat.Name = "DriverSeat"
-	seat.Parent = car
-	car.Parent = workspace
-	local character = Instance.new("Model")
-	local humanoid = Instance.new("Humanoid")
-	humanoid.Parent = character
-	character.Parent = workspace
-	player.Character = character
-	Mock.setRaw(humanoid, "SeatPart", seat)
-	Mock.setRaw(seat, "ThrottleFloat", 1)
-	Mock.setRaw(seat, "SteerFloat", 0)
-	Mock.advance(1)
-	local forward = drive.VectorVelocity:Dot(chassis.CFrame.LookVector)
-	check(forward > 20, "car should accelerate forward, speed " .. forward)
-	eq(hud:FindFirstChild("Speedometer", true).Visible, true, "speedometer visible")
-	Mock.setRaw(seat, "ThrottleFloat", 0)
-	Mock.setRaw(seat, "SteerFloat", 1)
-	local before = orient.CFrame.LookVector
-	Mock.advance(0.5)
-	check((orient.CFrame.LookVector - before).Magnitude > 0.05, "steering should turn the car")
-	Mock.setRaw(humanoid, "SeatPart", nil)
-	Mock.advance(0.2)
-	eq(hud:FindFirstChild("Speedometer", true).Visible, false, "speedometer hidden after leaving")
 end)
 
 step("home marker points at your warehouse", function()
@@ -437,7 +376,7 @@ step("walking onto your treadmill makes you run by yourself", function()
 	check(findText(training, "Speed 4 (16 studs/s)"), "training bar shows the Speed stat and the real studs/s")
 	check(findText(training, "+1 speed / 4s"), "training rate: the treadmill's own rate")
 	check(findText(training, "Lv 1"), "training bar shows the treadmill level")
-	check(findText(hud, "go AFK"), "objective should say AFK is fine")
+	check(findText(hud, "go AFK"), "objective should say AFK is fine: " .. tostring(hud:FindFirstChild("Objective", true) and hud:FindFirstChild("Objective", true).Text))
 	eq(belt.MyTreadmillSign.Enabled, false, "sign hidden while you run")
 
 	-- Go AFK for a while: you keep running.
@@ -602,7 +541,7 @@ step("the clock counts down the night and the sky fades to daytime", function()
 	Mock.advance(0.2)
 	check(findText(clock, "DAYTIME · 0:30") or findText(clock, "DAYTIME · 0:29"), "daytime countdown: " .. title.Text)
 	check(findText(clock, "Houses closed"), "the clock says the houses are closed")
-	check(findText(hud, "owners are home"), "the objective explains daytime")
+	check(findText(hud, "owners are home"), "the objective explains daytime: " .. tostring(hud:FindFirstChild("Objective", true) and hud:FindFirstChild("Objective", true).Text))
 	Mock.advance(Config.DayNight.FadeTime + 0.5)
 	check(math.abs(Lighting.ClockTime - Config.DayNight.Day.ClockTime) < 0.01, "sunrise should end at the daytime ClockTime, got " .. Lighting.ClockTime)
 	eq(Lighting.Brightness, Config.DayNight.Day.Brightness, "daytime brightness")
@@ -637,8 +576,9 @@ step("the loot index lists every item by house, locked until you steal it", func
 	end
 	eq(sections, #Config.Houses, "one section per house")
 	check(findText(index, "MAPLE COTTAGE"), "house names are shown")
-	check(findText(index, "guarded by a Ginger Cat"), "the guard is shown")
-	check(findText(index, "guarded by 2 Pugs"), "dog houses show their breed")
+	check(findText(index, "guarded by a Tuxedo Cat · 10 speed"), "the guard and its chase speed are shown")
+	check(findText(index, "guarded by 3 Security Bots · 1,100,000 speed"), "the bot squad is shown")
+	check(findText(index, "guarded by 4 Security Cars · 125,000,000 speed"), "the museum's fleet is shown")
 	check(findText(index, string.format("1 / %d found", #Items.List)), "progress includes your saved discoveries")
 	check(findText(list.House3, "1/4"), "Old Radio counts for Rose Cottage")
 	local card = list.House1.Items.Toaster
@@ -712,34 +652,26 @@ end
 
 -- A stand-in for the server's Sell handler.
 local bag = { "Toaster", "DiamondNecklace" }
-local trunk = {}
-local trunkReady = false
 local sellRequests = {}
-Mock.invokeHandlers.Sell = function(action, itemId, source)
-	table.insert(sellRequests, string.format("%s %s %s", tostring(action), tostring(itemId), tostring(source)))
+Mock.invokeHandlers.Sell = function(action, itemId)
+	table.insert(sellRequests, string.format("%s %s", tostring(action), tostring(itemId)))
 	local sales = {}
 	for _, id in bag do
 		table.insert(sales, { ItemId = id, Source = "Bag" })
 	end
-	if trunkReady then
-		for _, id in trunk do
-			table.insert(sales, { ItemId = id, Source = "Trunk" })
-		end
-	end
 	if action == "List" then
-		return { Ok = true, Sales = sales, TrunkReady = trunkReady, TrunkRange = 45 }
+		return { Ok = true, Sales = sales }
 	end
 	if action == "All" then
-		bag, trunk = {}, {}
-		return { Ok = true, Message = "💵 Sold the lot", Count = 1, Value = 25, TrunkReady = trunkReady }
+		bag = {}
+		return { Ok = true, Message = "💵 Sold the lot", Count = 1, Value = 25 }
 	end
-	local list = if source == "Trunk" then trunk else bag
-	local index = table.find(list, itemId)
+	local index = table.find(bag, itemId)
 	if not index then
-		return { Ok = false, Message = "Nothing like that in your bag.", TrunkReady = trunkReady }
+		return { Ok = false, Message = "Nothing like that in your bag." }
 	end
-	table.remove(list, index)
-	return { Ok = true, Message = "💵 Sold " .. tostring(itemId) .. "!", TrunkReady = trunkReady }
+	table.remove(bag, index)
+	return { Ok = true, Message = "💵 Sold " .. tostring(itemId) .. "!" }
 end
 
 step("the shelf prompt opens your storage, where items are taken off the shelves", function()
@@ -799,7 +731,7 @@ step("the shelf prompt opens your storage, where items are taken off the shelves
 	eq(window.Visible, false, "opening the sell point closes the storage window")
 end)
 
-step("the trader's window sells your bag, and the trunk once the car is at the stall", function()
+step("the trader's window sells your bag", function()
 	local window = hud:FindFirstChild("SellPoint")
 	check(window, "no sell point window")
 	eq(window.Visible, true, "the counter prompt opens it")
@@ -812,26 +744,17 @@ step("the trader's window sells your bag, and the trunk once the car is at the s
 	check(findText(row, "Legendary"), "the row shows the rarity")
 	check(findText(window, "2 items in your bag"), "the total line counts the bag: " .. window.Total.Text)
 	check(findText(window, "🤑 SELL EVERYTHING ($"), "the sell-everything button shows the total")
-	check(findText(window, "Park your car within 45 studs"), "the trunk hint explains the range: " .. window.TrunkHint.Text)
+	check(findText(window, "stored items pay you every second"), "the window points at the warehouse shelves")
 
 	row.Sell.Activated:Fire()
 	Mock.advance(0.3)
-	check(table.find(sellRequests, "Sell DiamondNecklace Bag"), "one item sold through the server")
+	check(table.find(sellRequests, "Sell DiamondNecklace"), "one item sold through the server")
 	check(findText(hud, "💵 Sold DiamondNecklace!"), "the trader's answer is shown")
 	eq(#list:GetChildren(), 1, "the sold item left the list")
 
-	-- Park the car: the trunk shows up in the window on its next look (once a second).
-	trunkReady = true
-	table.insert(trunk, "RubyRing")
-	Mock.advance(1.5)
-	eq(#list:GetChildren(), 2, "the trunk item is listed too")
-	check(findText(window, "🎒 bag") and findText(window, "🚗 trunk"), "each row says where it came from")
-	check(findText(window, "and 1 in the trunk"), "the total line counts the trunk: " .. window.Total.Text)
-	check(findText(window, "Your car is at the stall"), "the hint says the car is here")
-
 	window.SellAll.Activated:Fire()
 	Mock.advance(0.3)
-	check(table.find(sellRequests, "All nil nil"), "sell everything through the server")
+	check(table.find(sellRequests, "All nil"), "sell everything through the server")
 	eq(#list:GetChildren(), 0, "the list is empty now")
 	check(findText(window, "Nothing to sell"), "the empty note is back")
 	window.Close.Activated:Fire()

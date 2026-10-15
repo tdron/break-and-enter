@@ -26,9 +26,8 @@ export type Upgrade = {
 export type HouseTier = {
 	Name: string,
 	Stars: number,
-	GuardSpeed: number, -- studs per second; compare with your walk speed!
 	LockpickTime: number, -- seconds you must hold the prompt to open a door
-	AlarmWindup: number, -- seconds between the alarm going off and the guards giving chase
+	AlarmWindup: number, -- seconds between the alarm going off and the defenders giving chase
 	Color: Color3,
 }
 
@@ -37,12 +36,16 @@ export type HouseInfo = {
 	DisplayName: string,
 	Tier: number, -- index into Config.HouseTiers
 	Guard: string, -- key into Config.Guards
+	GuardCount: number?, -- how many of that defender the house has (default 1)
 }
 
 export type GuardInfo = {
 	DisplayName: string,
-	Kind: string, -- "Cat" | "Dog" | "Drone"
+	Kind: string, -- "Cat" | "Dog" | "Human" | "Wizard" | "Beast" | "Robot" | "Vehicle"
 	Icon: string,
+	-- Studs per second the defender moves at once it is out of the house. Inside a
+	-- house everyone moves at the standard Roblox speed instead (Config.Alarm.InsideSpeed).
+	Speed: number,
 }
 
 export type LightingPreset = {
@@ -85,24 +88,6 @@ Config.Upgrades = {
 		Description = "Carry more stolen items at once.",
 		Values = { 2, 3, 4, 5, 6, 8, 10, 12 },
 		Costs = { 0, 150, 600, 2000, 6000, 18000, 55000, 160000 },
-		Format = "%d items",
-	},
-	{
-		Id = "Engine",
-		DisplayName = "Getaway Engine",
-		Icon = "🏎️",
-		Description = "A faster getaway car. New paint job included!",
-		Values = { 45, 55, 66, 78, 92, 110 },
-		Costs = { 0, 400, 1600, 6000, 22000, 80000 },
-		Format = "%d mph",
-	},
-	{
-		Id = "Trunk",
-		DisplayName = "Trunk Space",
-		Icon = "🧳",
-		Description = "Stash more loot in your car's trunk.",
-		Values = { 4, 6, 9, 13, 18, 25 },
-		Costs = { 0, 300, 1200, 4500, 16000, 60000 },
 		Format = "%d items",
 	},
 	{
@@ -263,7 +248,6 @@ Config.HouseTiers = {
 	{
 		Name = "Easy",
 		Stars = 1,
-		GuardSpeed = 11,
 		LockpickTime = 0.6,
 		AlarmWindup = 2.0,
 		Color = Color3.fromRGB(120, 220, 120),
@@ -271,7 +255,6 @@ Config.HouseTiers = {
 	{
 		Name = "Medium",
 		Stars = 2,
-		GuardSpeed = 18,
 		LockpickTime = 1.2,
 		AlarmWindup = 1.6,
 		Color = Color3.fromRGB(90, 180, 255),
@@ -279,7 +262,6 @@ Config.HouseTiers = {
 	{
 		Name = "Hard",
 		Stars = 3,
-		GuardSpeed = 26,
 		LockpickTime = 2.0,
 		AlarmWindup = 1.3,
 		Color = Color3.fromRGB(190, 120, 255),
@@ -287,7 +269,6 @@ Config.HouseTiers = {
 	{
 		Name = "Extreme",
 		Stars = 4,
-		GuardSpeed = 34,
 		LockpickTime = 3.0,
 		AlarmWindup = 1.0,
 		Color = Color3.fromRGB(255, 190, 40),
@@ -297,32 +278,35 @@ Config.HouseTiers = {
 -- Every house on the street, in order from the yard (spawn) to the Mansion at the end of the road.
 -- Keep one house per line: tools/map_builder.py reads this list to build the street.
 Config.Houses = {
-	{ Id = "House1", DisplayName = "Maple Cottage", Tier = 1, Guard = "GingerCat" },
-	{ Id = "House2", DisplayName = "Willow Cottage", Tier = 1, Guard = "TuxedoCat" },
-	{ Id = "House3", DisplayName = "Rose Cottage", Tier = 1, Guard = "SiameseCat" },
-	{ Id = "House4", DisplayName = "Daisy Cottage", Tier = 1, Guard = "GreyTabby" },
-	{ Id = "House5", DisplayName = "Blue Oak House", Tier = 2, Guard = "Chihuahua" },
-	{ Id = "House6", DisplayName = "Cedar House", Tier = 2, Guard = "Pug" },
-	{ Id = "House7", DisplayName = "Elm Street House", Tier = 2, Guard = "Corgi" },
-	{ Id = "House8", DisplayName = "Birch House", Tier = 2, Guard = "Dalmatian" },
-	{ Id = "House9", DisplayName = "Pine Ridge House", Tier = 3, Guard = "GermanShepherd" },
-	{ Id = "House10", DisplayName = "Aspen House", Tier = 3, Guard = "Doberman" },
-	{ Id = "Mansion", DisplayName = "Grand Mansion", Tier = 4, Guard = "Drone" },
+	{ Id = "House1", DisplayName = "Maple Cottage", Tier = 1, Guard = "TuxedoCat" },
+	{ Id = "House2", DisplayName = "Willow Cottage", Tier = 1, Guard = "Puppy" },
+	{ Id = "House3", DisplayName = "Rose Cottage", Tier = 1, Guard = "Labrador" },
+	{ Id = "House4", DisplayName = "Daisy Cottage", Tier = 1, Guard = "GuardDog" },
+	{ Id = "House5", DisplayName = "Blue Oak House", Tier = 2, Guard = "HomeOwner" },
+	{ Id = "House6", DisplayName = "Cedar House", Tier = 2, Guard = "OffDutyOfficer" },
+	{ Id = "House7", DisplayName = "Elm Street House", Tier = 2, Guard = "Wizard" },
+	{ Id = "House8", DisplayName = "Birch House", Tier = 2, Guard = "TRex" },
+	{ Id = "House9", DisplayName = "Pine Ridge House", Tier = 3, Guard = "SecurityBot", GuardCount = 3 },
+	{ Id = "House10", DisplayName = "Aspen House", Tier = 3, Guard = "SecurityCar" },
+	{ Id = "Mansion", DisplayName = "Grand Mansion", Tier = 4, Guard = "SecurityCar", GuardCount = 4 },
 } :: { HouseInfo }
 
--- Who guards each house (models live in shared/Guards). One guard per line, read by the map builder.
+-- Who defends each house (models live in shared/Guards; docks are built by tools/map_builder.py).
+-- `Speed` is the speed the defender chases you at once it is out of the house — inside, everyone
+-- moves at the standard Roblox speed. The defenders get terrifyingly fast down the street, so the
+-- house itself is the fair fight and the front gate is where you find out if you're faster.
+-- One guard per line, read by the map builder.
 Config.Guards = {
-	GingerCat = { DisplayName = "Ginger Cat", Kind = "Cat", Icon = "🐱" },
-	TuxedoCat = { DisplayName = "Tuxedo Cat", Kind = "Cat", Icon = "🐱" },
-	SiameseCat = { DisplayName = "Siamese Cat", Kind = "Cat", Icon = "🐱" },
-	GreyTabby = { DisplayName = "Grey Tabby", Kind = "Cat", Icon = "🐱" },
-	Chihuahua = { DisplayName = "Chihuahua", Kind = "Dog", Icon = "🐶" },
-	Pug = { DisplayName = "Pug", Kind = "Dog", Icon = "🐶" },
-	Corgi = { DisplayName = "Corgi", Kind = "Dog", Icon = "🐶" },
-	Dalmatian = { DisplayName = "Dalmatian", Kind = "Dog", Icon = "🐶" },
-	GermanShepherd = { DisplayName = "German Shepherd", Kind = "Dog", Icon = "🐕" },
-	Doberman = { DisplayName = "Doberman", Kind = "Dog", Icon = "🐕" },
-	Drone = { DisplayName = "Security Drone", Kind = "Drone", Icon = "🤖" },
+	TuxedoCat = { DisplayName = "Tuxedo Cat", Kind = "Cat", Icon = "🐱", Speed = 10 },
+	Puppy = { DisplayName = "Puppy", Kind = "Dog", Icon = "🐶", Speed = 25 },
+	Labrador = { DisplayName = "Labrador", Kind = "Dog", Icon = "🐶", Speed = 70 },
+	GuardDog = { DisplayName = "Guard Dog", Kind = "Dog", Icon = "🐕", Speed = 300 },
+	HomeOwner = { DisplayName = "Home Owner", Kind = "Human", Icon = "🧑", Speed = 1200 },
+	OffDutyOfficer = { DisplayName = "Off-Duty Officer", Kind = "Human", Icon = "👮", Speed = 17500 },
+	Wizard = { DisplayName = "Wizard", Kind = "Wizard", Icon = "🧙", Speed = 50000 },
+	TRex = { DisplayName = "T-Rex", Kind = "Beast", Icon = "🦖", Speed = 100000 },
+	SecurityBot = { DisplayName = "Security Bot", Kind = "Robot", Icon = "🤖", Speed = 1100000 },
+	SecurityCar = { DisplayName = "Security Car", Kind = "Vehicle", Icon = "🚔", Speed = 125000000 },
 } :: { [string]: GuardInfo }
 
 local housesById: { [string]: HouseInfo } = {}
@@ -338,7 +322,7 @@ end
 
 function Config.getGuard(houseId: string): GuardInfo
 	local house = housesById[houseId]
-	return Config.Guards[if house then house.Guard else "Drone"]
+	return Config.Guards[if house then house.Guard else "TuxedoCat"]
 end
 
 Config.Stealing = {
@@ -348,11 +332,17 @@ Config.Stealing = {
 
 Config.Alarm = {
 	CatchRadius = 3.75, -- studs (measured along the ground) between a guard and you to get BUSTED
-	CalmDownTime = 4, -- seconds with nobody on the property before the alarm resets
+	CalmDownTime = 4, -- seconds with nobody in the chase area before the alarm resets
 	BustImmunity = 4, -- seconds you can't be caught again after getting busted
 	DroneAimHeight = 1.5, -- drones aim this far above your HumanoidRootPart
 	DroneDockHeight = 5, -- how high drones hover above their charging dock
 	GuardReturnSpeed = 16, -- how fast guards walk/fly back to bed once the alarm calms down
+	-- Defenders do not give up at the property line any more: they chase you all the way back
+	-- down the street and turn around at the canyon mouth. The yard is safe.
+	InsideSpeed = 16, -- the standard Roblox movement speed: everyone (you and them) moves this fast inside a house
+	LaneHalfWidth = 22, -- how far off the middle of the road a chase is willing to go (studs)
+	SafeX = -200, -- once you are west of this (the canyon mouth) the chase is over
+	HouseFrontInset = 18, -- the front wall sits this far inside the property (the map sets it per house)
 }
 
 Config.Doors = {
@@ -403,36 +393,9 @@ Config.DayNight = {
 }
 
 --------------------------------------------------------------------------------
--- Getaway car
---------------------------------------------------------------------------------
-Config.Vehicle = {
-	HoverHeight = 2.0, -- studs between the ground and the chassis centre
-	Acceleration = 38, -- studs/s²
-	Braking = 95,
-	Coast = 22, -- deceleration when you let go of the throttle
-	ReverseFactor = 0.45, -- reverse top speed = top speed * this
-	TurnRate = 2.1, -- radians per second at full steering
-	MaxForce = 250000,
-	MaxTorque = 600000,
-	SpawnCooldown = 4, -- seconds between car spawns
-	-- Paint colour for each Engine level
-	Paints = {
-		Color3.fromRGB(196, 72, 56),
-		Color3.fromRGB(40, 110, 205),
-		Color3.fromRGB(32, 32, 38),
-		Color3.fromRGB(255, 160, 20),
-		Color3.fromRGB(135, 50, 210),
-		Color3.fromRGB(245, 245, 250),
-	},
-	UnderglowColor = Color3.fromRGB(0, 255, 200),
-}
-
---------------------------------------------------------------------------------
 -- Sell point (the market stall in the yard, where loot you are carrying is sold)
 --------------------------------------------------------------------------------
 Config.Market = {
-	-- How close your car has to be to the stall before its trunk can be sold too.
-	TrunkRange = 45,
 	PromptDistance = 12,
 }
 

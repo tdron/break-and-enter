@@ -120,7 +120,6 @@ function Inventory.refresh(player: Player)
 	end
 	player:SetAttribute("Carried", #session.Carried)
 	player:SetAttribute("CarriedList", table.concat(session.Carried, ","))
-	player:SetAttribute("TrunkCount", #session.Profile.Trunk)
 	updateSack(player, #session.Carried)
 end
 
@@ -149,7 +148,7 @@ function Inventory.addCarried(player: Player, itemId: string): (boolean, string?
 	end
 	local capacity = PlayerData.getUpgradeValue(player, "Bag")
 	if #session.Carried >= capacity then
-		return false, "🎒 Your bag is full! Load your car trunk or bring the loot to your warehouse."
+		return false, "🎒 Your bag is full! Bring the loot to your warehouse."
 	end
 	table.insert(session.Carried, itemId)
 	Inventory.refresh(player)
@@ -164,38 +163,6 @@ function Inventory.takeCarried(player: Player): { string }
 	end
 	local items = session.Carried
 	session.Carried = {}
-	Inventory.refresh(player)
-	return items
-end
-
--- Moves as many carried items as fit into the trunk. Returns (moved, stillCarried).
-function Inventory.loadTrunk(player: Player): (number, number)
-	local session = PlayerData.get(player)
-	if not session then
-		return 0, 0
-	end
-	local capacity = PlayerData.getUpgradeValue(player, "Trunk")
-	local trunk = session.Profile.Trunk
-	local moved = 0
-	while #session.Carried > 0 and #trunk < capacity do
-		local itemId = table.remove(session.Carried, 1)
-		if itemId then
-			table.insert(trunk, itemId)
-			moved += 1
-		end
-	end
-	Inventory.refresh(player)
-	return moved, #session.Carried
-end
-
--- Empties the trunk and returns what was in it.
-function Inventory.takeTrunk(player: Player): { string }
-	local session = PlayerData.get(player)
-	if not session then
-		return {}
-	end
-	local items = session.Profile.Trunk
-	session.Profile.Trunk = {}
 	Inventory.refresh(player)
 	return items
 end

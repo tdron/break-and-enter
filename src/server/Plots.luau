@@ -13,8 +13,7 @@
 	  Workspace.Map.Warehouses.Plot<N>  (Model, attribute PlotIndex)
 	    Spawn       SpawnLocation
 	    DepositPad  Part
-	    Dock        Part (loading dock zone for the car)
-	    CarSpawn    Part (car delivery spot)
+	    Dock        Part (loading dock zone, reserved)
 	    Slots       Folder of Parts (attribute Index = shelf order)
 	    Treadmill   Model (the owner's personal treadmill, see Treadmills.luau)
 	    ...a TextLabel named "OwnerText" and one named "StatsText"
@@ -38,7 +37,6 @@ type Plot = {
 	Spawn: SpawnLocation?,
 	DepositPad: BasePart,
 	Dock: BasePart,
-	CarSpawn: BasePart,
 	Slots: { BasePart },
 	SlotColors: { Color3 },
 	Display: Folder,
@@ -122,27 +120,6 @@ function Plots.getSpawnCFrame(player: Player): CFrame?
 		return spawnPart.CFrame + Vector3.new(0, spawnPart.Size.Y / 2 + 3, 0)
 	end
 	return nil
-end
-
--- Where the player's car gets delivered when it can't spawn next to them.
-function Plots.getCarSpawnCFrame(player: Player): CFrame?
-	local plot = plotByPlayer[player]
-	if plot then
-		return plot.CarSpawn.CFrame
-	end
-	return nil
-end
-
--- Is `position` inside the player's own loading dock?
-function Plots.isInDock(player: Player, position: Vector3): boolean
-	local plot = plotByPlayer[player]
-	if not plot then
-		return false
-	end
-	local dock = plot.Dock
-	local relative = dock.CFrame:PointToObjectSpace(position)
-	local half = dock.Size / 2
-	return math.abs(relative.X) <= half.X and math.abs(relative.Z) <= half.Z and relative.Y > -6 and relative.Y < 14
 end
 
 local function updateStats(plot: Plot, player: Player)
@@ -362,18 +339,6 @@ function Plots.sellAll(player: Player, items: { string })
 	end
 end
 
--- Is `position` inside any warehouse's loading dock?
-function Plots.isInAnyDock(position: Vector3): boolean
-	for _, plot in plots do
-		local relative = plot.Dock.CFrame:PointToObjectSpace(position)
-		local half = plot.Dock.Size / 2
-		if math.abs(relative.X) <= half.X and math.abs(relative.Z) <= half.Z and relative.Y > -6 and relative.Y < 14 then
-			return true
-		end
-	end
-	return false
-end
-
 local function onDepositTouched(plot: Plot, hit: BasePart)
 	local player = playerFromHit(hit)
 	if not player then
@@ -474,9 +439,8 @@ function Plots.init()
 
 		local depositPad = model:FindFirstChild("DepositPad")
 		local dock = model:FindFirstChild("Dock")
-		local carSpawn = model:FindFirstChild("CarSpawn")
-		if not (depositPad and depositPad:IsA("BasePart") and dock and dock:IsA("BasePart") and carSpawn and carSpawn:IsA("BasePart")) then
-			warn("[Plots] " .. model:GetFullName() .. " is missing DepositPad/Dock/CarSpawn")
+		if not (depositPad and depositPad:IsA("BasePart") and dock and dock:IsA("BasePart")) then
+			warn("[Plots] " .. model:GetFullName() .. " is missing DepositPad/Dock")
 			continue
 		end
 		local spawnLocation = model:FindFirstChild("Spawn")
@@ -492,7 +456,6 @@ function Plots.init()
 			Spawn = if spawnLocation and spawnLocation:IsA("SpawnLocation") then spawnLocation else nil,
 			DepositPad = depositPad,
 			Dock = dock,
-			CarSpawn = carSpawn,
 			Slots = slots,
 			SlotColors = {},
 			Display = display,

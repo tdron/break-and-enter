@@ -7,13 +7,7 @@
  "children": [
   {
    "name": "Workspace",
-   "className": "Workspace",
-   "children": [
-    {
-     "name": "Cars",
-     "className": "Folder"
-    }
-   ]
+   "className": "Workspace"
   },
   {
    "name": "Lighting",
@@ -92,10 +86,6 @@
       },
       {
        "name": "Purchase",
-       "className": "RemoteFunction"
-      },
-      {
-       "name": "SpawnCar",
        "className": "RemoteFunction"
       },
       {
@@ -187,13 +177,6 @@
        "filePaths": [
         "src/server/Treadmills.luau"
        ]
-      },
-      {
-       "name": "Vehicles",
-       "className": "ModuleScript",
-       "filePaths": [
-        "src/server/Vehicles.luau"
-       ]
       }
      ]
     }
@@ -282,13 +265,6 @@
          "className": "ModuleScript",
          "filePaths": [
           "src/client/UI.luau"
-         ]
-        },
-        {
-         "name": "VehicleController",
-         "className": "ModuleScript",
-         "filePaths": [
-          "src/client/VehicleController.luau"
          ]
         },
         {
