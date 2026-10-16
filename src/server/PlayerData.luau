@@ -146,7 +146,7 @@ local function sanitize(raw: any): Profile
 	-- turn that back into the same speed. (New saves store SpeedPoints directly.)
 	local legacyLevel = readNumber(raw.SpeedLevel, 0, 0, 1e9)
 	profile.SpeedPoints = readNumber(raw.SpeedPoints, legacyLevel / Config.Speed.SpeedDivisor, 0, 1e15)
-	profile.Rebirths = math.floor(readNumber(raw.Rebirths, 0, 0, 1e6))
+	profile.Rebirths = math.floor(readNumber(raw.Rebirths, 0, 0, 1e12)) -- rebirths never cap out
 	profile.Stored = readItemList(raw.Stored, Config.getUpgradeValue("Storage", profile.Levels.Storage))
 	-- The getaway car (and its trunk) is gone. Anything an old save still had in the trunk is
 	-- moved onto the warehouse shelves so nobody loses loot; the overflow is written off.

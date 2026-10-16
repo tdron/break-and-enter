@@ -290,7 +290,7 @@ function Rebirth.init(screen: ScreenGui)
 		Position = UDim2.fromOffset(16, 72),
 		Size = UDim2.new(1, -32, 0, 22),
 		Font = Theme.BodyFont,
-		Text = "The first rebirth costs 1M speed; every one after costs 4x more.",
+		Text = "Each rebirth costs 1.75x the speed of the last — and there is no limit.",
 		TextColor3 = Theme.SubText,
 		TextSize = 14,
 		TextXAlignment = Enum.TextXAlignment.Left,

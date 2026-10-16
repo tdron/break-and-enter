@@ -832,7 +832,7 @@ local rebirthRequests = {}
 Mock.invokeHandlers.Rebirth = function(action)
 	table.insert(rebirthRequests, tostring(action))
 	if action == "Buy" then
-		return { Ok = true, Message = "🔁 REBIRTH #1! Everything you train and earn is x1.5." }
+		return { Ok = true, Message = "🔁 REBIRTH #1! Everything you train and earn is x1.1." }
 	end
 	return { Ok = true, Rebirths = 0, Multiplier = 1 }
 end
@@ -867,9 +867,9 @@ step("the rebirth shrine's window prices the next rebirth", function()
 	player:SetAttribute("Rebirths", 2)
 	player:SetAttribute("SpeedPoints", 950000)
 	Mock.advance(0.2)
-	check(findText(window, "x2"), "the power chip shows x2")
+	check(findText(window, "x1.2"), "the power chip shows x1.2")
 	check(findText(window, "Rebirth #3"), "the next rebirth is priced")
-	check(findText(window, "16M speed"), "at the 4x price")
+	check(findText(window, "3.06M speed"), "at the x1.75 price")
 	window.Close.Activated:Fire()
 	Mock.advance(0.3)
 	eq(window.Visible, false, "close hides the window")

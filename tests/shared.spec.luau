@@ -437,12 +437,13 @@ test("item models fit on shelves and furniture", function()
 	end
 end)
 
-test("rebirths cost speed in steep millions", function()
+test("rebirths cost speed, each x1.75 more than the last", function()
 	eq(Config.rebirthCost(0), 1000000, "the first rebirth costs a million speed")
-	eq(Config.rebirthCost(1), 4000000, "the second costs four times that")
-	eq(Config.rebirthCost(2), 16000000)
+	eq(Config.rebirthCost(1), 1750000, "then x1.75")
+	eq(Config.rebirthCost(2), 3062500)
+	eq(Config.rebirthCost(3), 5359375)
 	local last = 0
-	for count = 0, 8 do
+	for count = 0, 16 do
 		local cost = Config.rebirthCost(count)
 		check(cost > last, "every rebirth must cost strictly more (rebirth " .. count .. ")")
 		last = cost
@@ -450,11 +451,11 @@ test("rebirths cost speed in steep millions", function()
 	eq(Config.rebirthCost(-2), Config.rebirthCost(0), "negative counts clamp to the first price")
 end)
 
-test("the rebirth multiplier starts at x1 and gains half a x per rebirth", function()
+test("the rebirth multiplier gains x0.1 per rebirth, forever", function()
 	eq(Config.rebirthMultiplier(0), 1, "no rebirths, no bonus")
-	eq(Config.rebirthMultiplier(1), 1.5)
-	eq(Config.rebirthMultiplier(2), 2)
-	eq(Config.rebirthMultiplier(6), 4)
+	eq(Format.decimal(Config.rebirthMultiplier(1), 2), "1.1")
+	eq(Format.decimal(Config.rebirthMultiplier(2), 2), "1.2")
+	eq(Format.decimal(Config.rebirthMultiplier(25), 2), "3.5", "the ladder never stops")
 	eq(Config.rebirthMultiplier(-1), 1, "clamped before the first rebirth")
 end)
 

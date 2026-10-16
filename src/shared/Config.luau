@@ -244,13 +244,13 @@ end
 -- Rebirth
 -- Trade every speed point you have trained for a permanent production
 -- multiplier (treadmill training AND warehouse income). The first rebirth
--- costs a million speed and every one after that costs four times as much,
--- so each step is a real grind; the multiplier grows by a flat x0.5 a time.
+-- costs a million speed and every one after costs x1.75 more, so the ladder
+-- never ends; each rebirth adds a flat x0.1 to the multiplier, forever.
 --------------------------------------------------------------------------------
 Config.Rebirth = {
 	BaseCost = 1_000_000, -- speed points for your first rebirth
-	CostGrowth = 4, -- every rebirth after costs this many times more
-	BonusStep = 0.5, -- the multiplier grows by this per rebirth: x1, x1.5, x2, ...
+	CostGrowth = 1.75, -- every rebirth after costs this many times more (no cap)
+	BonusStep = 0.1, -- the multiplier grows by this per rebirth: x1, x1.1, x1.2, ...
 	PromptDistance = 10,
 }
 
