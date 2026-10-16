@@ -49,23 +49,23 @@ FONTS = {
 # Yaw (degrees) that makes a piece whose front is local -Z face the given direction.
 YAW = {"n": 0, "s": 180, "e": -90, "w": 90}
 
-# --- Palette ---
+# --- Palette: bright pastel "candy town" — cream bases, sorbet accents, nothing murky ---
 WHITE = (245, 245, 242)
-OFFWHITE = (232, 228, 218)
+OFFWHITE = (238, 234, 224)
 BLACK = (24, 24, 28)
-DARK = (46, 48, 54)
+DARK = (88, 94, 110)        # soft slate instead of near-black (small accents only)
 GOLD = (255, 196, 54)
-GLASS = (170, 210, 235)
-WOOD = (150, 105, 66)
-WOOD_DARK = (92, 60, 38)
-WOOD_LIGHT = (196, 160, 112)
+GLASS = (196, 226, 247)
+WOOD = (208, 158, 98)
+WOOD_DARK = (158, 110, 70)
+WOOD_LIGHT = (232, 198, 152)
 STONE = (150, 150, 155)
-GRASS = (86, 156, 70)
-LEAF = (64, 140, 58)
-LEAF_DARK = (44, 112, 48)
-ASPHALT = (48, 50, 55)
-SIDEWALK = (196, 196, 190)
-CONCRETE = (170, 170, 168)
+GRASS = (98, 190, 80)
+LEAF = (92, 200, 82)
+LEAF_DARK = (68, 168, 66)
+ASPHALT = (120, 124, 136)   # light bluish pavement
+SIDEWALK = (234, 228, 214)  # cream pavement
+CONCRETE = (210, 208, 200)
 YELLOW = (250, 205, 40)
 RED = (200, 40, 40)
 
@@ -216,7 +216,7 @@ def tree(parent: Inst, base: CF, scale: float = 1.0, kind: str = "round") -> Ins
         part(m, "Leaves", (6 * scale, 6 * scale, 6 * scale), base * CF(2.5 * scale, trunk_h + 1.5 * scale, 1.5 * scale),
              LEAF_DARK, "LeafyGrass", shape="Ball", collide=False)
         part(m, "Leaves", (6 * scale, 6 * scale, 6 * scale), base * CF(-2.2 * scale, trunk_h + 2.0 * scale, -1.8 * scale),
-             (76, 150, 62), "LeafyGrass", shape="Ball", collide=False)
+             (110, 198, 92), "LeafyGrass", shape="Ball", collide=False)
     return m
 
 
@@ -227,11 +227,11 @@ def bush(parent: Inst, base: CF, size: float = 3.0, color=LEAF) -> Inst:
 
 def street_lamp(parent: Inst, base: CF) -> Inst:
     m = model(parent, "StreetLamp", base)
-    part(m, "Pole", (0.6, 15, 0.6), base * CF(0, 7.5, 0), DARK, "Metal")
-    part(m, "Base", (1.4, 1, 1.4), base * CF(0, 0.5, 0), DARK, "Metal")
-    part(m, "Arm", (0.4, 0.4, 4), base * CF(0, 14.8, -1.8), DARK, "Metal")
-    lamp = part(m, "Lamp", (1.4, 0.6, 2.2), base * CF(0, 14.4, -3.6), (255, 236, 180), "Neon", collide=False)
-    point_light(lamp, (255, 220, 160), 0.8, 26)
+    part(m, "Pole", (0.6, 15, 0.6), base * CF(0, 7.5, 0), WHITE, "SmoothPlastic")
+    part(m, "Base", (1.4, 1, 1.4), base * CF(0, 0.5, 0), WHITE, "SmoothPlastic")
+    part(m, "Arm", (0.4, 0.4, 4), base * CF(0, 14.8, -1.8), WHITE, "SmoothPlastic")
+    lamp = part(m, "Lamp", (1.4, 0.6, 2.2), base * CF(0, 14.4, -3.6), (255, 240, 200), "Neon", collide=False)
+    point_light(lamp, (255, 226, 170), 0.8, 26)
     return m
 
 
@@ -333,22 +333,48 @@ class HouseBuilder:
             if b - a < 0.01 or y1 - y0 < 0.01:
                 continue
             if kind == "window":
-                self.p("Window", (b - a, y1 - y0, 0.3), ((a + b) / 2, (y0 + y1) / 2, z), GLASS, "Glass",
+                # A white frame ring is hidden inside the wall and peeks out around the opening
+                # (thinner than the wall, so it only shows as the border of the hole).
+                self.p("WindowFrame", (b - a + 0.55, y1 - y0 + 0.55, 0.45), ((a + b) / 2, (y0 + y1) / 2, z),
+                       WHITE, "SmoothPlastic")
+                self.p("Window", (b - a - 0.2, y1 - y0 - 0.2, 0.2), ((a + b) / 2, (y0 + y1) / 2, z), GLASS, "Glass",
                        transparency=0.55, reflectance=0.15)
                 self.p("Sill", (b - a + 0.6, 0.3, t + 0.5), ((a + b) / 2, y0 - 0.15, z), WHITE, "SmoothPlastic")
+                self.p("Lintel", (b - a + 0.6, 0.3, t + 0.5), ((a + b) / 2, y1 + 0.15, z), WHITE, "SmoothPlastic")
             else:
                 self.p(name, (b - a, y1 - y0, t), ((a + b) / 2, (y0 + y1) / 2, z), color, material)
+                if name != "InteriorWall" and material == "Plaster" and b - a > 4 and y1 - y0 > 4:
+                    # Clapboard siding: thin shadowed seams every few studs of height, so the flat
+                    # pastel wall reads as painted boards instead of one plastic slab.
+                    groove = tuple(max(0, int(c * 0.88)) for c in color)
+                    face = z + math.copysign(t / 2, z)
+                    gy = y0 + 3.2
+                    while gy < y1 - 1.4:
+                        self.p("Siding", (b - a, 0.16, 0.18), ((a + b) / 2, gy, face), groove, material,
+                               collide=False, shadow=False)
+                        gy += 3.2
 
     def wall_z(self, x, z0, z1, t, h, openings, color, material, name="Wall"):
         for a, b, y0, y1, kind in self._segments(z0, z1, h, openings):
             if b - a < 0.01 or y1 - y0 < 0.01:
                 continue
             if kind == "window":
-                self.p("Window", (0.3, y1 - y0, b - a), (x, (y0 + y1) / 2, (a + b) / 2), GLASS, "Glass",
+                self.p("WindowFrame", (0.45, y1 - y0 + 0.55, b - a + 0.55), (x, (y0 + y1) / 2, (a + b) / 2),
+                       WHITE, "SmoothPlastic")
+                self.p("Window", (0.2, y1 - y0 - 0.2, b - a - 0.2), (x, (y0 + y1) / 2, (a + b) / 2), GLASS, "Glass",
                        transparency=0.55, reflectance=0.15)
                 self.p("Sill", (t + 0.5, 0.3, b - a + 0.6), (x, y0 - 0.15, (a + b) / 2), WHITE, "SmoothPlastic")
+                self.p("Lintel", (t + 0.5, 0.3, b - a + 0.6), (x, y1 + 0.15, (a + b) / 2), WHITE, "SmoothPlastic")
             else:
                 self.p(name, (t, y1 - y0, b - a), (x, (y0 + y1) / 2, (a + b) / 2), color, material)
+                if name != "InteriorWall" and material == "Plaster" and b - a > 4 and y1 - y0 > 4:
+                    groove = tuple(max(0, int(c * 0.88)) for c in color)
+                    face = x + math.copysign(t / 2, x)
+                    gy = y0 + 3.2
+                    while gy < y1 - 1.4:
+                        self.p("Siding", (0.18, 0.16, b - a), (face, gy, (a + b) / 2), groove, material,
+                               collide=False, shadow=False)
+                        gy += 3.2
 
     def exterior(self, t, color, material, front, back, left, right):
         W, D, H = self.W, self.D, self.H
@@ -358,7 +384,23 @@ class HouseBuilder:
         self.wall_z(-W / 2 + t / 2, -D / 2 + t, D / 2 - t, t, H, left, color, material, "SideWall")
         self.wall_z(W / 2 - t / 2, -D / 2 + t, D / 2 - t, t, H, right, color, material, "SideWall")
         # Foundation the floor sits on
-        self.p("Foundation", (W + 0.6, 0.5, D + 0.6), (0, 0.25, 0), (120, 118, 112), "Concrete")
+        self.p("Foundation", (W + 0.6, 0.5, D + 0.6), (0, 0.25, 0), (172, 168, 160), "Concrete")
+        # White painted trim: corner boards covering the wall seams and a skirting board along the
+        # base. This is what turns the flat pastel walls from "plastic block" into a painted house.
+        for sx in (-1, 1):
+            for sz in (-1, 1):
+                self.p("CornerTrim", (t + 0.35, H, t + 0.35), (sx * (W / 2 - t / 2), H / 2, sz * (D / 2 - t / 2)),
+                       WHITE, "SmoothPlastic")
+        self.p("BaseTrim", (W, 0.6, t + 0.3), (0, 0.3, D / 2 - t / 2), WHITE, "SmoothPlastic")
+        self.p("BaseTrim", (W, 0.6, t + 0.3), (0, 0.3, -D / 2 + t / 2), WHITE, "SmoothPlastic")
+        self.p("BaseTrim", (t + 0.3, 0.6, D), (-W / 2 + t / 2, 0.3, 0), WHITE, "SmoothPlastic")
+        self.p("BaseTrim", (t + 0.3, 0.6, D), (W / 2 - t / 2, 0.3, 0), WHITE, "SmoothPlastic")
+        # Stone wainscot band above the white board: gives the lower wall a masonry texture.
+        stone = (216, 198, 172)
+        self.p("StoneBand", (W, 0.55, t + 0.26), (0, 0.86, D / 2 - t / 2), stone, "Limestone")
+        self.p("StoneBand", (W, 0.55, t + 0.26), (0, 0.86, -D / 2 + t / 2), stone, "Limestone")
+        self.p("StoneBand", (t + 0.26, 0.55, D), (-W / 2 + t / 2, 0.86, 0), stone, "Limestone")
+        self.p("StoneBand", (t + 0.26, 0.55, D), (W / 2 - t / 2, 0.86, 0), stone, "Limestone")
 
     def floor(self, color, material="WoodPlanks"):
         self.p("Floor", (self.W - 0.2, 0.2, self.D - 0.2), (0, self.FLOOR_Y - 0.1, 0), color, material)
@@ -376,6 +418,16 @@ class HouseBuilder:
         self.p("Roof", (roof_w, rise, half), (0, H + rise / 2, half / 2), color, material, rot=(0, 180, 0),
                cls="WedgePart")
         self.p("RoofRidge", (roof_w, 0.5, 0.9), (0, H + rise + 0.05, 0), DARK, "Slate")
+        # Painted fascia boards along the eaves (white edge against the sorbet roof).
+        for sz in (-1, 1):
+            self.p("EaveFascia", (roof_w + 0.2, 1.0, 0.35), (0, H + 0.3, sz * (half - 0.12)), WHITE, "SmoothPlastic")
+        # Verge boards: thin white wedges at the outer roof edges that follow each slope.
+        for sx in (-1, 1):
+            x = sx * (roof_w / 2 - 0.45)
+            self.p("VergeBoard", (0.9, rise + 0.4, half), (x, H + (rise + 0.4) / 2, -half / 2), WHITE, "SmoothPlastic",
+                   cls="WedgePart")
+            self.p("VergeBoard", (0.9, rise + 0.4, half), (x, H + (rise + 0.4) / 2, half / 2), WHITE, "SmoothPlastic",
+                   rot=(0, 180, 0), cls="WedgePart")
         gable = gable_color or self.wall_color
         for sx in (-1, 1):
             x = sx * (W / 2 - self.t / 2)
@@ -404,9 +456,9 @@ class HouseBuilder:
             depth = 1.6
             offset = outward * (self.t / 2 + depth / 2)
             if axis == "x":
-                self.p("Doorstep", (width + 1.2, 0.35, depth), (at, 0.175, coord + offset), (140, 138, 132), "Concrete")
+                self.p("Doorstep", (width + 1.2, 0.35, depth), (at, 0.175, coord + offset), (190, 184, 174), "Concrete")
             else:
-                self.p("Doorstep", (depth, 0.35, width + 1.2), (coord + offset, 0.175, at), (140, 138, 132), "Concrete")
+                self.p("Doorstep", (depth, 0.35, width + 1.2), (coord + offset, 0.175, at), (190, 184, 174), "Concrete")
         sign = -1 if hinge == "low" else 1
         hinge_at = at + sign * width / 2
         knob_at = at - sign * (width / 2 - 0.6)
@@ -469,7 +521,7 @@ class HouseBuilder:
              shape="Cylinder", collide=False, query=False)
         return d
 
-    def pet_bed(self, x, z, facing, kind, size=3.2, color=(170, 60, 60)):
+    def pet_bed(self, x, z, facing, kind, size=3.2, color=(235, 105, 110)):
         """A round pet bed; the (invisible) Dock part on top is where the cat/dog sleeps, facing `facing`."""
         f = self.frame(x, z, facing)
         fur = self.furniture
@@ -482,7 +534,7 @@ class HouseBuilder:
                  collide=False, query=False, touch=False, shadow=False)
         # Food bowl beside the bed
         bowl = f * CF(size / 2 + 1.0, 0, -0.6)
-        part(fur, "PetBowl", (0.5, 1.2, 1.2), bowl * CF(0, 0.25, 0) * CF.deg(0, 0, 90), (60, 120, 220), "SmoothPlastic",
+        part(fur, "PetBowl", (0.5, 1.2, 1.2), bowl * CF(0, 0.25, 0) * CF.deg(0, 0, 90), (90, 150, 240), "SmoothPlastic",
              shape="Cylinder", collide=False)
         part(fur, "PetFood", (0.1, 0.9, 0.9), bowl * CF(0, 0.48, 0) * CF.deg(0, 0, 90), (150, 96, 50), "Pebble",
              shape="Cylinder", collide=False)
@@ -515,11 +567,11 @@ class HouseBuilder:
             for i in range(3):
                 part(fur, "SpellBook", (0.5, 1.5, 1.9),
                      f * CF(-2.6, 0.3 + i * 0.32, 0.6) * CF.deg(0, 8 * i, 0),
-                     (150, 60, 60) if i % 2 else (60, 90, 150), "SmoothPlastic")
+                     (225, 130, 150) if i % 2 else (140, 180, 235), "SmoothPlastic")
         else:
             part(fur, "SideTable", (1.8, 2.0, 1.8), f * CF(2.6, 1.0, 0.4), WOOD, "Wood")
             part(fur, "SideLamp", (0.9, 0.9, 0.9), f * CF(2.6, 2.5, 0.4), (255, 226, 160), "Neon", shape="Ball")
-            part(fur, "Fireplace", (4.4, 7.0, 1.6), f * CF(-4.2, 3.5, 1.2), (150, 82, 62), "Brick")
+            part(fur, "Fireplace", (4.4, 7.0, 1.6), f * CF(-4.2, 3.5, 1.2), (196, 118, 96), "Brick")
             part(fur, "FireGlow", (3.0, 2.6, 0.4), f * CF(-4.2, 1.9, 0.35), (255, 140, 60), "Neon", collide=False)
 
     def nest_post(self, f: CF):
@@ -596,7 +648,7 @@ class HouseBuilder:
         point_light(shade, (255, 236, 205), brightness, light_range)
 
     # -- furniture (front of each piece = local -Z, placed with a facing) --------
-    def counter(self, x, z, facing, length=8.0, depth=2.6, height=3.2, spots=2, body=WHITE, top=(70, 72, 78)):
+    def counter(self, x, z, facing, length=8.0, depth=2.6, height=3.2, spots=2, body=WHITE, top=(158, 162, 170)):
         f = self.frame(x, z, facing)
         self.p("Counter", (length, height - 0.3, depth), (0, (height - 0.3) / 2, 0), body, "WoodPlanks", frame=f,
                parent=self.furniture)
@@ -635,7 +687,7 @@ class HouseBuilder:
                 self.p("ChairLeg", (0.22, 1.65, 0.22), (sx * 0.7, 0.82, sz * 0.7), color, "Wood", frame=f,
                        parent=self.furniture)
 
-    def sofa(self, x, z, facing, length=8.0, color=(70, 110, 170)):
+    def sofa(self, x, z, facing, length=8.0, color=(120, 170, 230)):
         f = self.frame(x, z, facing)
         fur = self.furniture
         self.p("SofaSeat", (length, 1.3, 3.0), (0, 0.65, 0), color, "Fabric", frame=f, parent=fur)
@@ -647,7 +699,7 @@ class HouseBuilder:
             self.p("Cushion", (length / 2 - 1.0, 0.4, 2.2), ((i - 0.5) * (length / 2 - 0.6), 1.5, -0.2), cushion,
                    "Fabric", frame=f, parent=fur)
 
-    def bed(self, x, z, facing, color=(90, 140, 220), headboard_h=3.0):
+    def bed(self, x, z, facing, color=(140, 180, 240), headboard_h=3.0):
         f = self.frame(x, z, facing)
         fur = self.furniture
         self.p("BedFrame", (6.0, 1.2, 8.6), (0, 0.6, 0), WOOD_DARK, "Wood", frame=f, parent=fur)
@@ -688,7 +740,7 @@ class HouseBuilder:
     def low_shelf(self, x, z, facing):
         f = self.frame(x, z, facing)
         self.p("Shelf", (5.0, 3.4, 1.8), (0, 1.7, 0), WOOD_DARK, "Wood", frame=f, parent=self.furniture)
-        colors = [(180, 50, 50), (50, 90, 170), (60, 140, 70), (200, 160, 40), (120, 60, 140)]
+        colors = [(238, 120, 118), (110, 160, 235), (118, 208, 142), (242, 198, 92), (185, 138, 235)]
         for row, y in enumerate((0.9, 2.4)):
             for i in range(6):
                 self.p("Book", (0.55, 1.1, 0.2), (-1.9 + i * 0.75, y, -0.92), colors[(i + row * 2) % len(colors)],
@@ -698,7 +750,7 @@ class HouseBuilder:
     def tall_bookcase(self, x, z, facing, width=6.0):
         f = self.frame(x, z, facing)
         self.p("Bookcase", (width, 9.0, 1.6), (0, 4.5, 0), WOOD_DARK, "Wood", frame=f, parent=self.furniture)
-        colors = [(170, 40, 40), (40, 80, 160), (50, 130, 60), (190, 150, 40), (110, 50, 130), (150, 90, 50)]
+        colors = [(235, 120, 110), (120, 165, 235), (120, 205, 140), (242, 202, 100), (190, 140, 235), (235, 160, 110)]
         for row in range(4):
             self.p("Books", (width - 0.6, 1.4, 0.15), (0, 1.2 + row * 2.1, -0.83), colors[row % len(colors)],
                    "SmoothPlastic", frame=f, parent=self.furniture, collide=False)
@@ -725,7 +777,7 @@ class HouseBuilder:
 
     def plant(self, x, z):
         f = self.frame(x, z, "n")
-        self.p("Pot", (1.6, 1.4, 1.6), (0, 0.7, 0), (170, 90, 60), "Concrete", frame=f, parent=self.furniture)
+        self.p("Pot", (1.6, 1.4, 1.6), (0, 0.7, 0), (230, 136, 94), "Concrete", frame=f, parent=self.furniture)
         self.p("Leaves", (2.6, 2.6, 2.6), (0, 2.5, 0), LEAF, "LeafyGrass", frame=f, parent=self.furniture,
                shape="Ball", collide=False)
 
@@ -792,8 +844,8 @@ class HouseBuilder:
         elif style == "hedge":
             self.y("Hedge", size(length, 4.2, 2.4), at(2.1), LEAF_DARK, "LeafyGrass")
         elif style == "modern":
-            self.y("Fence", size(length, 4.6, 0.4), at(2.3), (60, 62, 68), "WoodPlanks")
-            self.y("FenceTrim", size(length, 0.3, 0.6), at(4.75), (40, 42, 46), "Metal")
+            self.y("Fence", size(length, 4.6, 0.4), at(2.3), (150, 156, 172), "WoodPlanks")
+            self.y("FenceTrim", size(length, 0.3, 0.6), at(4.75), (118, 124, 142), "Metal")
         elif style == "estate":
             self.y("EstateWall", size(length, 8.0, 1.6), at(4.0), (214, 200, 170), "Limestone")
             self.y("EstateWallCap", size(length, 0.6, 2.2), at(8.3), (190, 176, 150), "Limestone")
@@ -805,9 +857,9 @@ class HouseBuilder:
             elif style == "estate":
                 self.y("WallPillar", (3.0, 9.6, 3.0), (post[0], 4.8, post[2]), (190, 176, 150), "Limestone")
             elif style == "modern":
-                self.y("FencePost", (0.6, 5.0, 0.6), (post[0], 2.5, post[2]), (40, 42, 46), "Metal")
+                self.y("FencePost", (0.6, 5.0, 0.6), (post[0], 2.5, post[2]), (118, 124, 142), "Metal")
 
-    def path(self, x, z0, z1, width=4.0, color=(150, 150, 156), material="Slate"):
+    def path(self, x, z0, z1, width=4.0, color=(212, 206, 194), material="Slate"):
         self.y("Path", (width, 0.12, z1 - z0), (x, 0.06, (z0 + z1) / 2), color, material)
 
     def sign(self, x, z, display, tier_info, tier, guard, guard_count):
@@ -900,11 +952,15 @@ def build_house(folder, info, tier_info, lot_cf, palette):
     hb.wall_x(0, -xi, -4.25, 0.5, H, [doorway(-16, 8, 9)], OFFWHITE, "Plaster", "InteriorWall")
     hb.wall_x(2, 4.25, xi, 0.5, H, [], OFFWHITE, "Plaster", "InteriorWall")
     hb.gable_roof(9.5, 1.4, palette["roof"])
-    hb.p("Chimney", (3.0, 9, 3.0), (-17, H + 5.5, -8), (150, 82, 62), "Brick")
+    hb.p("Chimney", (3.0, 9, 3.0), (-17, H + 5.5, -8), (186, 108, 88), "Brick")
     hb.door("x", D / 2 - t / 2, 0, 5, 9, +1, palette["door"], step=False)
+    # White door frame around the front door (painted trim against the pastel wall).
+    for sx in (-1, 1):
+        hb.p("DoorTrim", (0.55, 9, 0.35), (sx * 2.78, 4.5, D / 2 + 0.1), WHITE, "SmoothPlastic")
+    hb.p("DoorTrim", (6.2, 0.55, 0.35), (0, 9.28, D / 2 + 0.1), WHITE, "SmoothPlastic")
     # Porch (its roof sits just under the eaves, whatever the walls are built to)
     porch_h = H - 2.6
-    hb.p("PorchFloor", (12, 0.35, 4.6), (0, 0.175, D / 2 + 2.3), (170, 150, 120), "WoodPlanks")
+    hb.p("PorchFloor", (12, 0.35, 4.6), (0, 0.175, D / 2 + 2.3), (202, 172, 132), "WoodPlanks")
     for x in (-5.4, 5.4):
         hb.p("PorchColumn", (porch_h, 0.9, 0.9), (x, 0.35 + porch_h / 2, D / 2 + 4.1), WHITE, "SmoothPlastic",
              rot=(0, 0, 90), shape="Cylinder")
@@ -990,8 +1046,9 @@ def build_house(folder, info, tier_info, lot_cf, palette):
 # Cliffs: stacks of different-sized rock cubes behind and between the houses
 # ---------------------------------------------------------------------------
 
-ROCK_COLORS = [(122, 114, 104), (136, 128, 116), (108, 102, 96), (146, 138, 124), (128, 118, 106), (100, 96, 94),
-               (114, 108, 98)]
+# Warm cream sandstone — the canyon glows instead of looming grey.
+ROCK_COLORS = [(206, 186, 158), (218, 198, 170), (196, 176, 148), (226, 206, 180), (212, 192, 164), (188, 168, 140),
+               (202, 184, 154)]
 
 
 class CliffBuilder:
@@ -1227,37 +1284,45 @@ def build_mansion(folder, info, tier_info, lot_cf):
                     color, material, rot, **kw)
 
     hb.model.attr(Guard=info["guard"]["id"])
-    wall = (232, 218, 186)
+    wall = (244, 234, 208)
     hb.wall_color, hb.wall_material = wall, "Limestone"
     H = 14
     windows_front = [window(x, 6 if abs(x) < 30 else 5, 3.6, 10.4) for x in (-37, -27, -14, 14, 27, 37)]
     # The cliff wraps the sides and the back, so only the front has openings.
     hb.exterior(1.2, wall, "Limestone", front=[door_opening(0, 8, 11.5)] + windows_front, back=[], left=[], right=[])
     hb.floor((240, 236, 228), "Marble")
-    hb.room_floor(-40.8, -14.4, 0.4, 24.8, (120, 40, 40), "Carpet")
-    hb.room_floor(-40.8, -14.4, -24.8, -0.4, (70, 90, 150), "Carpet")
-    hb.room_floor(14.4, 40.8, 0.4, 24.8, (150, 105, 66), "WoodPlanks")
+    hb.room_floor(-40.8, -14.4, 0.4, 24.8, (222, 128, 118), "Carpet")
+    hb.room_floor(-40.8, -14.4, -24.8, -0.4, (152, 176, 232), "Carpet")
+    hb.room_floor(14.4, 40.8, 0.4, 24.8, WOOD_LIGHT, "WoodPlanks")
     hb.room_floor(-13.6, 13.6, -24.8, -6.4, (120, 122, 128), "DiamondPlate")
-    inner = (236, 228, 210)
+    inner = (240, 234, 220)
     for x in (-14, 14):
         hb.wall_z(x, -24.8, 24.8, 0.8, H, [doorway(13, 5, 10.5), doorway(-13, 5, 10.5)], inner, "Plaster",
                   "InteriorWall")
     hb.wall_x(0, -40.8, -14.4, 0.8, H, [doorway(-28, 5, 10.5)], inner, "Plaster", "InteriorWall")
     hb.wall_x(0, 14.4, 40.8, 0.8, H, [doorway(28, 5, 10.5)], inner, "Plaster", "InteriorWall")
     hb.wall_x(-6, -13.6, 13.6, 1.2, H, [doorway(0, 6, 10)], (110, 112, 120), "DiamondPlate", "VaultWall")
-    hb.gable_roof(12, 1.6, (150, 56, 44), "ClayRoofTiles")
-    door_color = (90, 50, 30)
+    hb.gable_roof(12, 1.6, (242, 112, 88), "ClayRoofTiles")
+    door_color = (186, 96, 64)
+    # Masonry quoins: alternating limestone blocks stacked at each corner — the texture that makes it
+    # read as a manor rather than a box.
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            for q in range(5):
+                light = (252, 244, 220) if q % 2 == 0 else (228, 218, 192)
+                hb.p("Quoin", (1.7, 2.8, 1.7), (sx * 41.4, 1.4 + q * 2.8, sz * 25.4), light, "Limestone",
+                     collide=False)
     hb.door("x", 25.4, -2, 4, 11.5, +1, door_color, hinge="low", name="FrontDoorLeft", step=False)
     hb.door("x", 25.4, 2, 4, 11.5, +1, door_color, hinge="high", name="FrontDoorRight", step=False)
     # Portico
-    hb.p("Portico", (26, 0.4, 8.5), (0, 0.2, 30.3), (220, 210, 190), "Marble")
+    hb.p("Portico", (26, 0.4, 8.5), (0, 0.2, 30.3), (240, 234, 220), "Marble")
     for x in (-11, -4.5, 4.5, 11):
         hb.p("Column", (12.6, 1.7, 1.7), (x, 0.4 + 6.3, 33.4), WHITE, "Marble", rot=(0, 0, 90), shape="Cylinder")
     hb.p("PorticoRoof", (27, 1.0, 9.4), (0, 13.5, 30.4), WHITE, "Marble")
     hb.p("Pediment", (1.0, 5, 13.5), (-6.75, 16.5, 34.4), WHITE, "Marble", rot=(0, 90, 0), cls="WedgePart")
     hb.p("Pediment", (1.0, 5, 13.5), (6.75, 16.5, 34.4), WHITE, "Marble", rot=(0, -90, 0), cls="WedgePart")
     # Grand hall
-    hb.rug(0, 9.6, 5, 29, (170, 20, 30))
+    hb.rug(0, 9.6, 5, 29, (238, 108, 96))
     for x in (-8, 8):
         hb.pedestal(x, 14, "s")
     hb.pedestal(-7, -12, "s", color=(60, 62, 70))  # ...and the pick of the vault (the rest wait inside)
@@ -1276,9 +1341,9 @@ def build_mansion(folder, info, tier_info, lot_cf):
     hb.tall_bookcase(-40.0, 20.5, "e", width=7)
     hb.desk(-27, 12, "s")
     hb.low_shelf(-27, 23.9, "n")
-    hb.sofa(-20, 6, "w", length=4, color=(120, 40, 40))
+    hb.sofa(-20, 6, "w", length=4, color=(226, 130, 118))
     # Master bedroom
-    hb.bed(-36.0, -12.5, "e", color=(200, 170, 60), headboard_h=4)
+    hb.bed(-36.0, -12.5, "e", color=(255, 208, 120), headboard_h=4)
     hb.nightstand(-39.6, -17.0, "e")
     hb.nightstand(-39.6, -8.0, "e")
     hb.dresser(-24, -23.7, "s", color=WOOD_DARK)
@@ -1289,8 +1354,8 @@ def build_mansion(folder, info, tier_info, lot_cf):
     for x, z in ((21, -12), (28, -18.5), (35, -12)):
         hb.pedestal(x, z, "s")
     for i, x in enumerate((20, 28, 36)):
-        hb.painting("x", -24.8, x, 7.5, +1, [((90, 112, 74), (232, 196, 156)), ((30, 50, 120), (240, 210, 60)),
-                                             ((160, 40, 40), (40, 40, 40))][i])
+        hb.painting("x", -24.8, x, 7.5, +1, [((150, 190, 130), (244, 216, 178)), ((120, 150, 230), (250, 216, 120)),
+                                             ((238, 140, 120), (250, 226, 170))][i])
     hb.laser((25.5, 2.4, 0), (30.5, 2.4, 0), 0.9)
     # The vault
     for x, z in ((7, -12), (-7, -20.5), (7, -20.5)):
@@ -1310,16 +1375,16 @@ def build_mansion(folder, info, tier_info, lot_cf):
     # The museum's fleet of security cars, parked on the drive (see Config.Houses: GuardCount).
     for fleet_x in (-3.6, 3.6):
         for fleet_z in (42.0, 54.0):
-            hb.guard_post(fleet_x, fleet_z, "s", info["guard"], 4, (30, 34, 46))
+            hb.guard_post(fleet_x, fleet_z, "s", info["guard"], 4, (72, 82, 118))
     hb.siren((0, 12.4, 26.6))
     hb.siren((0, H - 0.6, 18))
     hb.siren((0, H - 0.6, -12))
     # Grounds (house front wall at lot z = 25 in the plan, 25 * MS on the ground)
-    ly("Driveway", (14, 0.14, 40.6), (0, 0.07, 54.7), (160, 150, 140), "Cobblestone")
+    ly("Driveway", (14, 0.14, 40.6), (0, 0.07, 54.7), (204, 194, 178), "Cobblestone")
     hb.fence("estate", [(0, 16 * MS)], back_z=(25 - CLIFF_SETBACK) * MS)
     hb.sign(-15 * MS, 71 * MS, info["display"], tier_info, 4, info["guard"], info.get("count", 1))
     for sx in (-1, 1):
-        ly("GatePillar", (3.6, 12, 3.6), (sx * 9.6, 6, 74.4), (190, 176, 150), "Limestone")
+        ly("GatePillar", (3.6, 12, 3.6), (sx * 9.6, 6, 74.4), (222, 208, 180), "Limestone")
         lamp_part = ly("GateLamp", (1.6, 1.6, 1.6), (sx * 9.6, 12.8, 74.4), (255, 230, 170), "Neon", shape="Ball")
         point_light(lamp_part, (255, 220, 160), 1, 24)
         # Fountains on both sides of the driveway
@@ -1362,38 +1427,60 @@ def build_warehouse(folder: Inst, ground: Inst, index: int, cf: CF) -> Inst:
         return part(parent if parent is not None else shell, name, size, c, color, material, **kw)
 
     W, D, H, t = 64, 48, 22, 1.0
-    wall = (150, 154, 160)
+    wall = (238, 240, 246)
     # Floor & walls
-    p("Floor", (W, 0.4, D), (0, 0.2, 0), (128, 128, 126), "Concrete")
+    p("Floor", (W, 0.4, D), (0, 0.2, 0), (198, 200, 202), "Concrete")
     for a, b in ((-W / 2, -13), (13, W / 2)):
-        p("FrontWall", (b - a, H, t), ((a + b) / 2, H / 2, D / 2 - t / 2), wall, "CorrodedMetal")
-    p("FrontWall", (26, H - 16, t), (0, 16 + (H - 16) / 2, D / 2 - t / 2), wall, "CorrodedMetal")
+        p("FrontWall", (b - a, H, t), ((a + b) / 2, H / 2, D / 2 - t / 2), wall, "SmoothPlastic")
+    p("FrontWall", (26, H - 16, t), (0, 16 + (H - 16) / 2, D / 2 - t / 2), wall, "SmoothPlastic")
     p("DoorFrame", (27.2, 1.2, t + 0.4), (0, 16.6, D / 2 - t / 2), accent, "Metal")
     for x in (-13.6, 13.6):
         p("DoorFrame", (1.2, 16, t + 0.4), (x, 8, D / 2 - t / 2), accent, "Metal")
-    p("RollerDoor", (26, 2.4, 1.4), (0, 15.2, D / 2 - 0.2), (90, 94, 100), "DiamondPlate")
-    p("BackWall", (W, H, t), (0, H / 2, -D / 2 + t / 2), wall, "CorrodedMetal")
+    p("RollerDoor", (26, 2.4, 1.4), (0, 15.2, D / 2 - 0.2), (176, 180, 188), "DiamondPlate")
+    p("BackWall", (W, H, t), (0, H / 2, -D / 2 + t / 2), wall, "SmoothPlastic")
     for sx in (-1, 1):
         x = sx * (W / 2 - t / 2)
-        p("SideWall", (t, 14, D - 2 * t), (x, 7, 0), wall, "CorrodedMetal")
-        p("SideWall", (t, 3, D - 2 * t), (x, 20.5, 0), wall, "CorrodedMetal")
+        p("SideWall", (t, 14, D - 2 * t), (x, 7, 0), wall, "SmoothPlastic")
+        p("SideWall", (t, 3, D - 2 * t), (x, 20.5, 0), wall, "SmoothPlastic")
         p("Window", (0.3, 5, D - 2 * t), (x, 16.5, 0), GLASS, "Glass", transparency=0.5)
-    p("Roof", (W + 2, 1.2, D + 2), (0, H + 0.6, 0), (110, 112, 118), "Metal")
+    p("Roof", (W + 2, 1.2, D + 2), (0, H + 0.6, 0), (248, 249, 252), "SmoothPlastic")
     p("AccentStripe", (W + 0.4, 1.4, D + 0.4), (0, H - 0.7, 0), accent, "Metal")
+    # Sheet-metal wall panels: vertical seams every few studs so the white shell reads as manufactured
+    # panelling, plus accent pilasters on the corners.
+    seam = (218, 220, 230)
+    for x in range(-28, 29, 8):
+        if abs(x) < 13:  # above the garage door only
+            p("PanelSeam", (0.18, H - 16.4, 0.14), (x, 16.4 + (H - 16.4) / 2, D / 2 + 0.07), seam, "SmoothPlastic",
+              collide=False, shadow=False)
+        else:
+            p("PanelSeam", (0.18, H - 1, 0.14), (x, (H - 1) / 2 + 0.5, D / 2 + 0.07), seam, "SmoothPlastic",
+              collide=False, shadow=False)
+        p("PanelSeam", (0.18, H - 1, 0.14), (x, (H - 1) / 2 + 0.5, -D / 2 - 0.07), seam, "SmoothPlastic",
+          collide=False, shadow=False)
+    for sx in (-1, 1):
+        for z in range(-18, 19, 8):
+            p("PanelSeam", (0.14, 13, 0.18), (sx * (W / 2 + 0.07), 7, z), seam, "SmoothPlastic", collide=False,
+              shadow=False)
+        for sz in (-1, 1):
+            p("Pilaster", (1.3, H, 1.3), (sx * (W / 2 - 0.65), H / 2, sz * (D / 2 - 0.65)), accent, "Metal")
+    # The roller door is ribbed sheet metal too.
+    for ry in (14.3, 14.9, 15.5, 16.1):
+        p("DoorRib", (26.1, 0.16, 0.12), (0, ry, D / 2 + 0.51), (150, 154, 162), "SmoothPlastic", collide=False,
+          shadow=False)
     for x in (-18, 0, 18):
         lamp = p("CeilingLight", (8, 0.4, 2), (x, H - 0.4, -4), (255, 248, 230), "Neon", collide=False)
         point_light(lamp, (255, 244, 225), 1.1, 42)
 
     # Sign above the door (the server writes the owner's name on it)
-    sign = p("OwnerSign", (34, 5, 0.6), (0, 19.2, D / 2 + 0.35), (30, 32, 40), "SmoothPlastic", parent=plot)
-    surface_text(sign, "Back", "EMPTY WAREHOUSE", color=(255, 255, 255), label_name="OwnerText", stroke=0.4,
+    sign = p("OwnerSign", (34, 5, 0.6), (0, 19.2, D / 2 + 0.35), (250, 250, 252), "SmoothPlastic", parent=plot)
+    surface_text(sign, "Back", "EMPTY WAREHOUSE", color=(46, 42, 62), label_name="OwnerText", stroke=None,
                  pixels_per_stud=30)
     number = p("PlotNumber", (6, 6, 0.6), (-24, 19.2, D / 2 + 0.35), accent, "SmoothPlastic", parent=plot)
     surface_text(number, "Back", str(index), color=(255, 255, 255), stroke=0.3, pixels_per_stud=30)
 
     # Stats board on the back wall
-    board = p("StatsBoard", (18, 7, 0.4), (0, 15.5, -D / 2 + t + 0.2), (24, 26, 34), "SmoothPlastic", parent=plot)
-    surface_text(board, "Back", "Waiting for a new owner...", color=(200, 255, 210), label_name="StatsText",
+    board = p("StatsBoard", (18, 7, 0.4), (0, 15.5, -D / 2 + t + 0.2), (250, 250, 252), "SmoothPlastic", parent=plot)
+    surface_text(board, "Back", "Waiting for a new owner...", color=(30, 140, 80), label_name="StatsText",
                  font="Builder", weight=700, stroke=None, pixels_per_stud=30)
 
     # Racks and slots
@@ -1406,13 +1493,13 @@ def build_warehouse(folder: Inst, ground: Inst, index: int, cf: CF) -> Inst:
                 p("RackPost", (0.4, 11.2, 0.4), (rx + sx * 1.9, 5.6 + 0.4, z), accent, "Metal", parent=racks)
         p("RackBeam", (0.3, 0.4, 23.4), (rx - 1.9, 11.4, -8.8), accent, "Metal", parent=racks)
         p("RackBeam", (0.3, 0.4, 23.4), (rx + 1.9, 11.4, -8.8), accent, "Metal", parent=racks)
-        p("ShelfFrame", (4.2, 0.3, 23.4), (rx, 6.0, -8.8), (70, 74, 80), "Metal", parent=racks)
+        p("ShelfFrame", (4.2, 0.3, 23.4), (rx, 6.0, -8.8), (168, 174, 186), "Metal", parent=racks)
         for level, y in ((0, 0.7), (1, 6.3)):
             for z in SLOT_ZS:
                 slot_index += 1
                 size = (3.6, 0.6, 4.0) if level == 0 else (3.6, 0.2, 4.2)
                 slot = part(slots, f"Slot{slot_index}", size, cf * CF(rx, y, z) * CF.deg(0, 180, 0),
-                            WOOD_LIGHT if level == 0 else (190, 170, 130), "WoodPlanks")
+                            WOOD_LIGHT if level == 0 else (234, 212, 168), "WoodPlanks")
                 slot.attr(Index=slot_index)
 
     # Deposit pad (touch it while carrying loot)
@@ -1432,10 +1519,10 @@ def build_warehouse(folder: Inst, ground: Inst, index: int, cf: CF) -> Inst:
 
     # Crates (decor)
     for i, (x, z) in enumerate(((-28, 20), (-28, 16.5), (28, 20), (28, 16.4), (27.8, 12.8))):
-        p("Crate", (3.2, 3.2, 3.2), (x, 2.0, z), (170, 130, 80), "WoodPlanks", rot=(0, (i * 17) % 30, 0))
+        p("Crate", (3.2, 3.2, 3.2), (x, 2.0, z), (216, 174, 116), "WoodPlanks", rot=(0, (i * 17) % 30, 0))
 
     # Outside: apron and loading dock
-    part(ground, "Apron", (80, 0.2, 40), cf * CF(0, 0.1, 44), (150, 150, 148), "Concrete")
+    part(ground, "Apron", (80, 0.2, 40), cf * CF(0, 0.1, 44), (216, 212, 200), "Concrete")
     dock = p("Dock", (22, 2, 18), (0, 1, 35), (255, 220, 0), parent=plot, transparency=1, collide=False, query=False,
              touch=False, shadow=False)
     dock.attr(Purpose="Loading bay")
@@ -1472,20 +1559,20 @@ def build_treadmill(plot: Inst, tcf: CF) -> Inst:
     def p(n, size, pos, col, mat="SmoothPlastic", **kw):
         return part(m, n, size, tcf * CF(*pos), col, mat, **kw)
 
-    p("Mat", (8, 0.06, 17), (0, 0.03, 0.4), (44, 46, 52), "Rubber", collide=False, query=False)
-    p("Deck", (5.4, 0.35, 12), (0, 0.175, 0), DARK, "Metal")
-    p("Belt", (4.3, 0.12, 10.8), (0, 0.41, 0.1), (34, 34, 38), "Rubber")
-    p("MotorHood", (5.4, 0.7, 1.2), (0, 0.35, -6.6), (40, 42, 50), "Metal")
-    p("RearStep", (5.4, 0.25, 1.2), (0, 0.125, 6.6), (60, 62, 68), "DiamondPlate")
+    p("Mat", (8, 0.06, 17), (0, 0.03, 0.4), (102, 106, 120), "Rubber", collide=False, query=False)
+    p("Deck", (5.4, 0.35, 12), (0, 0.175, 0), (238, 240, 246), "SmoothPlastic")
+    p("Belt", (4.3, 0.12, 10.8), (0, 0.41, 0.1), (74, 76, 86), "Rubber")
+    p("MotorHood", (5.4, 0.7, 1.2), (0, 0.35, -6.6), (118, 124, 140), "Metal")
+    p("RearStep", (5.4, 0.25, 1.2), (0, 0.125, 6.6), (150, 154, 164), "DiamondPlate")
     for sx in (-1, 1):
         p("AccentRail", (0.55, 0.45, 12), (sx * 2.45, 0.575, 0), TREADMILL_TRIM, "Metal")
         p("Upright", (0.35, 4.6, 0.35), (sx * 2.3, 2.65, -5.5), (200, 200, 205), "Metal")
         p("Handrail", (0.25, 0.25, 4.4), (sx * 2.3, 4.0, -3.4), (200, 200, 205), "Metal")
-    console = p("Console", (5.4, 1.8, 1.0), (0, 5.4, -5.7), (40, 42, 50), "Metal")
-    surface_text(console, "Back", "WALK ON\nTO TRAIN", color=(120, 235, 255), label_name="TreadmillText",
-                 stroke=0.3, pixels_per_stud=40)
-    surface_text(console, "Front", "TREADMILL", color=(255, 255, 255), label_name="TreadmillOwnerText",
-                 stroke=0.3, pixels_per_stud=40)
+    console = p("Console", (5.4, 1.8, 1.0), (0, 5.4, -5.7), (250, 250, 252), "SmoothPlastic")
+    surface_text(console, "Back", "WALK ON\nTO TRAIN", color=(28, 148, 200), label_name="TreadmillText",
+                 stroke=None, pixels_per_stud=40)
+    surface_text(console, "Front", "TREADMILL", color=(46, 42, 62), label_name="TreadmillOwnerText",
+                 stroke=None, pixels_per_stud=40)
     p("AccentBar", (5.6, 0.25, 1.2), (0, 6.42, -5.7), TREADMILL_TRIM, "Neon", collide=False)
 
     # Script markers: the runner is held at RunPoint facing its LookVector; ESCAPE drops you at ExitPoint.
@@ -1494,16 +1581,351 @@ def build_treadmill(plot: Inst, tcf: CF) -> Inst:
 
     # A sign on the far side so everyone knows what it is.
     for z in (-3.0, 4.0):
-        p("SignPost", (0.4, 5, 0.4), (6.5, 2.5, z), DARK, "Metal")
-    sign = p("Sign", (0.4, 4, 8), (6.5, 6.4, 0.5), (24, 26, 34), "SmoothPlastic")
+        p("SignPost", (0.4, 5, 0.4), (6.5, 2.5, z), WHITE, "SmoothPlastic")
+    sign = p("Sign", (0.4, 4, 8), (6.5, 6.4, 0.5), (250, 250, 252), "SmoothPlastic")
     surface_text(sign, "Left", "🏃 TREADMILL\nWalk on to train speed.\nWorks while you're AFK!",
-                 color=(120, 230, 255), font="Builder", weight=700, stroke=None, pixels_per_stud=30)
+                 color=(28, 148, 200), font="Builder", weight=700, stroke=None, pixels_per_stud=30)
     return m
+
+
+def billboard_text(target: Inst, text: str, *, size=(7.0, 1.4), offset=(0.0, 0.0, 0.0),
+                   color=(255, 255, 255), font: str = "Fredoka", weight: int = 700,
+                   stroke: float | None = 0.4, label_name: str = "Label") -> Inst:
+    """A floating text tag (BillboardGui) parented to a part: NPC name tags and the like."""
+    gui = Inst("BillboardGui", "NameTag", target)
+    gui.set(
+        Size=UD2(float(size[0]), 0, float(size[1]), 0),
+        StudsOffset=V3(float(offset[0]), float(offset[1]), float(offset[2])),
+        LightInfluence=Float(0),
+    )
+    label = Inst("TextLabel", label_name, gui)
+    props = {
+        "Size": UD2(1, 0, 1, 0),
+        "BackgroundTransparency": Float(1),
+        "BorderSizePixel": Int(0),
+        "Text": text,
+        "TextColor3": C3.rgb(*color),
+        "TextScaled": True,
+        "TextWrapped": True,
+        "FontFace": FontFace(FONTS[font], weight, "Normal"),
+    }
+    if stroke is not None:
+        props["TextStrokeTransparency"] = Float(stroke)
+        props["TextStrokeColor3"] = C3.rgb(20, 20, 26)
+    label.set(**props)
+    return label
+
+
+def market_npc(parent: Inst, name: str, cf: CF, *, accent, tag_text: str, face_emoji: str) -> Inst:
+    """A blocky shopkeeper behind a counter, facing local +x (towards the hall doors).
+
+    `cf` sits at the character's feet when standing on the hall floor slab. The ProximityPrompts
+    stay on the counter parts; the character is pure set dressing.
+    """
+    npc = model(parent, name, cf)
+
+    def q(n, size, rel, col, mat="SmoothPlastic", **kw):
+        return part(npc, n, size, cf * CF(*rel), col, mat, **kw)
+
+    q("Mat", (3.0, 0.14, 2.6), (0, 0.07, 0), (52, 56, 64), "Rubber")
+    pants, shirt, skin = (50, 54, 70), (242, 244, 248), (238, 188, 150)
+    for sz in (-1, 1):
+        q("Leg", (0.85, 2.0, 0.95), (0, 1.0, sz * 0.5), pants)
+        q("Arm", (0.8, 2.1, 0.8), (0, 2.95, sz * 1.45), shirt)
+        q("Cuff", (0.85, 0.45, 0.85), (0, 2.0, sz * 1.45), accent)
+    torso = q("Torso", (1.15, 2.3, 2.1), (0, 3.15, 0), accent)
+    q("Apron", (0.5, 1.6, 1.7), (0.4, 2.7, 0), (60, 62, 74))
+    head = q("Head", (1.3, 1.3, 1.3), (0.05, 5.05, 0), skin)
+    surface_text(head, "Right", face_emoji, color=(255, 255, 255), font="Fredoka", stroke=None,
+                 pixels_per_stud=26)
+    q("Cap", (1.45, 0.45, 1.4), (0.05, 5.9, 0), accent)
+    q("CapBrim", (0.6, 0.16, 1.3), (0.9, 5.72, 0), accent)
+    billboard_text(head, tag_text, size=(9.0, 1.5), offset=(0, 2.6, 0))
+    return npc
+
+
+def market_hall(map_folder: Inst):
+    """The yard's market as ONE warehouse-like hall: two open roller doors at the front (+x, facing
+    the spawn drive), behind them two counters (the upgrade shop on the left bay, the trader on the
+    right) each staffed by an NPC. Built from the warehouses' parts-language: glossy white shell,
+    violet corner pilasters and eave band (the title arch's brand colour), grey panel seams, white
+    slab roof with a violet parapet rim, and a rooftop board. Only `ShopCounter`/`SellCounter` and
+    the `Shop`/`SellPoint` model names are gameplay-load-bearing; everything else is set dressing.
+    """
+    hall = model(map_folder, "MarketHall", CF(YARD_CX, 0, 0))
+    W, D, H = HALL_W, HALL_D, HALL_H
+    CX = YARD_CX                 # -320: the hall's footprint centre on the plaza
+    FRONT = CX + D / 2           # -311: the facade plane, facing the spawn drive
+    BACK = CX - D / 2            # -329
+    SHELL = (238, 240, 246)
+    BRAND = (146, 106, 238)      # matches the title arch over the road
+    CONCRETE = (198, 200, 202)
+    INK = (46, 42, 62)
+    STEEL = (138, 146, 164)
+    WOOD = (224, 180, 128)
+    SHOP_AC, SELL_AC = (255, 196, 54), (120, 235, 150)
+    FLOOR_TOP = 0.56             # the top of FloorSlab/Apron (sits on the plaza pad)
+
+    def p(n, size, pos, col, mat="SmoothPlastic", rot=None, **kw):
+        frame = CF(*pos)
+        if rot:
+            frame = frame * CF.deg(*rot)
+        return part(hall, n, size, frame, col, mat, **kw)
+
+    # --- shell: floor, walls and the facade with its two roller-door openings (10 wide, 6.9 tall) ---
+    p("FloorSlab", (D - 0.6, 0.3, W - 0.6), (CX, 0.41, 0), (224, 224, 230), "Concrete")
+    p("BackWall", (0.7, H, W - 1.4), (BACK + 0.35, H / 2, 0), SHELL)
+    for sz in (-1, 1):
+        p("SideWall", (D, H, 0.7), (CX, H / 2, sz * (W / 2 - 0.35)), SHELL)
+    for sz in (-1, 1):
+        p("FrontWing", (0.7, H, 3.5), (FRONT - 0.35, H / 2, sz * 14.25), SHELL)
+    p("FrontColumn", (0.7, H, 5.0), (FRONT - 0.35, H / 2, 0), SHELL)
+    p("FrontHeader", (0.7, H - 6.9, 25.0), (FRONT - 0.35, 6.9 + (H - 6.9) / 2, 0), SHELL)
+
+    # --- the warehouses' dressing: violet pilasters, eave band, panel seams ---
+    for sx in (-1, 1):
+        px = CX + sx * (D / 2 - 0.65)
+        for sz in (-1, 1):
+            p("Pilaster", (1.3, H, 1.3), (px, H / 2, sz * (W / 2 - 0.65)), BRAND, "Metal")
+    p("AccentBand", (0.45, 0.8, W - 0.2), (BACK - 0.05, H - 0.9, 0), BRAND)
+    for sz in (-1, 1):
+        p("AccentBand", (D - 0.2, 0.8, 0.45), (CX, H - 0.9, sz * (W / 2 + 0.02)), BRAND)
+    seam = (218, 220, 230)
+    for i in range(9):
+        sz = -12.8 + i * 3.2
+        p("PanelSeam", (0.18, H - 2, 0.14), (BACK - 0.09, (H - 2) / 2 + 0.5, sz), seam, collide=False, shadow=False)
+    for szs in (-1, 1):
+        for i in range(5):
+            x = BACK + 2.8 + i * 3.2
+            p("PanelSeam", (0.14, H - 2, 0.18), (x, (H - 2) / 2 + 0.5, szs * (W / 2 + 0.09)), seam,
+              collide=False, shadow=False)
+
+    # --- roof: white slab, violet parapet rim, skylight + plant kit, and the rooftop board ---
+    p("Roof", (D + 2.2, 1.0, W + 2.2), (CX, H + 0.5, 0), (248, 249, 252))
+    for sx in (-1, 1):
+        p("RoofRim", (0.4, 0.6, W + 2.6), (CX + sx * (D / 2 + 1.05), H + 0.75, 0), BRAND)
+    for sz in (-1, 1):
+        p("RoofRim", (D + 2.6, 0.6, 0.4), (CX, H + 0.75, sz * (W / 2 + 1.05)), BRAND)
+    p("SkylightFrame", (5.2, 0.5, 10.6), (CX, H + 1.2, 0), BRAND)
+    p("Skylight", (4.6, 0.5, 10.0), (CX, H + 1.35, 0), (176, 214, 232), "Glass", transparency=0.35,
+      collide=False)
+    p("RoofUnit", (2.4, 2.0, 2.4), (BACK + 3.0, H + 2.0, -9.5), (196, 200, 208), "Metal")
+    p("RoofVent", (0.6, 1.8, 0.6), (BACK + 2.8, H + 1.9, 8.0), (216, 220, 226), "Metal",
+      rot=(0, 0, 90), shape="Cylinder")
+    for sz in (-1, 1):
+        p("SignPost", (0.5, 2.8, 0.5), (CX, H + 2.4, sz * 5.8), (244, 246, 250))
+    p("RoofSignFrame", (0.35, 3.4, 16.4), (CX + 0.15, H + 4.6, 0), BRAND)
+    roof_sign = p("RoofSign", (0.3, 2.9, 15.7), (CX + 0.4, H + 4.6, 0), (250, 250, 252))
+    for face in ("Right", "Left"):
+        surface_text(roof_sign, face, "🛒 THE BARGAIN BARN", color=INK, font="Luckiest", stroke=None,
+                     pixels_per_stud=24)
+
+    # --- the two roller doors: guide rails, housing, raised slats, hazard sill, number plate, sign ---
+    bays = ((-7.5, SHOP_AC, "01", "🛒 UPGRADE SHOP"), (7.5, SELL_AC, "02", "💰 SELL POINT"))
+    for zc, accent, num, sign_text in bays:
+        for sz in (-1, 1):
+            p("DoorRail", (0.6, 6.9, 0.55), (FRONT - 0.3, FLOOR_TOP + 3.45, zc + sz * 4.95),
+              (92, 96, 112), "Metal")
+        p("DoorHood", (1.1, 1.05, 10.9), (FRONT - 0.55, FLOOR_TOP + 7.42, zc), (244, 246, 250))
+        for i in range(2):
+            p("DoorSlat", (0.5, 0.42, 10.4), (FRONT - 0.28, FLOOR_TOP + 6.7 + i * 0.45, zc), accent)
+        p("DoorSill", (0.9, 0.1, 10.4), (FRONT + 0.45, 0.6, zc), (52, 54, 64), "DiamondPlate")
+        for i in range(5):
+            p("HazardStripe", (0.62, 0.12, 1.6), (FRONT + 0.45, 0.61, zc - 4.2 + i * 2.1), YELLOW,
+              rot=(0, 40, 0), collide=False, query=False, shadow=False)
+        outer = zc - 6.9 if zc < 0 else zc + 6.9
+        plate = p("BayNumber", (0.25, 1.6, 1.6), (FRONT + 0.12, 5.9, outer), accent)
+        surface_text(plate, "Right", num, color=(255, 255, 255), stroke=0.3, pixels_per_stud=20)
+        p("BaySignFrame", (0.3, 3.0, 8.6), (FRONT + 0.18, FLOOR_TOP + 9.0, zc), accent)
+        bd = p("BaySign", (0.3, 2.6, 8.0), (FRONT + 0.34, FLOOR_TOP + 9.0, zc), (250, 250, 252))
+        surface_text(bd, "Right", sign_text, color=INK, font="Luckiest", stroke=None, pixels_per_stud=26)
+        for sz in (-1, 1):
+            pack = p("WallPack", (0.45, 0.4, 2.0), (FRONT + 0.24, H - 0.5, zc + sz * 5.9),
+                     (255, 246, 226), "Neon")
+            point_light(pack, (255, 244, 224), 0.45, 10)
+
+    # --- walk-up apron: dock stripes + bollards at every jamb ---
+    p("Apron", (7.0, 0.22, W + 2.0), (FRONT + 3.5, 0.47, 0), (206, 208, 210), "Concrete",
+      collide=False)
+    for zc, _, _, _ in bays:
+        p("DockStripe", (0.7, 0.08, 11.2), (FRONT + 2.4, 0.6, zc), YELLOW, collide=False, query=False,
+          shadow=False)
+        for sz in (-1, 1):
+            p("Bollard", (0.55, 1.6, 0.55), (FRONT + 1.4, FLOOR_TOP + 0.8, zc + sz * 6.1), YELLOW,
+              "Metal")
+
+    # --- interior: trusses + lights, chain hoist, clerestory glass, posters, tool boards ---
+    for tx in (FRONT - 3.8, CX, BACK + 3.8):
+        p("Truss", (0.7, 0.7, W - 0.6), (tx, H - 2.1, 0), (144, 150, 162), "Metal", collide=False)
+        lamp = p("HallLight", (9.0, 0.3, 1.3), (tx, H - 2.65, 0), (255, 246, 226), "Neon",
+                 collide=False)
+        point_light(lamp, (255, 244, 224), 0.55, 20, True)
+    p("HoistChain", (0.16, 2.4, 0.16), (CX, H - 3.6, 0), (70, 74, 84), "Metal", collide=False)
+    p("HoistHook", (0.4, 0.7, 0.35), (CX, H - 5.0, 0), (70, 74, 84), "Metal", collide=False)
+    for sz in (-1, 1):
+        for i in range(4):
+            p("Clerestory", (3.0, 1.1, 0.2), (BACK + 3.2 + i * 4.1, 8.2, sz * (W / 2 - 0.45)),
+              (176, 214, 232), "Glass", transparency=0.35, collide=False)
+    posters = (
+        (-1, BACK + 5.5, "⏰ OPEN 24 / 7", SHOP_AC),
+        (-1, BACK + 9.5, "📦 NEW STOCK DAILY", BRAND),
+        (1, BACK + 5.5, "🙂 CCTV IN USE", SELL_AC),
+        (1, BACK + 9.5, "📋 NO REFUNDS", STEEL),
+    )
+    for side, x, text, col in posters:
+        z = side * (W / 2 - 0.55)
+        fr = p("PosterFrame", (2.9, 1.8, 0.18), (x, 4.6, z), col)
+        bd = p("Poster", (2.5, 1.4, 0.22), (x, 4.6, z), (250, 250, 250), collide=False)
+        surface_text(bd, "Back" if side < 0 else "Front", text, color=INK, pixels_per_stud=22,
+                     stroke=None)
+    # wall-mounted pegboards with chunky toys of real tools
+    for side in (-1, 1):
+        z = side * (W / 2 - 0.5)
+        p("ToolBoard", (7.0, 3.6, 0.25), (CX - 1.5, 3.4, z), (150, 110, 64), "WoodPlanks")
+        p("ToolBoardCap", (7.4, 0.4, 0.4), (CX - 1.5, 5.3, z), BRAND)
+        base_x = CX - 1.5
+        zf = side * (W / 2 - 0.9)   # tool faces sit proud of the pegboard
+        rows = ((base_x - 2.45, 3.0), (base_x - 1.15, 4.3), (base_x + 0.15, 3.0),
+                (base_x + 1.45, 4.3), (base_x + 2.55, 3.0))
+        for i, (tx, ty) in enumerate(rows):
+            if i == 0:   # hammer
+                p("Tool", (0.16, 1.15, 0.14), (tx, ty - 0.2, zf), (118, 86, 52))
+                p("ToolHead", (0.82, 0.42, 0.3), (tx, ty + 0.5, zf - 0.02 * side), STEEL, "Metal")
+            elif i == 1:  # wrench
+                p("Tool", (0.24, 1.0, 0.13), (tx, ty - 0.15, zf), STEEL, "Metal")
+                p("ToolHead", (0.16, 0.56, 0.5), (tx, ty + 0.55, zf - 0.02 * side), STEEL, "Metal",
+                  rot=(0, 0, 90), shape="Cylinder")
+            elif i == 2:  # hand saw
+                p("ToolHead", (1.7, 0.5, 0.1), (tx, ty + 0.2, zf), (214, 218, 226), "Metal")
+                p("Tool", (0.42, 0.55, 0.3), (tx - 1.05, ty + 0.2, zf - 0.02 * side), (226, 96, 84))
+            elif i == 3:  # mallet
+                p("Tool", (0.14, 1.0, 0.13), (tx, ty - 0.2, zf), (118, 86, 52))
+                p("ToolHead", (0.66, 0.42, 0.26), (tx, ty + 0.45, zf - 0.02 * side), WOOD, "Wood")
+            else:          # screwdriver
+                p("Tool", (0.22, 0.5, 0.24), (tx, ty - 0.45, zf), SHOP_AC)
+                p("ToolHead", (0.14, 0.9, 0.12), (tx, ty + 0.35, zf - 0.02 * side), STEEL, "Metal")
+
+    # --- back wall utilities: staff door, drainpipes, ceiling vent trims ---
+    p("StaffDoorFrame", (0.24, 4.1, 2.5), (BACK - 0.1, 2.62, -5.0), (90, 94, 110), "Metal")
+    p("StaffDoor", (0.26, 3.7, 2.0), (BACK - 0.22, 2.42, -5.0), (156, 118, 78), "WoodPlanks")
+    bd = p("StaffOnly", (0.3, 0.9, 1.7), (BACK - 0.3, 3.3, -5.0), (232, 216, 88), collide=False)
+    surface_text(bd, "Left", "STAFF\nONLY", color=INK, pixels_per_stud=18, stroke=None)
+    for sz in (-1, 1):
+        p("DrainPipe", (0.5, H - 0.4, 0.5), (BACK - 0.55, (H - 0.4) / 2, sz * 14.4), (120, 126, 138),
+          "Metal", rot=(0, 0, 90), shape="Cylinder")
+
+    # --- the two sales bays: counters + staffing + props, grouped under the gameplay models ---
+    shop = model(map_folder, "Shop", CF(YARD_CX, 0, 0))
+    sell = model(map_folder, "SellPoint", CF(YARD_CX, 0, 0))
+    _hall_bay(shop, hall, -7.5, SHOP_AC, "ShopCounter", "🛒 UPGRADES", "Garry", "🛒 GARRY — UPGRADES",
+              "🙂", kind="shop")
+    _hall_bay(sell, hall, 7.5, SELL_AC, "SellCounter", "💰 CASH OUT", "Penny", "💰 PENNY — WE BUY LOOT",
+              "🤑", kind="sell")
+    return hall
+
+
+def _hall_bay(bay: Inst, hall: Inst, zc: float, accent, counter_name: str, hang_text: str,
+              npc_name: str, npc_tag: str, npc_face: str, *, kind: str):
+    """One counter bay inside the market hall. Counter parts live in the gameplay model (`bay`);
+    the hanging wayfinding board goes with the hall. Everything faces the doors (+x)."""
+    CX, W = YARD_CX, HALL_W
+    FRONT, BACK = CX + HALL_D / 2, CX - HALL_D / 2
+    CONCRETE = (198, 200, 202)
+    INK = (46, 42, 62)
+    STEEL = (138, 146, 164)
+
+    def q(n, size, pos, col, mat="SmoothPlastic", rot=None, **kw):
+        frame = CF(*pos)
+        if rot:
+            frame = frame * CF.deg(*rot)
+        return part(bay, n, size, frame, col, mat, **kw)
+
+    def h(n, size, pos, col, rot=None, **kw):  # hall-owned parts
+        frame = CF(*pos)
+        if rot:
+            frame = frame * CF.deg(*rot)
+        return part(hall, n, size, frame, col, **kw)
+
+    # hanging wayfinding board under the door-side truss
+    bd = h("HangSign", (0.22, 1.5, 7.4), (FRONT - 4.2, 7.55, zc), accent)
+    for face in ("Right", "Left"):
+        surface_text(bd, face, hang_text, color=(255, 255, 255), font="Luckiest", stroke=0.25,
+                     pixels_per_stud=24)
+
+    # the counter the prompt anchors to (name kept), with its accent face and marble top
+    q(counter_name, (2.6, 3.2, 10.4), (FRONT - 3.0, 2.16, zc), (250, 250, 252))
+    q("CounterFace", (0.15, 2.2, 9.2), (FRONT - 1.65, 2.1, zc), accent)
+    q("CounterTrimV", (0.12, 2.2, 0.25), (FRONT - 1.6, 2.1, zc - 4.7), INK, collide=False)
+    q("CounterTrimV", (0.12, 2.2, 0.25), (FRONT - 1.6, 2.1, zc + 4.7), INK, collide=False)
+    q("CounterTop", (3.2, 0.3, 11.0), (FRONT - 3.0, 3.9, zc), (250, 250, 252), "Marble")
+    q("CounterSkirt", (2.7, 0.75, 10.4), (FRONT - 3.0, 0.94, zc), CONCRETE)
+    market_npc(bay, npc_name, CF(FRONT - 5.6, 0.56, zc), accent=accent, tag_text=npc_tag,
+               face_emoji=npc_face)
+
+    # the back-wall shelf this bay shares cladding with
+    for sy in (3.9, 6.0):
+        q("Shelf", (1.8, 0.3, 11.2), (BACK + 1.25, sy, zc), (224, 180, 128), "WoodPlanks")
+
+    if kind == "shop":
+        # one crate + display ball per upgrade tier, then tyres, oil cans and a toolbox
+        for i, (color, name) in enumerate((((245, 130, 115), "BAG"), ((120, 175, 238), "SPEED"),
+                                           ((125, 210, 130), "STASH"), ((246, 196, 85), "LUCKY"))):
+            cz = zc - 3.9 + i * 2.6
+            q("Crate", (2.2, 2.0, 2.0), (BACK + 3.1, 1.56, cz), (216, 174, 116), "WoodPlanks")
+            q("Goods", (1.6, 1.6, 1.6), (BACK + 3.1, 3.4, cz), color, shape="Ball", collide=False)
+            tag = q("CrateTag", (0.16, 0.7, 1.5), (BACK + 4.25, 1.9, cz), (250, 250, 250), collide=False)
+            surface_text(tag, "Right", name, color=INK, pixels_per_stud=18, stroke=None)
+        for i in range(4):
+            q("Tyre", (2.2, 0.85, 2.2), (BACK + 4.6, 0.98 + i * 0.86, zc - 6.3), (38, 40, 48),
+              "Rubber", rot=(0, 0, 90), shape="Cylinder")
+        for i, col in enumerate(((226, 96, 84), (90, 140, 220), (240, 190, 60))):
+            q("OilCan", (1.1, 0.7, 0.7), (BACK + 1.25, 4.7, zc - 3.0 + i * 1.3), col,
+              rot=(0, 0, 90), shape="Cylinder")
+        q("Toolbox", (1.7, 0.95, 0.95), (FRONT - 3.0, 4.55, zc - 3.4), (220, 68, 60))
+        q("ToolboxGrip", (0.14, 0.14, 0.8), (FRONT - 3.0, 5.12, zc - 3.4), (140, 40, 36))
+        # a leaning ladder in the shop corner
+        q("LadderRail", (0.25, 5.6, 0.25), (BACK + 2.6, 2.9, zc - 6.2), (196, 160, 96), "Wood",
+          rot=(0, 0, -14))
+        for i in range(5):
+            q("LadderRung", (0.55, 0.16, 1.1), (BACK + 1.95 + i * 0.85, 1.2 + i * 0.85, zc - 6.2),
+              (196, 160, 96), "Wood")
+    else:
+        # the trader's scales, cash box, money bags and ledger
+        q("ScaleBase", (0.15, 1.4, 1.4), (BACK + 3.4, 0.66, zc + 5.2), (196, 158, 62), "Metal",
+          rot=(0, 0, 90), shape="Cylinder")
+        q("ScalePost", (3.1, 0.32, 0.32), (BACK + 3.4, 2.28, zc + 5.2), (196, 158, 62), "Metal",
+          rot=(0, 0, 90), shape="Cylinder")
+        q("ScaleBeam", (0.22, 0.22, 3.4), (BACK + 3.4, 3.9, zc + 5.2), (222, 186, 88), "Metal")
+        for sz in (-1, 1):
+            q("ScaleChain", (0.09, 0.9, 0.09), (BACK + 3.4, 3.38, zc + 5.2 + sz * 1.5),
+              (170, 140, 70), "Metal", collide=False)
+            q("ScalePan", (0.18, 1.5, 1.5), (BACK + 3.4, 2.86, zc + 5.2 + sz * 1.5), (204, 170, 74),
+              "Metal", rot=(0, 0, 90), shape="Cylinder")
+        q("CashBox", (1.8, 1.0, 1.3), (FRONT - 3.0, 4.6, zc + 3.6), (138, 148, 166), "Metal")
+        q("CashBoxLid", (1.8, 0.25, 1.3), (FRONT - 3.85, 5.35, zc + 3.6), (160, 170, 188), "Metal")
+        q("Banknotes", (1.4, 0.7, 1.0), (FRONT - 3.0, 5.15, zc + 3.6), (120, 190, 120), "Fabric",
+          collide=False)
+        for i, (dx, dz, sy) in enumerate(((0, 0, 1.6), (-1.3, 0.85, 1.35), (0.9, 1.0, 1.15))):
+            q("MoneyBag", (sy, sy, sy), (BACK + 5.6 + dx, 0.56 + sy / 2, zc + 6.0 + dz), (214, 178, 112),
+              "Fabric", shape="Ball")
+        q("MoneyBagKnot", (0.45, 0.45, 0.45), (BACK + 5.6, 2.4, zc + 6.0), (128, 96, 50), "Fabric",
+          shape="Ball", collide=False)
+        q("Ledger", (1.7, 0.16, 2.2), (FRONT - 2.6, 4.14, zc - 2.6), (232, 226, 210))
+        q("LedgerPen", (0.15, 0.15, 1.6), (FRONT - 2.2, 4.24, zc - 2.4), (40, 42, 52), "Metal",
+          rot=(0, -20, 0), shape="Cylinder", collide=False)
+        bd = q("BuySign", (0.3, 2.0, 8.5), (BACK + 0.5, 3.4, zc), (40, 158, 84), "SmoothPlastic")
+        surface_text(bd, "Right", "WE BUY LOOT", color=(255, 255, 255), weight=700, stroke=0.4,
+                     pixels_per_stud=40)
+        # a pallet of loot ready for the back
+        q("Pallet", (2.6, 0.35, 2.6), (FRONT - 6.6, 0.78, zc + 6.4), (196, 160, 96), "WoodPlanks")
+        for i, (dx, dz, sy) in enumerate(((0, 0, 1.6), (0.8, -0.7, 1.25), (-0.8, -0.6, 1.1))):
+            q("LootBox", (sy, sy, sy), (FRONT - 6.6 + dx, 0.95 + sy / 2, zc + 6.4 + dz), (216, 174, 116),
+              "WoodPlanks")
 
 
 # ---------------------------------------------------------------------------
 # The yard: the spawn area. Six garages in a U around a parking lot, the two
-# back-to-back market stalls in the middle, cliffs on every closed side.
+# the market hall in the middle, cliffs on every closed side.
 # ---------------------------------------------------------------------------
 
 YARD_CX = -320.0                  # centre of the parking lot
@@ -1517,7 +1939,7 @@ YARD_FACE_Z = YARD_HALF_D + 2 * GARAGE_FRONT + YARD_SETBACK   # 151: the cliff b
 YARD_FACE_X = YARD_CX - YARD_HALF_W - 2 * GARAGE_FRONT - YARD_SETBACK  # -481: the cliff behind the west row
 YARD_ROW_X = YARD_FACE_X + YARD_SETBACK + GARAGE_FRONT        # -454: centre of the west row's garages
 YARD_CLIFF_H = (30, 46)           # the yard's cliffs stand taller than the garages they sit behind
-STALL_W, STALL_D, STALL_H = 24.0, 14.0, 8.0
+HALL_W, HALL_D, HALL_H = 32.0, 18.0, 11.0
 
 # PlotIndex order: two garages on the north side, two on the west side, two on the south side.
 YARD_PLOTS = (
@@ -1530,85 +1952,14 @@ YARD_PLOTS = (
 )
 
 
-def market_stall(parent: Inst, name: str, cf: CF, *, variant: str, counter_name: str, sign: str, sign_color,
-                 blurb: str) -> Inst:
-    """One wooden market stall: local +Z is the customer side, the back wall is at local -Z.
-
-    `variant` is "shop" (shelves stacked with one crate per upgrade) or "sell" (the trader's
-    counter: scales, a cash box and bags of money).
-    """
-    stall = model(parent, name, cf)
-    W, D, H = STALL_W, STALL_D, STALL_H
-
-    def p(n, size, pos, col, mat="WoodPlanks", rot=None, **kw):
-        frame = cf * CF(*pos)
-        if rot:
-            frame = frame * CF.deg(*rot)
-        return part(stall, n, size, frame, col, mat, **kw)
-
-    p("Deck", (W, 0.3, D), (0, 0.15, 0), (150, 116, 82), "WoodPlanks")
-    p("BackWall", (W, H, 0.7), (0, H / 2, -D / 2 + 0.35), (172, 122, 76), "WoodPlanks")
-    for sx in (-1, 1):
-        p("SideWall", (0.7, H, D - 0.7), (sx * (W / 2 - 0.35), H / 2, 0.35), (172, 122, 76), "WoodPlanks")
-        p("Post", (0.75, H, 0.75), (sx * (W / 2 - 0.4), H / 2, D / 2 + 1.2), (120, 86, 56), "Wood")
-    p("Roof", (W + 2.6, 0.6, D + 4), (0, H + 0.3, 0.6), (88, 60, 40), "Metal")
-    for i in range(6):  # the striped awning valance over the counter
-        p("AwningStripe", (4, 1.6, 0.4), (-W / 2 + 2 + i * 4, H - 0.9, D / 2 + 2.3),
-          sign_color if i % 2 == 0 else (245, 245, 242), "Fabric")
-    p(counter_name, (W - 3, 3.4, 3.2), (0, 1.85, D / 2 - 1.5), (198, 162, 114), "WoodPlanks")
-    p("CounterTop", (W - 2, 0.3, 3.6), (0, 3.7, D / 2 - 1.5), (232, 226, 214), "Marble")
-    p("CounterSkirt", (W - 3, 1.2, 0.4), (0, 1.0, D / 2 + 0.1), (120, 86, 56), "Wood")
-    for y in (3.6, 6.2):  # shelves along the back wall
-        p("Shelf", (W - 4, 0.3, 3.0), (0, y, -D / 2 + 2.0), (170, 128, 84), "WoodPlanks")
-    board = p("StallSign", (W - 2, 3.4, 0.4), (0, H + 2.4, D / 2 + 2.3), (74, 54, 40), "Wood")
-    for face in ("Front", "Back"):
-        surface_text(board, face, sign, color=sign_color, font="Luckiest", stroke=None, pixels_per_stud=40)
-    note = p("StallNote", (W - 6, 2.4, 0.3), (0, 4.7, -D / 2 + 0.75), (24, 26, 34), "SmoothPlastic")
-    surface_text(note, "Front", blurb, color=(240, 240, 245), font="Builder", weight=700, stroke=None,
-                 pixels_per_stud=34)
-
-    if variant == "shop":
-        for x, color in ((-8, (215, 90, 70)), (-4, (90, 150, 215)), (0, (110, 190, 110)), (4, (230, 180, 60)),
-                         (8, (170, 110, 210))):  # one little crate per upgrade the shop sells
-            p("Crate", (3.0, 2.4, 2.4), (x, 1.4, -D / 2 + 2.6), (170, 130, 80), "WoodPlanks")
-            p("Goods", (1.7, 1.7, 1.7), (x, 3.4, -D / 2 + 2.6), color, "SmoothPlastic", shape="Ball", collide=False)
-    else:
-        # The trader's scales: a brass post with a beam and two pans.
-        p("ScalesPost", (0.5, 3.2, 0.5), (6.0, 5.3, D / 2 - 1.6), (196, 158, 62), "Metal", shape="Cylinder")
-        p("ScalesBeam", (4.6, 0.24, 0.24), (6.0, 6.9, D / 2 - 1.6), (222, 186, 88), "Metal", rot=(0, 0, 90),
-          shape="Cylinder")
-        for x in (3.8, 8.2):
-            p("ScalesChain", (0.1, 1.0, 0.1), (x, 6.4, D / 2 - 1.6), (170, 140, 70), "Metal", collide=False)
-            p("ScalesPan", (2.2, 0.24, 2.2), (x, 5.9, D / 2 - 1.6), (204, 170, 74), "Metal", shape="Cylinder")
-        # A cash box, its lid open, and bags of takings.
-        p("CashBox", (3.0, 2.0, 2.4), (-6.4, 4.85, D / 2 - 1.8), (70, 78, 92), "Metal")
-        p("CashBoxLid", (3.0, 0.3, 2.4), (-6.4, 6.6, D / 2 - 2.6), (86, 96, 112), "Metal", rot=(-38, 0, 0))
-        p("Banknotes", (2.4, 0.9, 1.8), (-6.4, 6.3, D / 2 - 1.8), (120, 190, 120), "Fabric", collide=False)
-        for i, (x, z) in enumerate(((-9.2, D / 2 - 2.2), (-8.2, D / 2 - 3.4), (-10.0, D / 2 - 3.6))):
-            p("MoneyBag", (2.0 - i * 0.2, 2.0 - i * 0.2, 2.0 - i * 0.2), (x, 4.6 + (2.0 - i * 0.2) / 2, z),
-              (168, 132, 74), "Fabric", shape="Ball")
-        p("MoneyBagKnot", (0.5, 0.5, 0.5), (-9.2, 5.9, D / 2 - 2.2), (128, 96, 50), "Fabric", shape="Ball",
-          collide=False)
-        p("Ledger", (2.4, 0.2, 3.0), (-2.0, 3.95, D / 2 - 1.4), (232, 226, 210), "SmoothPlastic", rot=(0, -14, 0))
-        p("LedgerPen", (0.16, 0.16, 2.0), (-1.0, 4.1, D / 2 - 1.2), (40, 42, 52), "Metal", rot=(0, -20, 0),
-          shape="Cylinder", collide=False)
-        # A "WE BUY LOOT" board on the counter.
-        buy = p("BuySign", (9, 2.6, 0.3), (0, 5.6, D / 2 - 0.9), (36, 92, 60), "SmoothPlastic")
-        surface_text(buy, "Front", "WE BUY LOOT", color=(190, 255, 200), font="Builder", weight=700, stroke=None,
-                     pixels_per_stud=44)
-    lamp = p("StallLight", (W - 6, 0.4, 2), (0, H - 0.5, 2.0), (255, 246, 226), "Neon", collide=False)
-    point_light(lamp, (255, 244, 224), 1.1, 26)
-    return stall
-
-
 def build_yard(map_folder: Inst, ground: Inst, decor: Inst):
-    """The spawn area: the paved lot and its markings, the two market stalls and the yard's signage."""
+    """The spawn area: the paved lot and its markings, the market hall and the yard's signage."""
     yard = model(map_folder, "Hub", CF(YARD_CX, 0, 0))
 
     # The paved site. Every garage keeps its own concrete apron and dock markings; one big asphalt slab
     # underneath fills the lot between them and the cliffs.
     part(ground, "LotPad", (YARD_MOUTH_X - YARD_FACE_X + 8.0, 0.2, YARD_FACE_Z * 2 + 8.0),
-         CF((YARD_FACE_X + YARD_MOUTH_X) / 2 - 4.0, 0.0, 0), (74, 76, 80), "Asphalt")
+         CF((YARD_FACE_X + YARD_MOUTH_X) / 2 - 4.0, 0.0, 0), (150, 152, 160), "Asphalt")
 
     # Parking bays on both sides of the middle island
     for side in (-1, 1):
@@ -1616,14 +1967,22 @@ def build_yard(map_folder: Inst, ground: Inst, decor: Inst):
             part(decor, "BayLine", (0.6, 0.06, 18.0), CF(YARD_CX - 56 + i * 14, 0.21, side * 29), WHITE,
                  collide=False, query=False, shadow=False)
 
-    # The two market stalls, back to back in the middle of the lot: the upgrade shop faces the spawn, the
-    # trader's sell point faces back towards the garages. They share the wall down the middle.
-    market_stall(map_folder, "Shop", CF(YARD_CX + STALL_D / 2, 0, 0) * CF.deg(0, 90, 0), variant="shop",
-                 counter_name="ShopCounter", sign="🛒 UPGRADE SHOP", sign_color=(255, 196, 54),
-                 blurb="Bag, storage, treadmill")
-    market_stall(map_folder, "SellPoint", CF(YARD_CX - STALL_D / 2, 0, 0) * CF.deg(0, -90, 0), variant="sell",
-                 counter_name="SellCounter", sign="💰 SELL POINT", sign_color=(120, 235, 150),
-                 blurb="Bag it, bring it, cash it in")
+    # The market hall in the middle of the lot: one warehouse-like building with two open roller
+    # doors facing the spawn drive, two staffed counters behind them and the prompt parts the
+    # Economy/Market servers look up.
+    market_hall(map_folder)
+
+    # The plaza pad under the kiosks: a cream disc tiled with a smaller inner disc and ringed with a
+    # dotted candy pattern, marking the market as the heart of the yard.
+    ring = CF(YARD_CX, 0, 0) * CF.deg(0, 0, 90)
+    part(decor, "PlazaPad", (0.16, 46, 46), ring * CF(0.28, 0, 0), (236, 230, 216), "SmoothPlastic",
+         shape="Cylinder", collide=False, shadow=False)
+    part(decor, "PlazaCore", (0.16, 38, 38), ring * CF(0.30, 0, 0), (248, 244, 234), "SmoothPlastic",
+         shape="Cylinder", collide=False, shadow=False)
+    for i in range(20):
+        angle = math.radians(i * 18)
+        part(decor, "PlazaDot", (1.1, 0.06, 1.1), CF(YARD_CX + math.sin(angle) * 20, 0.34, math.cos(angle) * 20),
+             (255, 196, 54) if i % 2 == 0 else (138, 232, 162), collide=False, query=False, shadow=False)
 
     # Spawn: in the drive lane at the mouth of the yard, looking at the stalls.
     spawn = Inst("SpawnLocation", "HubSpawn", yard)
@@ -1635,10 +1994,10 @@ def build_yard(map_folder: Inst, ground: Inst, decor: Inst):
     })
 
     # How to play board, in the open corner by the way in, facing the arriving players.
-    board = part(yard, "HowToPlay", (1, 15, 26), CF(YARD_MOUTH_X - 3, 8.6, -52), (28, 30, 44), "SmoothPlastic")
+    board = part(yard, "HowToPlay", (1, 15, 26), CF(YARD_MOUTH_X - 3, 8.6, -52), (250, 248, 242), "SmoothPlastic")
     for z in (-61, -43):
-        part(yard, "BoardPost", (0.8, 3.4, 0.8), CF(YARD_MOUTH_X - 3, 1.7, z), DARK, "Metal")
-    howto = ('<font color="#FFC83C">HOW TO PLAY</font>\n'
+        part(yard, "BoardPost", (0.8, 3.4, 0.8), CF(YARD_MOUTH_X - 3, 1.7, z), (216, 180, 120), "WoodPlanks")
+    howto = ('<font color="#D89000">HOW TO PLAY</font>\n'
              '1. Run down the street to a house\n'
              '2. Hold E to pick the lock, then steal loot\n'
              '3. Stealing trips the alarm! They chase you back to the yard\n'
@@ -1646,16 +2005,16 @@ def build_yard(map_folder: Inst, ground: Inst, decor: Inst):
              '5. Drop it on your warehouse\'s green DEPOSIT pad\n'
              '6. Stored loot earns 💰 every second!\n'
              '7. Buy upgrades at the market stall, and run on the treadmill outside your warehouse')
-    surface_text(board, "Right", howto, color=(240, 240, 250), font="Builder", weight=700, rich=True, stroke=None,
+    surface_text(board, "Right", howto, color=(46, 42, 62), font="Builder", weight=700, rich=True, stroke=None,
                  pixels_per_stud=34)
 
     # The game's title arch, over the road where it leaves the yard.
     gate = YARD_MOUTH_X + 8.0
     arch = model(yard, "TitleArch", CF(gate, 0, 0))
     for z in (-21.5, 21.5):
-        part(arch, "ArchPillar", (3.5, 26, 3.5), CF(gate, 13, z), (60, 40, 90), "Brick")
+        part(arch, "ArchPillar", (3.5, 26, 3.5), CF(gate, 13, z), (172, 134, 232), "Brick")
         part(arch, "ArchLight", (3.7, 1, 3.7), CF(gate, 24, z), (255, 196, 54), "Neon", collide=False)
-    beam = part(arch, "ArchBeam", (3.5, 7, 47), CF(gate, 29.5, 0), (40, 28, 64), "SmoothPlastic")
+    beam = part(arch, "ArchBeam", (3.5, 7, 47), CF(gate, 29.5, 0), (146, 106, 238), "SmoothPlastic")
     for face in ("Right", "Left"):
         surface_text(beam, face, "🦝 STEAL AN ITEM 🦝", color=(255, 210, 60), font="Luckiest", stroke=0.2,
                      pixels_per_stud=30)
@@ -1664,11 +2023,44 @@ def build_yard(map_folder: Inst, ground: Inst, decor: Inst):
     for x in (YARD_CX - 65, YARD_CX + 45):
         for z in (-50.0, 50.0):
             street_lamp(decor, CF(x, 0.3, z))
-    for sx in (-1, 1):  # a planter at each corner of the island
+    for sx in (-1, 1):  # a planter at each corner of the market hall, except the shrine's corner
         for sz in (-1, 1):
-            x, z = YARD_CX + sx * (STALL_D + 2.0), sz * (STALL_W / 2 - 1.5)
-            part(decor, "Planter", (3.6, 2.0, 3.6), CF(x, 1.0, z), (110, 82, 56), "WoodPlanks")
+            if (sx, sz) == (1, -1):
+                continue  # the rebirth shrine stands here instead
+            x, z = YARD_CX + sx * (HALL_D / 2 + 2.6), sz * (HALL_W / 2 + 2.4)
+            part(decor, "Planter", (3.6, 2.0, 3.6), CF(x, 1.0, z), (196, 152, 100), "WoodPlanks")
             bush(decor, CF(x, 2.0, z), 3.0, LEAF)  # bush() grows its leaves upward from the given base
+
+    # The rebirth shrine, at the hall's front corner on the walk from spawn to the doors: a violet
+    # plinth crowned with a glowing orb. The "RebirthShrine" part is what the server's Rebirth
+    # module searches for (the prompt, "OpenRebirthPrompt", only opens the window).
+    shrine_x, shrine_z = YARD_CX + HALL_D / 2 + 2.6, -(HALL_W / 2 + 2.4)
+    shrine = model(map_folder, "Shrine", CF(shrine_x, 0, shrine_z))
+    shrine_brand = (146, 106, 238)      # the title-arch violet
+    shrine_light = (212, 186, 255)
+    part(shrine, "Base", (4.0, 0.5, 4.0), CF(shrine_x, 0.61, shrine_z), (250, 248, 242), "Marble")
+    part(shrine, "Plinth", (2.6, 1.2, 2.6), CF(shrine_x, 1.46, shrine_z), shrine_brand, "SmoothPlastic")
+    pillar = part(shrine, "RebirthShrine", (1.5, 2.0, 1.5), CF(shrine_x, 3.06, shrine_z),
+                  (172, 134, 232), "SmoothPlastic")
+    part(shrine, "Halo", (2.6, 0.14, 2.6), CF(shrine_x - 0.07, 4.6, shrine_z) * CF.deg(0, 0, 90),
+         (186, 140, 255), "Neon", shape="Cylinder", collide=False, shadow=False)
+    orb = part(shrine, "Orb", (1.4, 1.4, 1.4), CF(shrine_x, 5.3, shrine_z), (190, 146, 255), "Neon",
+               shape="Ball", collide=False)
+    point_light(orb, (204, 172, 255), 0.5, 10, shadows=True)
+    # The sign hung on the walk side between two posts, facing the spawn drive (+x reads as
+    # the "Right" face): low enough that the column, halo and orb rise above it.
+    for dz in (-2.9, 2.9):
+        part(shrine, "SignPost", (0.6, 3.5, 0.6), CF(shrine_x + 2.3, 2.1, shrine_z + dz),
+             (124, 94, 150), "Wood")
+    part(shrine, "SignFrame", (0.34, 2.6, 6.4), CF(shrine_x + 2.3, 2.5, shrine_z),
+         shrine_brand, "Wood")
+    sign = part(shrine, "SignBoard", (0.3, 2.3, 6.1), CF(shrine_x + 2.45, 2.5, shrine_z),
+                (250, 248, 242), "SmoothPlastic")
+    surface_text(sign, "Right",
+                 '<font size="46">\U0001F501 REBIRTH</font>\n'
+                 '<font size="20" color="#926AEA">SPEND SPEED \u2022 GAIN POWER</font>',
+                 color=(46, 42, 62), font="Luckiest", weight=400, rich=True, stroke=None,
+                 pixels_per_stud=30)
     return yard
 
 
@@ -1696,18 +2088,18 @@ def build_roads(ground: Inst, decor: Inst, entrances: list[tuple[float, float]])
     for z in (-20, 20):
         part(ground, "Sidewalk", (walk_length, 0.3, 8), CF(walk_mid, 0.15, z), SIDEWALK, "Concrete")
         part(ground, "Curb", (walk_length, 0.34, 0.6), CF(walk_mid, 0.17, z - math.copysign(3.7, z)),
-             (150, 150, 146), "Concrete")
+             (206, 200, 186), "Concrete")
     x = ROAD_X0 + 10
     while x < ROAD_X1 - 10:
         if not (CROSSWALK_X - 15 < x < CROSSWALK_X + 15):
-            part(decor, "LaneDash", (9, 0.04, 0.6), CF(x, 0.22, 0), YELLOW, collide=False, query=False, shadow=False)
+            part(decor, "LaneDash", (9, 0.04, 0.6), CF(x, 0.22, 0), WHITE, collide=False, query=False, shadow=False)
         x += 20
     # Crosswalk where the yard's drive lane meets the street
     for i in range(11):
         part(decor, "Crosswalk", (6, 0.04, 1.4), CF(CROSSWALK_X, 0.22, -14 + i * 2.8), WHITE, collide=False,
              query=False, shadow=False)
     # Road end at the mansion gate
-    part(decor, "RoadEnd", (1.2, 0.3, 32), CF(ROAD_X1 - 0.6, 0.25, 0), (200, 200, 196), "Concrete")
+    part(decor, "RoadEnd", (1.2, 0.3, 32), CF(ROAD_X1 - 0.6, 0.25, 0), (228, 224, 212), "Concrete")
 
     # Street lamps (skip spots in front of driveways and gates)
     def blocked(px: float) -> bool:
@@ -1725,8 +2117,8 @@ def build_roads(ground: Inst, decor: Inst, entrances: list[tuple[float, float]])
 
 def road_sign(parent: Inst, x: float, z: float, text: str, facing_yaw: float):
     m = model(parent, "RoadSign", CF(x, 0, z))
-    part(m, "Post", (0.5, 9, 0.5), CF(x, 4.5, z), DARK, "Metal")
-    board = part(m, "Board", (10, 3, 0.4), CF(x, 8, z) * CF.deg(0, facing_yaw, 0), (30, 120, 60), "SmoothPlastic")
+    part(m, "Post", (0.5, 9, 0.5), CF(x, 4.5, z), WHITE, "SmoothPlastic")
+    board = part(m, "Board", (10, 3, 0.4), CF(x, 8, z) * CF.deg(0, facing_yaw, 0), (42, 152, 78), "SmoothPlastic")
     surface_text(board, "Front", text, color=(255, 255, 255), stroke=None, pixels_per_stud=30)
     surface_text(board, "Back", text, color=(255, 255, 255), stroke=None, pixels_per_stud=30)
 
@@ -1753,38 +2145,49 @@ def build_boundary(map_folder: Inst, decor: Inst):
 # Entry point
 # ---------------------------------------------------------------------------
 
-# Paint for the ten identical houses (street order). "pet" is the colour of the guard's bed.
+# Paint for the ten identical houses (street order) — pastel candy walls and sorbet roofs, matching the
+# light UI. "pet" is the colour of the guard's bed.
 HOUSE_PALETTES = [
-    {"wall": (240, 228, 196), "roof": (150, 70, 52), "door": (130, 60, 40), "carpet": (190, 120, 120),
-     "sofa": (90, 130, 180), "rug": (200, 160, 90), "bed": (220, 120, 140), "bush": LEAF, "accent": WOOD,
-     "pet": (200, 70, 80)},
-    {"wall": (200, 230, 210), "roof": (80, 90, 110), "door": (60, 90, 130), "carpet": (140, 170, 200),
-     "sofa": (170, 90, 80), "rug": (120, 160, 120), "bed": (110, 170, 230), "bush": (90, 160, 70), "accent": WOOD_DARK,
-     "pet": (70, 110, 190)},
-    {"wall": (250, 214, 214), "roof": (110, 60, 60), "door": (90, 50, 40), "carpet": (210, 190, 150),
-     "sofa": (100, 150, 110), "rug": (220, 200, 160), "bed": (240, 200, 90), "bush": LEAF_DARK, "accent": WOOD,
-     "pet": (150, 80, 160)},
-    {"wall": (255, 238, 170), "roof": (60, 100, 70), "door": (50, 80, 60), "carpet": (170, 140, 200),
-     "sofa": (200, 120, 60), "rug": (150, 120, 180), "bed": (150, 200, 120), "bush": LEAF, "accent": WOOD_DARK,
-     "pet": (60, 150, 110)},
-    {"wall": (150, 190, 220), "roof": (70, 72, 80), "door": (180, 40, 40), "carpet": (170, 160, 150),
-     "sofa": (60, 70, 90), "rug": (180, 60, 60), "bed": (70, 110, 170), "bush": LEAF, "accent": WOOD,
-     "pet": (180, 50, 50)},
-    {"wall": (230, 225, 210), "roof": (90, 60, 50), "door": (40, 70, 120), "carpet": (120, 140, 120),
-     "sofa": (160, 150, 130), "rug": (60, 90, 140), "bed": (190, 80, 80), "bush": LEAF_DARK, "accent": WOOD_DARK,
-     "pet": (60, 90, 160)},
-    {"wall": (190, 210, 170), "roof": (60, 64, 70), "door": (240, 240, 240), "carpet": (200, 180, 170),
-     "sofa": (110, 60, 60), "rug": (90, 130, 90), "bed": (230, 200, 120), "bush": LEAF, "accent": WOOD,
-     "pet": (200, 130, 50)},
-    {"wall": (210, 180, 160), "roof": (70, 50, 46), "door": (30, 60, 40), "carpet": (150, 160, 190),
-     "sofa": (70, 110, 140), "rug": (200, 150, 80), "bed": (120, 90, 170), "bush": (80, 150, 60), "accent": WOOD_DARK,
-     "pet": (90, 70, 60)},
-    {"wall": (242, 242, 238), "roof": (54, 56, 62), "door": (60, 60, 66), "carpet": (190, 190, 200),
-     "sofa": (230, 230, 225), "rug": (40, 42, 48), "bed": (40, 40, 46), "bush": LEAF_DARK, "accent": (60, 62, 70),
-     "pet": (50, 52, 60)},
-    {"wall": (225, 222, 214), "roof": (40, 42, 48), "door": (120, 40, 40), "carpet": (170, 150, 130),
-     "sofa": (60, 62, 70), "rug": (200, 180, 140), "bed": (150, 120, 90), "bush": LEAF, "accent": (90, 60, 40),
-     "pet": (130, 40, 40)},
+    # 1 Butter — cream-yellow cottage with a coral roof
+    {"wall": (250, 240, 194), "roof": (255, 138, 116), "door": (238, 112, 96), "carpet": (248, 206, 176),
+     "sofa": (138, 196, 232), "rug": (250, 208, 120), "bed": (255, 168, 182), "bush": LEAF, "accent": (228, 178, 118),
+     "pet": (255, 150, 132)},
+    # 2 Mint — mint walls with a sky-blue roof
+    {"wall": (206, 242, 220), "roof": (118, 194, 238), "door": (96, 158, 228), "carpet": (178, 224, 234),
+     "sofa": (255, 182, 158), "rug": (150, 220, 186), "bed": (128, 190, 242), "bush": LEAF, "accent": WOOD,
+     "pet": (122, 170, 242)},
+    # 3 Pink — strawberry-milk house with a raspberry roof
+    {"wall": (255, 218, 226), "roof": (250, 124, 154), "door": (228, 96, 126), "carpet": (255, 190, 204),
+     "sofa": (152, 212, 192), "rug": (252, 216, 158), "bed": (255, 152, 176), "bush": LEAF_DARK, "accent": (228, 178, 158),
+     "pet": (202, 144, 242)},
+    # 4 Lemon — lemon walls with an orange-sorbet roof
+    {"wall": (255, 246, 186), "roof": (255, 168, 94), "door": (242, 144, 68), "carpet": (255, 220, 158),
+     "sofa": (142, 202, 170), "rug": (202, 178, 238), "bed": (156, 212, 126), "bush": LEAF, "accent": WOOD_DARK,
+     "pet": (92, 198, 158)},
+    # 5 Sky — bluebell walls with a periwinkle roof
+    {"wall": (198, 228, 252), "roof": (152, 166, 242), "door": (122, 142, 228), "carpet": (190, 210, 246),
+     "sofa": (255, 176, 142), "rug": (255, 162, 132), "bed": (142, 176, 246), "bush": LEAF, "accent": WOOD,
+     "pet": (238, 132, 122)},
+    # 6 Cream — vanilla walls with a peach roof
+    {"wall": (245, 240, 224), "roof": (255, 184, 142), "door": (250, 142, 152), "carpet": (236, 226, 210),
+     "sofa": (176, 162, 232), "rug": (232, 208, 238), "bed": (238, 172, 192), "bush": LEAF, "accent": (176, 122, 82),
+     "pet": (252, 172, 92)},
+    # 7 Pistachio — soft-green walls with a mint roof
+    {"wall": (216, 242, 190), "roof": (112, 216, 182), "door": (74, 186, 152), "carpet": (196, 236, 186),
+     "sofa": (242, 192, 216), "rug": (166, 226, 196), "bed": (242, 216, 132), "bush": LEAF, "accent": WOOD,
+     "pet": (255, 176, 82)},
+    # 8 Toffee — biscuit walls with a lilac roof
+    {"wall": (240, 222, 192), "roof": (196, 166, 244), "door": (162, 126, 222), "carpet": (226, 202, 242),
+     "sofa": (152, 206, 236), "rug": (212, 176, 228), "bed": (192, 162, 242), "bush": LEAF_DARK, "accent": WOOD_DARK,
+     "pet": (152, 122, 238)},
+    # 9 Marshmallow — white walls with a cherry roof
+    {"wall": (250, 247, 242), "roof": (255, 122, 122), "door": (255, 156, 98), "carpet": (238, 238, 242),
+     "sofa": (136, 190, 236), "rug": (252, 202, 152), "bed": (146, 202, 246), "bush": LEAF, "accent": (200, 172, 136),
+     "pet": (255, 132, 132)},
+    # 10 Cookie — caramel walls with a butterscotch roof
+    {"wall": (238, 222, 200), "roof": (242, 160, 92), "door": (206, 120, 72), "carpet": (250, 216, 176),
+     "sofa": (236, 136, 156), "rug": (216, 236, 176), "bed": (252, 196, 116), "bush": LEAF, "accent": (152, 104, 62),
+     "pet": (238, 146, 86)},
 ]
 def build_map(workspace: Inst) -> Inst:
     tiers = read_house_tiers()

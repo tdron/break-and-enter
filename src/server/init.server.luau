@@ -24,6 +24,7 @@ local Market = require(script.Market)
 local Notify = require(script.Notify)
 local PlayerData = require(script.PlayerData)
 local Plots = require(script.Plots)
+local Rebirth = require(script.Rebirth)
 local Treadmills = require(script.Treadmills)
 
 Plots.init()
@@ -32,6 +33,7 @@ Houses.init()
 Treadmills.init()
 Economy.init()
 Market.init()
+Rebirth.init()
 PlayerData.start()
 
 local function onCharacterAdded(player: Player, character: Model)
@@ -84,6 +86,7 @@ local function onPlayerRemoving(player: Player)
 	Houses.onPlayerRemoving(player)
 	Treadmills.onPlayerRemoving(player)
 	Economy.onPlayerRemoving(player)
+	Rebirth.onPlayerRemoving(player)
 	Plots.release(player)
 	PlayerData.release(player) -- saves (yields), so it goes last
 end

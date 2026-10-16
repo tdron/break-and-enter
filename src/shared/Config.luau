@@ -241,6 +241,30 @@ function Config.treadmillColor(level: number): Color3
 end
 
 --------------------------------------------------------------------------------
+-- Rebirth
+-- Trade every speed point you have trained for a permanent production
+-- multiplier (treadmill training AND warehouse income). The first rebirth
+-- costs a million speed and every one after that costs four times as much,
+-- so each step is a real grind; the multiplier grows by a flat x0.5 a time.
+--------------------------------------------------------------------------------
+Config.Rebirth = {
+	BaseCost = 1_000_000, -- speed points for your first rebirth
+	CostGrowth = 4, -- every rebirth after costs this many times more
+	BonusStep = 0.5, -- the multiplier grows by this per rebirth: x1, x1.5, x2, ...
+	PromptDistance = 10,
+}
+
+-- The speed-point price of rebirth #count+1 (count = rebirths completed so far).
+function Config.rebirthCost(count: number): number
+	return math.floor(Config.Rebirth.BaseCost * Config.Rebirth.CostGrowth ^ math.max(0, math.floor(count)))
+end
+
+-- The production multiplier at a given rebirth count: x1 with none, x1.5 at one.
+function Config.rebirthMultiplier(count: number): number
+	return 1 + Config.Rebirth.BonusStep * math.max(0, math.floor(count))
+end
+
+--------------------------------------------------------------------------------
 -- Houses & security
 --------------------------------------------------------------------------------
 -- Index = the Tier attribute on each house model.
@@ -365,24 +389,26 @@ Config.DayNight = {
 	DayLength = 30, -- seconds (houses closed, loot restocks)
 	FadeTime = 5, -- seconds the sky takes to change
 	Night = {
+		-- Pastel moonlight: clearly night, but soft violet instead of pitch navy.
 		ClockTime = 0.3,
-		Brightness = 1.4,
-		ExposureCompensation = 0.35,
-		Ambient = Color3.fromRGB(78, 82, 112),
-		OutdoorAmbient = Color3.fromRGB(96, 104, 148),
-		FogColor = Color3.fromRGB(30, 36, 60),
-		AtmosphereColor = Color3.fromRGB(60, 72, 110),
-		AtmosphereDecay = Color3.fromRGB(40, 50, 90),
+		Brightness = 1.9,
+		ExposureCompensation = 0.4,
+		Ambient = Color3.fromRGB(118, 120, 158),
+		OutdoorAmbient = Color3.fromRGB(150, 152, 198),
+		FogColor = Color3.fromRGB(96, 102, 148),
+		AtmosphereColor = Color3.fromRGB(132, 142, 202),
+		AtmosphereDecay = Color3.fromRGB(98, 108, 172),
 	},
 	Day = {
+		-- Bright washed daylight: white-ish sky that makes the candy town glow.
 		ClockTime = 13.5,
-		Brightness = 2.6,
-		ExposureCompensation = 0,
-		Ambient = Color3.fromRGB(92, 92, 104),
-		OutdoorAmbient = Color3.fromRGB(138, 138, 150),
-		FogColor = Color3.fromRGB(192, 192, 192),
-		AtmosphereColor = Color3.fromRGB(205, 220, 235),
-		AtmosphereDecay = Color3.fromRGB(120, 140, 170),
+		Brightness = 3.0,
+		ExposureCompensation = 0.05,
+		Ambient = Color3.fromRGB(150, 150, 168),
+		OutdoorAmbient = Color3.fromRGB(188, 188, 204),
+		FogColor = Color3.fromRGB(228, 226, 240),
+		AtmosphereColor = Color3.fromRGB(212, 220, 250),
+		AtmosphereDecay = Color3.fromRGB(160, 170, 220),
 	},
 } :: {
 	NightLength: number,

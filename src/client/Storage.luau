@@ -28,8 +28,7 @@ local Storage = {}
 local player = Players.LocalPlayer
 local Theme = UI.Theme
 
-local ROW_HEIGHT = 96
-local CARD_COLOR = Color3.fromRGB(36, 40, 62)
+local ROW_HEIGHT = 100
 
 local window: Frame? = nil
 local windowScale: UIScale? = nil
@@ -100,79 +99,99 @@ local function makeRow(parent: Instance, order: number, itemId: string): Frame?
 	if not def then
 		return nil
 	end
-	local rarity = Items.getRarity(itemId)
-	local color = if rarity then rarity.Color else Theme.SubText
+	local color = UI.rarityInk(def.Rarity)
 	local frame: Frame = UI.new("Frame", {
 		Name = itemId .. order,
-		BackgroundColor3 = CARD_COLOR,
+		BackgroundColor3 = Theme.PanelLight,
 		Size = UDim2.new(1, -8, 0, ROW_HEIGHT),
 		LayoutOrder = order,
+		ZIndex = 3,
 		Parent = parent,
 	}, {
-		UI.corner(12),
-		UI.stroke(color, 2, 0.55),
+		UI.corner(14),
+		UI.cardGradient(),
+		UI.stroke(color, 2, 0.45),
 	})
-	UI.itemPicture(frame, itemId, UDim2.fromOffset(84, 84), UDim2.fromOffset(6, 6))
+	-- Rarity accent bar down the left edge.
+	UI.new("Frame", {
+		Name = "Accent",
+		BackgroundColor3 = color,
+		BorderSizePixel = 0,
+		Size = UDim2.new(0, 5, 1, -16),
+		Position = UDim2.fromOffset(7, 8),
+		ZIndex = 4,
+		Parent = frame,
+	}, { UI.corner(3) })
+	UI.itemPicture(frame, itemId, UDim2.fromOffset(88, 88), UDim2.fromOffset(18, 6))
 
 	UI.new("TextLabel", {
 		Name = "ItemName",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(100, 8),
-		Size = UDim2.new(1, -320, 0, 26),
+		Position = UDim2.fromOffset(116, 10),
+		Size = UDim2.new(1, -340, 0, 26),
 		Font = Theme.TitleFont,
 		Text = def.DisplayName,
 		TextColor3 = Theme.Text,
 		TextSize = 22,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 4,
 		Parent = frame,
 	})
 	UI.new("TextLabel", {
 		Name = "Rarity",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(100, 34),
-		Size = UDim2.new(1, -320, 0, 20),
+		Position = UDim2.fromOffset(116, 38),
+		Size = UDim2.new(1, -340, 0, 20),
 		Font = Theme.BoldFont,
 		Text = string.format("%s · from %s", def.Rarity, def.House),
 		TextColor3 = color,
 		TextSize = 16,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 4,
 		Parent = frame,
 	})
 	UI.new("TextLabel", {
 		Name = "Worth",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(100, 58),
-		Size = UDim2.new(1, -320, 0, 24),
+		Position = UDim2.fromOffset(116, 62),
+		Size = UDim2.new(1, -340, 0, 24),
 		Font = Theme.BoldFont,
 		Text = string.format("💵 %s   ·   +%s / sec", Format.money(def.Value), Format.money(Items.getIncome(itemId))),
-		TextColor3 = Theme.Green,
+		TextColor3 = Theme.GreenDark,
 		TextSize = 17,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 4,
 		Parent = frame,
 	})
 
-	local function button(name: string, text: string, x: number, color: Color3, callback: () -> ()): TextButton
+	local function button(name: string, text: string, x: number, color: Color3, colorDark: Color3, callback: () -> ()): TextButton
 		local button: TextButton = UI.new("TextButton", {
 			Name = name,
 			AnchorPoint = Vector2.new(1, 0.5),
 			Position = UDim2.new(1, x, 0.5, 0),
-			Size = UDim2.fromOffset(96, 46),
+			Size = UDim2.fromOffset(102, 48),
 			BackgroundColor3 = color,
 			Font = Theme.BoldFont,
 			Text = text,
 			TextColor3 = Color3.new(1, 1, 1),
 			TextSize = 18,
+
+			ZIndex = 4,
 			Parent = frame,
-		}, { UI.corner(10) })
+		}, {
+			UI.corner(12),
+			UI.gloss(),
+			UI.stroke(Color3.new(1, 1, 1), 1.5, 0.45),
+		})
 		UI.bounce(button)
 		button.Activated:Connect(callback)
 		return button
 	end
 
-	button("Take", "🎒 TAKE", -14, Theme.Blue, function()
+	button("Take", "🎒 TAKE", -12, Theme.Blue, Theme.BlueDark, function()
 		act("Take", itemId)
 	end)
-	button("Sell", "💰 " .. Format.money(Items.getSellValue(itemId)), -118, Theme.Green, function()
+	button("Sell", "💰 " .. Format.money(Items.getSellValue(itemId)), -122, Theme.Green, Theme.GreenDark, function()
 		act("Sell", itemId)
 	end)
 	return frame
@@ -200,70 +219,52 @@ function Storage.init(screen: ScreenGui)
 		Name = "Storage",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(700, 520),
+		Size = UDim2.fromOffset(720, 540),
 		BackgroundColor3 = Theme.Panel,
 		Visible = false,
+		ZIndex = 2,
 		Parent = screen,
 	}, {
-		UI.corner(18),
-		UI.stroke(Theme.Blue, 3, 0.1),
+		UI.shadow(20, 10),
+		UI.corner(20),
+		UI.stroke(Theme.Blue, 2.5, 0.2),
+		UI.bodyGradient(),
 		scale,
 	})
 	window = frame
 	windowScale = scale
 
-	UI.new("TextLabel", {
-		Name = "Title",
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(20, 8),
-		Size = UDim2.new(1, -90, 0, 44),
-		Font = Theme.TitleFont,
-		Text = "📦 WAREHOUSE STORAGE",
-		TextColor3 = Theme.Blue,
-		TextSize = 32,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Parent = frame,
-	})
+	UI.titleBar(frame, "📦", "WAREHOUSE STORAGE", Theme.Blue, Theme.BlueDark, 58)
+	local close = UI.closeButton(frame, UDim2.new(1, -10, 0, 8))
+	close.Activated:Connect(function()
+		Storage.close()
+	end)
 	local headerLabel: TextLabel = UI.new("TextLabel", {
 		Name = "Header",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(22, 50),
-		Size = UDim2.new(1, -44, 0, 24),
+		Position = UDim2.fromOffset(22, 64),
+		Size = UDim2.new(1, -44, 0, 22),
 		Font = Theme.BoldFont,
 		Text = "",
 		TextColor3 = Theme.SubText,
 		TextSize = 17,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 4,
 		Parent = frame,
 	})
 	header = headerLabel
-	local close: TextButton = UI.new("TextButton", {
-		Name = "Close",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -14, 0, 14),
-		Size = UDim2.fromOffset(44, 44),
-		BackgroundColor3 = Theme.Red,
-		Font = Theme.TitleFont,
-		Text = "X",
-		TextColor3 = Color3.new(1, 1, 1),
-		TextSize = 26,
-		Parent = frame,
-	}, { UI.corner(10) })
-	UI.bounce(close)
-	close.Activated:Connect(function()
-		Storage.close()
-	end)
 
 	local scrolling: ScrollingFrame = UI.new("ScrollingFrame", {
 		Name = "List",
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
-		Position = UDim2.fromOffset(16, 80),
-		Size = UDim2.new(1, -28, 1, -142),
+		Position = UDim2.fromOffset(16, 94),
+		Size = UDim2.new(1, -28, 1, -148),
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		ScrollBarThickness = 8,
 		ScrollBarImageColor3 = Theme.Blue,
+		ZIndex = 3,
 		Parent = frame,
 	}, {
 		UI.new("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }),
@@ -273,30 +274,40 @@ function Storage.init(screen: ScreenGui)
 	UI.new("TextLabel", {
 		Name = "Empty",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(20, 110),
-		Size = UDim2.new(1, -40, 0, 40),
+		Position = UDim2.fromOffset(24, 124),
+		Size = UDim2.new(1, -48, 0, 40),
 		Font = Theme.BodyFont,
 		Text = "Your shelves are empty — steal something and drop it on the green DEPOSIT pad.",
 		TextColor3 = Theme.SubText,
 		TextSize = 18,
 		TextWrapped = true,
+		ZIndex = 4,
 		Parent = frame,
 	})
 	empty = frame:FindFirstChild("Empty") :: TextLabel
 
+	local tipBar: Frame = UI.new("Frame", {
+		Name = "TipBar",
+		BackgroundColor3 = Theme.PanelTop,
+		BackgroundTransparency = 0.35,
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 16, 1, -10),
+		Size = UDim2.new(1, -32, 0, 40),
+		ZIndex = 3,
+		Parent = frame,
+	}, { UI.corner(12), UI.stroke(Color3.new(1, 1, 1), 1, 0.88) })
 	UI.new("TextLabel", {
 		Name = "Tip",
 		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.new(0, 20, 1, -10),
-		Size = UDim2.new(1, -40, 0, 34),
+		Size = UDim2.fromScale(1, 1),
 		Font = Theme.BodyFont,
 		Text = "🎒 TAKE puts an item back in your bag (sell it at the 💰 SELL POINT, or stash it again).  "
 			.. "💰 SELL pays cash on the spot and frees the shelf.",
 		TextColor3 = Theme.SubText,
-		TextSize = 15,
+		TextSize = 14,
 		TextWrapped = true,
-		Parent = frame,
+		ZIndex = 4,
+		Parent = tipBar,
 	})
 
 	for _, name in { "StoredCount", "StorageCapacity", "Carried", "BagCapacity", "Cash" } do

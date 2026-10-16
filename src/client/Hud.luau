@@ -2,13 +2,16 @@
 --[[
 	Hud
 	---
-	The always-on-screen interface:
-	  * Cash + income (top left), inventory stats underneath
-	  * SHOP, STORAGE and LOOT INDEX buttons
-	  * Night/daytime clock (top centre) counting down to the next restock
-	  * Alarm banner while a house's guards are chasing you
-	  * Objective hint telling new players what to do next
-	  * Treadmill training bar (while you run on your treadmill)
+	The always-on-screen interface, restyled after the current top games
+	(Steal a Brainrot / Pet Simulator 99 / Adopt Me!):
+	  * A gold gradient cash pill with an icon disc (top left), income chip
+	    under it, and a glass stats panel (bag / warehouse / speed)
+	  * A right-edge rail of big square gradient buttons (SHOP / STORAGE /
+	    LOOT INDEX) with pop-bounce presses, the way Pet Sim 99 does it
+	  * A cinematic night/daytime clock (top centre) with a phase progress bar
+	  * A pulsing full-width alarm banner while a house's guards chase you
+	  * A pill objective hint telling new players what to do next
+	  * The treadmill training bar (while you run on your treadmill)
 ]]
 
 local Players = game:GetService("Players")
@@ -36,9 +39,6 @@ export type Elements = {
 	IndexButton: TextButton,
 }
 
-local NIGHT_COLOR = Color3.fromRGB(34, 42, 86)
-local DAY_COLOR = Color3.fromRGB(235, 140, 30)
-
 local function getNumber(name: string, default: number): number
 	local value = player:GetAttribute(name)
 	return if type(value) == "number" then value else default
@@ -49,23 +49,27 @@ local function getString(name: string): string
 	return if type(value) == "string" then value else ""
 end
 
-local function makeStatRow(parent: Instance, order: number, icon: string, title: string): TextLabel
+-- A stat row with a glossy icon chip on the left (the Pet Sim look).
+local function makeStatRow(parent: Instance, y: number, icon: string, title: string, color: Color3, colorDark: Color3): TextLabel
 	local row: Frame = UI.new("Frame", {
 		Name = title,
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 26),
-		LayoutOrder = order,
+		Position = UDim2.fromOffset(10, y),
+		Size = UDim2.new(1, -20, 0, 32),
 		Parent = parent,
 	})
+	UI.iconChip(row, icon, color, colorDark, 28, UDim2.fromOffset(0, 2))
 	UI.new("TextLabel", {
 		Name = "Title",
 		BackgroundTransparency = 1,
-		Size = UDim2.new(0.6, 0, 1, 0),
+		Position = UDim2.fromOffset(38, 0),
+		Size = UDim2.new(0.55, -38, 1, 0),
 		Font = Theme.BoldFont,
-		Text = icon .. "  " .. title,
-		TextColor3 = Theme.SubText,
-		TextSize = 16,
+		Text = title,
+		TextColor3 = Theme.Text,
+		TextSize = 17,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 3,
 		Parent = row,
 	})
 	local value: TextLabel = UI.new("TextLabel", {
@@ -73,34 +77,38 @@ local function makeStatRow(parent: Instance, order: number, icon: string, title:
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.fromScale(1, 0),
-		Size = UDim2.new(0.4, 0, 1, 0),
+		Size = UDim2.new(0.45, 0, 1, 0),
 		Font = Theme.TitleFont,
 		Text = "0",
 		TextColor3 = Theme.Text,
-		TextSize = 19,
+		TextSize = 22,
 		TextXAlignment = Enum.TextXAlignment.Right,
+		ZIndex = 3,
 		Parent = row,
 	})
 	return value
 end
 
-local function makeButton(parent: Instance, order: number, text: string, color: Color3, callback: () -> ()): TextButton
+-- A big square gradient button for the right-edge rail. The background carries
+-- the accent colour; the label is crisp white Fredoka with NO text stroke (a
+-- partial dark stroke muddies small text on a saturated background).
+local function makeRailButton(parent: Instance, order: number, text: string, color: Color3, colorDark: Color3, callback: () -> ()): TextButton
 	local button: TextButton = UI.new("TextButton", {
 		Name = text,
 		AutoButtonColor = true,
 		BackgroundColor3 = color,
-		Size = UDim2.fromOffset(132, 52),
+		Size = UDim2.fromOffset(132, 58),
 		LayoutOrder = order,
 		Font = Theme.TitleFont,
 		Text = text,
 		TextColor3 = Color3.new(1, 1, 1),
-		TextSize = 22,
-		TextStrokeTransparency = 0.6,
+		TextSize = 19,
+		ZIndex = 3,
 		Parent = parent,
 	}, {
-		UI.corner(12),
-		UI.stroke(Color3.new(1, 1, 1), 2, 0.6),
-		UI.gradient(Color3.new(1, 1, 1), Color3.fromRGB(190, 190, 190)),
+		UI.corner(16),
+		UI.stroke(Color3.new(1, 1, 1), 2.5, 0.25),
+		UI.gloss(),
 	})
 	UI.bounce(button)
 	button.Activated:Connect(function()
@@ -112,13 +120,13 @@ end
 
 function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 	----------------------------------------------------------------------------
-	-- Left column (kept vertically centred so it never covers the chat window)
+	-- Top-left cluster: cash pill + income chip + stats panel
 	----------------------------------------------------------------------------
 	local column: Frame = UI.new("Frame", {
 		Name = "LeftColumn",
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 14, 0.5, 0),
-		Size = UDim2.fromOffset(270, 0),
+		AnchorPoint = Vector2.new(0, 0),
+		Position = UDim2.fromOffset(14, 14),
+		Size = UDim2.fromOffset(260, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundTransparency = 1,
 		Parent = screen,
@@ -128,133 +136,184 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 	})
 
 	----------------------------------------------------------------------------
-	-- Cash panel
+	-- Cash pill (gold gradient — the Steal a Brainrot / Pet Sim counter)
 	----------------------------------------------------------------------------
 	local cashPanel: Frame = UI.new("Frame", {
 		Name = "CashPanel",
-		Size = UDim2.fromOffset(270, 78),
-		BackgroundColor3 = Theme.Panel,
-		BackgroundTransparency = 0.1,
+		Size = UDim2.fromOffset(260, 76),
+		BackgroundColor3 = Theme.Gold,
 		LayoutOrder = 1,
+		ZIndex = 2,
 		Parent = column,
 	}, {
-		UI.corner(14),
-		UI.stroke(Theme.Gold, 2, 0.3),
+		UI.shadow(18, 7),
+		UI.corner(18),
+		UI.stroke(Color3.new(1, 1, 1), 2.5, 0.2),
+		UI.gradient(Theme.Gold, Theme.GoldDark),
 	})
+	UI.iconChip(cashPanel, "💰", Color3.new(1, 1, 1), Color3.fromRGB(255, 236, 180), 48, UDim2.fromOffset(12, 14))
 	local cashLabel: TextLabel = UI.new("TextLabel", {
 		Name = "Cash",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(14, 6),
-		Size = UDim2.new(1, -28, 0, 40),
+		Position = UDim2.fromOffset(72, 6),
+		Size = UDim2.new(1, -82, 0, 40),
 		Font = Theme.TitleFont,
-		Text = "💰 $0",
-		TextColor3 = Theme.Gold,
+		Text = "$0",
+		TextColor3 = Color3.new(1, 1, 1),
 		TextSize = 34,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		TextStrokeTransparency = 0.7,
+		TextStrokeTransparency = 0.5,
+		ZIndex = 3,
 		Parent = cashPanel,
+	})
+	-- Income sits in its own little white chip under the cash (keeps the gold readable).
+	local incomeChip: Frame = UI.new("Frame", {
+		Name = "IncomeChip",
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.3,
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -10, 1, -8),
+		Size = UDim2.fromOffset(0, 24),
+		AutomaticSize = Enum.AutomaticSize.X,
+		ZIndex = 4,
+		Parent = cashPanel,
+	}, {
+		UI.corner(12),
+		UI.new("UIPadding", {
+			PaddingLeft = UDim.new(0, 8),
+			PaddingRight = UDim.new(0, 8),
+		}),
 	})
 	local incomeLabel: TextLabel = UI.new("TextLabel", {
 		Name = "Income",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(16, 46),
-		Size = UDim2.new(1, -28, 0, 24),
+		Size = UDim2.new(1, 0, 1, 0),
 		Font = Theme.BoldFont,
 		Text = "+$0 / sec",
-		TextColor3 = Theme.Green,
-		TextSize = 18,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Parent = cashPanel,
+		TextColor3 = Theme.GreenDark,
+		TextSize = 16,
+		ZIndex = 5,
+		Parent = incomeChip,
 	})
 
 	----------------------------------------------------------------------------
-	-- Stats panel
+	-- Stats panel (glass card with icon-chip rows; fixed height, manually placed
+	-- rows — a UIListLayout would treat the Shadow frame as a list item)
 	----------------------------------------------------------------------------
 	local statsPanel: Frame = UI.new("Frame", {
 		Name = "StatsPanel",
-		Size = UDim2.fromOffset(270, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
+		Size = UDim2.fromOffset(260, 120),
 		BackgroundColor3 = Theme.Panel,
-		BackgroundTransparency = 0.15,
+		BackgroundTransparency = 0.12,
 		LayoutOrder = 2,
+		ZIndex = 2,
 		Parent = column,
 	}, {
-		UI.corner(14),
-		UI.stroke(Theme.Stroke, 2, 0.4),
-		UI.padding(10),
-		UI.new("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }),
+		UI.shadow(16, 5),
+		UI.corner(16),
+		UI.stroke(Theme.Stroke, 1.5, 0.15),
+		UI.bodyGradient(),
 	})
-	local bagValue = makeStatRow(statsPanel, 1, "🎒", "Loot Bag")
-	local storageValue = makeStatRow(statsPanel, 2, "📦", "Warehouse")
-	local speedValue = makeStatRow(statsPanel, 3, "👟", "Speed")
+	local bagValue = makeStatRow(statsPanel, 10, "🎒", "Loot Bag", Theme.Orange, Theme.OrangeDark)
+	local storageValue = makeStatRow(statsPanel, 46, "📦", "Warehouse", Theme.Blue, Theme.BlueDark)
+	local speedValue = makeStatRow(statsPanel, 82, "👟", "Speed", Theme.Cyan, Theme.CyanDark)
 
 	----------------------------------------------------------------------------
-	-- Buttons
+	-- Right-edge button rail (Pet Sim 99 style)
 	----------------------------------------------------------------------------
-	local shopButton = makeButton(column, 1, "🛒 SHOP", Color3.fromRGB(255, 176, 40), callbacks.OnShop)
-	shopButton.Size = UDim2.fromOffset(270, 46)
-	shopButton.TextSize = 21
-	local storageButton = makeButton(column, 3, "📦 STORAGE", Color3.fromRGB(90, 190, 130), callbacks.OnStorage)
-	storageButton.Size = UDim2.fromOffset(270, 46)
-	storageButton.TextSize = 21
-	local indexButton = makeButton(column, 4, "📖 LOOT INDEX", Color3.fromRGB(170, 100, 255), callbacks.OnIndex)
-	indexButton.Size = UDim2.fromOffset(270, 46)
-	indexButton.TextSize = 21
+	local rail: Frame = UI.new("Frame", {
+		Name = "ButtonsRail",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -14, 0.5, 0),
+		Size = UDim2.fromOffset(132, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		Parent = screen,
+	}, {
+		UI.new("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }),
+		UI.scaled(),
+	})
+	makeRailButton(rail, 1, "🛒 SHOP", Theme.Orange, Theme.OrangeDark, callbacks.OnShop)
+	makeRailButton(rail, 2, "📦 STORAGE", Theme.Green, Theme.GreenDark, callbacks.OnStorage)
+	local indexButton = makeRailButton(rail, 3, "📖 LOOT INDEX", Theme.Purple, Theme.PurpleDark, callbacks.OnIndex)
 
 	----------------------------------------------------------------------------
-	-- Night / daytime clock
+	-- Night / daytime clock (cinematic pill + phase progress bar)
 	----------------------------------------------------------------------------
 	local clock: Frame = UI.new("Frame", {
 		Name = "Clock",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 8),
-		Size = UDim2.fromOffset(300, 52),
-		BackgroundColor3 = NIGHT_COLOR,
-		BackgroundTransparency = 0.12,
+		Position = UDim2.new(0.5, 0, 0, 10),
+		Size = UDim2.fromOffset(330, 66),
+		BackgroundColor3 = Theme.Night,
+		BackgroundTransparency = 0.04,
+		ZIndex = 2,
 		Parent = screen,
 	}, {
-		UI.corner(26),
-		UI.stroke(Color3.new(1, 1, 1), 2, 0.6),
+		UI.shadow(20, 5),
+		UI.corner(20),
+		UI.stroke(Color3.new(1, 1, 1), 2, 0.2),
+		UI.gloss(),
 		UI.scaled(),
 	})
 	local clockTitle: TextLabel = UI.new("TextLabel", {
 		Name = "Title",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(0, 3),
-		Size = UDim2.new(1, 0, 0, 28),
+		Position = UDim2.fromOffset(0, 4),
+		Size = UDim2.new(1, 0, 0, 30),
 		Font = Theme.TitleFont,
 		Text = "",
-		TextColor3 = Color3.new(1, 1, 1),
-		TextSize = 24,
-		TextStrokeTransparency = 0.7,
+		TextColor3 = Theme.Text,
+		TextSize = 26,
+		ZIndex = 3,
 		Parent = clock,
 	})
 	local clockHint: TextLabel = UI.new("TextLabel", {
 		Name = "Hint",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(0, 30),
+		Position = UDim2.fromOffset(0, 34),
 		Size = UDim2.new(1, 0, 0, 18),
 		Font = Theme.BoldFont,
 		Text = "",
-		TextColor3 = Color3.fromRGB(225, 230, 255),
+		TextColor3 = Theme.SubText,
 		TextSize = 14,
+		ZIndex = 3,
 		Parent = clock,
 	})
+	local clockBarBack: Frame = UI.new("Frame", {
+		Name = "Progress",
+		BackgroundColor3 = Color3.fromRGB(94, 90, 122),
+		BackgroundTransparency = 0.75,
+		Position = UDim2.fromOffset(14, 55),
+		Size = UDim2.new(1, -28, 0, 6),
+		ZIndex = 3,
+		Parent = clock,
+	}, { UI.corner(3) })
+	local clockBarFill: Frame = UI.new("Frame", {
+		Name = "Fill",
+		BackgroundColor3 = Theme.Cyan,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = 4,
+		Parent = clockBarBack,
+	}, { UI.corner(3) })
 
 	----------------------------------------------------------------------------
-	-- Alarm banner
+	-- Alarm banner (99 Nights-style red alert, wide and pulsing)
 	----------------------------------------------------------------------------
 	local alarmBanner: Frame = UI.new("Frame", {
 		Name = "AlarmBanner",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 68),
-		Size = UDim2.fromOffset(560, 64),
-		BackgroundColor3 = Color3.fromRGB(200, 20, 30),
+		Position = UDim2.new(0.5, 0, 0, 86),
+		Size = UDim2.fromOffset(620, 70),
+		BackgroundColor3 = Theme.Red,
 		Visible = false,
+		ZIndex = 4,
 		Parent = screen,
 	}, {
-		UI.corner(14),
-		UI.stroke(Color3.new(1, 1, 1), 3, 0.2),
+		UI.shadow(18, 7),
+		UI.corner(18),
+		UI.stroke(Color3.new(1, 1, 1), 3, 0.15),
+		UI.gradient(Color3.new(1, 1, 1), Color3.fromRGB(190, 190, 190)),
 		UI.scaled(),
 	})
 	local alarmText: TextLabel = UI.new("TextLabel", {
@@ -265,97 +324,110 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		Text = "🚨 ALARM! RUN! 🚨",
 		TextColor3 = Color3.new(1, 1, 1),
 		TextSize = 30,
-		TextStrokeTransparency = 0.5,
+		TextStrokeTransparency = 0.45,
+		ZIndex = 5,
 		Parent = alarmBanner,
 	})
 	local alarmHint: TextLabel = UI.new("TextLabel", {
 		Name = "Hint",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromScale(0, 0.6),
-		Size = UDim2.fromScale(1, 0.38),
+		Position = UDim2.fromScale(0, 0.58),
+		Size = UDim2.fromScale(1, 0.4),
 		Font = Theme.BoldFont,
 		Text = "Get off the property before the guards catch you!",
-		TextColor3 = Color3.fromRGB(255, 225, 225),
+		TextColor3 = Color3.fromRGB(255, 228, 228),
 		TextSize = 16,
+		ZIndex = 5,
 		Parent = alarmBanner,
 	})
 
 	----------------------------------------------------------------------------
-	-- Objective hint
+	-- Objective hint (bottom pill)
 	----------------------------------------------------------------------------
 	local objective: TextLabel = UI.new("TextLabel", {
 		Name = "Objective",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -18),
-		Size = UDim2.fromOffset(640, 40),
-		BackgroundColor3 = Theme.Panel,
-		BackgroundTransparency = 0.25,
+		Position = UDim2.new(0.5, 0, 1, -14),
+		Size = UDim2.fromOffset(660, 42),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.08,
 		Font = Theme.BoldFont,
 		Text = "",
 		TextColor3 = Theme.Text,
-		TextSize = 18,
+		TextSize = 17,
 		TextWrapped = true,
+		ZIndex = 2,
 		Parent = screen,
 	}, {
-		UI.corner(12),
+		UI.corner(21),
+		UI.stroke(Theme.Stroke, 1.5, 0.15),
 		UI.padding(6),
 		UI.scaled(),
 	})
 
 	----------------------------------------------------------------------------
-	-- Training bar
+	-- Training bar (neon cyan while on the treadmill)
 	----------------------------------------------------------------------------
 	local trainingPanel: Frame = UI.new("Frame", {
 		Name = "Training",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -70),
-		Size = UDim2.fromOffset(440, 58),
-		BackgroundColor3 = Theme.Panel,
-		BackgroundTransparency = 0.1,
+		Position = UDim2.new(0.5, 0, 1, -66),
+		Size = UDim2.fromOffset(460, 62),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.06,
 		Visible = false,
+		ZIndex = 2,
 		Parent = screen,
 	}, {
-		UI.corner(12),
-		UI.stroke(Theme.Cyan, 2, 0.2),
+		UI.shadow(14, 5),
+		UI.corner(14),
+		UI.stroke(Theme.CyanDark, 2, 0.1),
+		UI.gloss(),
 		UI.scaled(),
 	})
 	local trainingTitle: TextLabel = UI.new("TextLabel", {
 		Name = "Title",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(12, 4),
-		Size = UDim2.new(1, -200, 0, 24),
+		Position = UDim2.fromOffset(14, 6),
+		Size = UDim2.new(1, -210, 0, 26),
 		Font = Theme.TitleFont,
 		Text = "",
-		TextColor3 = Theme.Cyan,
-		TextSize = 19,
+		TextColor3 = Theme.CyanDark,
+		TextSize = 20,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 3,
 		Parent = trainingPanel,
 	})
 	local trainingRate: TextLabel = UI.new("TextLabel", {
 		Name = "Rate",
 		AnchorPoint = Vector2.new(1, 0),
 		BackgroundTransparency = 1,
-		Position = UDim2.new(1, -12, 0, 4),
-		Size = UDim2.fromOffset(180, 24),
+		Position = UDim2.new(1, -14, 0, 6),
+		Size = UDim2.fromOffset(190, 26),
 		Font = Theme.BoldFont,
 		Text = "",
-		TextColor3 = Theme.Gold,
+		TextColor3 = Theme.OrangeDark,
 		TextSize = 17,
 		TextXAlignment = Enum.TextXAlignment.Right,
+		ZIndex = 3,
 		Parent = trainingPanel,
 	})
 	local barBack: Frame = UI.new("Frame", {
-		BackgroundColor3 = Color3.fromRGB(16, 18, 28),
-		Position = UDim2.fromOffset(12, 32),
-		Size = UDim2.new(1, -24, 0, 16),
+		Name = "Bar",
+		BackgroundColor3 = Color3.fromRGB(94, 90, 122),
+		BackgroundTransparency = 0.8,
+		Position = UDim2.fromOffset(14, 38),
+		Size = UDim2.new(1, -28, 0, 16),
+		ZIndex = 3,
 		Parent = trainingPanel,
 	}, { UI.corner(8) })
 	local barFill: Frame = UI.new("Frame", {
 		Name = "Fill",
 		BackgroundColor3 = Theme.Cyan,
 		Size = UDim2.fromScale(0, 1),
+		ZIndex = 4,
 		Parent = barBack,
-	}, { UI.corner(8) })
+	}, { UI.corner(8), UI.gradient(Theme.Cyan, Theme.CyanDark) })
 
 	----------------------------------------------------------------------------
 	-- Updating
@@ -447,7 +519,11 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 			clockTitle.Text = "🌙 NIGHT · " .. countdown
 			clockHint.Text = "Houses open · loot restocks at sunrise"
 		end
-		clock.BackgroundColor3 = if daytime then DAY_COLOR else NIGHT_COLOR
+		clock.BackgroundColor3 = if daytime then Theme.Day else Theme.Night
+		-- Phase progress: how much of the night / daytime is still to come.
+		local length = if daytime then Config.DayNight.DayLength else Config.DayNight.NightLength
+		clockBarFill.Size = UDim2.fromScale(math.clamp(seconds / length, 0, 1), 1)
+		clockBarFill.BackgroundColor3 = if daytime then Theme.GoldDark else Theme.CyanDark
 	end
 	Workspace:GetAttributeChangedSignal("Daytime"):Connect(function()
 		updateClock(true)
@@ -469,7 +545,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 
 	local pulse = 0
 	RunService.RenderStepped:Connect(function(dt: number)
-		-- Count the cash up/down smoothly.
+		-- Count the cash up/down smoothly (and pop the panel when it moves).
 		if displayedCash ~= targetCash then
 			local difference = targetCash - displayedCash
 			if math.abs(difference) < 1 then
@@ -477,7 +553,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 			else
 				displayedCash += difference * math.min(dt * 10, 1)
 			end
-			cashLabel.Text = "💰 " .. Format.money(math.floor(displayedCash + 0.5))
+			cashLabel.Text = Format.money(math.floor(displayedCash + 0.5))
 		end
 		-- Pulse the alarm banner.
 		if alarmBanner.Visible then
@@ -486,7 +562,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		end
 		updateClock()
 	end)
-	cashLabel.Text = "💰 " .. Format.money(displayedCash)
+	cashLabel.Text = Format.money(displayedCash)
 	return { IndexButton = indexButton }
 end
 

@@ -9,6 +9,7 @@
 	react to them without any extra remotes:
 	  Cash, Income, Carried, CarriedList, BagCapacity,
 	  StoredCount, StorageCapacity, Speed, SpeedPoints, SpeedProgress,
+	  Rebirths (production multiplier is x1 + x0.5 per rebirth: see Config.Rebirth),
 	  WalkSpeed (the real speed; WalkSpeed is held at Config.Alarm.InsideSpeed
 	  while InHouse is true), InHouse, Level_<UpgradeId>, Discovered
 	  (comma-separated item ids for the Loot Index)
@@ -27,6 +28,7 @@ export type Profile = {
 	Cash: number,
 	Levels: { [string]: number },
 	SpeedPoints: number, -- trained speed; the Speed stat is its whole part (see Config.Speed)
+	Rebirths: number, -- completed rebirths; drives the production multiplier (see Config.Rebirth)
 	Stored: { string },
 	TotalStolen: number,
 	TotalEarned: number,
@@ -37,6 +39,7 @@ export type Leaderstats = {
 	Cash: IntValue,
 	Stolen: IntValue,
 	Speed: IntValue,
+	Rebirths: IntValue,
 }
 
 export type Session = {
@@ -88,6 +91,7 @@ local function defaultProfile(): Profile
 		Cash = Config.Economy.StartingCash,
 		Levels = levels,
 		SpeedPoints = 0,
+		Rebirths = 0,
 		Stored = {},
 		TotalStolen = 0,
 		TotalEarned = 0,
@@ -142,6 +146,7 @@ local function sanitize(raw: any): Profile
 	-- turn that back into the same speed. (New saves store SpeedPoints directly.)
 	local legacyLevel = readNumber(raw.SpeedLevel, 0, 0, 1e9)
 	profile.SpeedPoints = readNumber(raw.SpeedPoints, legacyLevel / Config.Speed.SpeedDivisor, 0, 1e15)
+	profile.Rebirths = math.floor(readNumber(raw.Rebirths, 0, 0, 1e6))
 	profile.Stored = readItemList(raw.Stored, Config.getUpgradeValue("Storage", profile.Levels.Storage))
 	-- The getaway car (and its trunk) is gone. Anything an old save still had in the trunk is
 	-- moved onto the warehouse shelves so nobody loses loot; the overflow is written off.
@@ -182,8 +187,12 @@ local function createLeaderstats(player: Player, session: Session)
 	speed.Name = "Speed"
 	speed.Parent = folder
 
+	local rebirths = Instance.new("IntValue")
+	rebirths.Name = "Rebirths"
+	rebirths.Parent = folder
+
 	folder.Parent = player
-	session.Leaderstats = { Cash = cash, Stolen = stolen, Speed = speed }
+	session.Leaderstats = { Cash = cash, Stolen = stolen, Speed = speed, Rebirths = rebirths }
 end
 
 --------------------------------------------------------------------------------
@@ -229,6 +238,12 @@ function PlayerData.getWalkSpeed(player: Player): number
 	return Config.walkSpeedForPoints(PlayerData.getSpeedPoints(player))
 end
 
+-- Completed rebirths (0 for a fresh player): the production multiplier is on Config.
+function PlayerData.getRebirths(player: Player): number
+	local session = sessions[player]
+	return if session then session.Profile.Rebirths else 0
+end
+
 --------------------------------------------------------------------------------
 -- Replication to the client (attributes + leaderstats)
 --------------------------------------------------------------------------------
@@ -257,6 +272,7 @@ function PlayerData.replicate(player: Player)
 	player:SetAttribute("SpeedProgress", profile.SpeedPoints - math.floor(profile.SpeedPoints))
 	player:SetAttribute("Speed", Config.speedStatForPoints(profile.SpeedPoints))
 	player:SetAttribute("WalkSpeed", PlayerData.getWalkSpeed(player))
+	player:SetAttribute("Rebirths", profile.Rebirths)
 	for _, upgrade in Config.Upgrades do
 		player:SetAttribute("Level_" .. upgrade.Id, profile.Levels[upgrade.Id])
 	end
@@ -271,6 +287,7 @@ function PlayerData.replicate(player: Player)
 	if stats then
 		stats.Stolen.Value = profile.TotalStolen
 		stats.Speed.Value = Config.speedStatForPoints(profile.SpeedPoints)
+		stats.Rebirths.Value = profile.Rebirths
 	end
 end
 
@@ -307,7 +324,8 @@ function PlayerData.recalculateIncome(player: Player): number
 	for _, itemId in session.Profile.Stored do
 		total += Items.getIncome(itemId)
 	end
-	session.Income = total
+	-- Rebirths multiply warehouse income (x1.5 at one rebirth, x3 at five).
+	session.Income = total * Config.rebirthMultiplier(session.Profile.Rebirths)
 	player:SetAttribute("Income", total)
 	player:SetAttribute("StoredCount", #session.Profile.Stored)
 	return total
@@ -378,6 +396,8 @@ function PlayerData.addSpeed(player: Player, points: number): number
 		return 0
 	end
 	local profile = session.Profile
+	-- Rebirths multiply treadmill training too.
+	points = points * Config.rebirthMultiplier(profile.Rebirths)
 	local before = math.floor(profile.SpeedPoints)
 	profile.SpeedPoints += points
 	local after = math.floor(profile.SpeedPoints)
@@ -388,6 +408,20 @@ function PlayerData.addSpeed(player: Player, points: number): number
 		PlayerData.applyWalkSpeed(player)
 	end
 	return after - before
+end
+
+-- Bash back to zero (or any value) in one go: the rebirth trade spends every trained point.
+function PlayerData.setSpeedPoints(player: Player, points: number)
+	local session = sessions[player]
+	if not session then
+		return
+	end
+	local profile = session.Profile
+	profile.SpeedPoints = math.max(0, points)
+	player:SetAttribute("SpeedPoints", profile.SpeedPoints)
+	player:SetAttribute("SpeedProgress", profile.SpeedPoints - math.floor(profile.SpeedPoints))
+	player:SetAttribute("Speed", Config.speedStatForPoints(profile.SpeedPoints))
+	PlayerData.applyWalkSpeed(player)
 end
 
 --------------------------------------------------------------------------------
@@ -456,6 +490,7 @@ function PlayerData.save(player: Player): boolean
 		Cash = profile.Cash,
 		Levels = table.clone(profile.Levels),
 		SpeedPoints = profile.SpeedPoints,
+		Rebirths = profile.Rebirths,
 		Stored = table.clone(profile.Stored),
 		TotalStolen = profile.TotalStolen,
 		TotalEarned = profile.TotalEarned,

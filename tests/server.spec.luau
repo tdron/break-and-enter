@@ -782,6 +782,59 @@ step("old saves with gym treadmill unlocks become treadmill levels", function()
 	Mock.advance(0.5)
 end)
 
+step("the rebirth shrine trades all your speed for a permanent multiplier", function()
+	local PlayerData = moduleOf("PlayerData")
+	local shrine = Map:FindFirstChild("RebirthShrine", true)
+	check(shrine and shrine:IsA("BasePart"), "the map has a rebirth shrine part")
+	local prompt = shrine:FindFirstChild("OpenRebirthPrompt")
+	check(prompt, "the shrine has a prompt")
+	eq(prompt.ObjectText, "🔁 REBIRTH SHRINE", "the prompt names the shrine")
+
+	-- A fresh arrival with a toaster on the shelves (so there's an income to multiply).
+	local spinner = newPlayer(606, "Rebirther")
+	spawnCharacter(spinner, Vector3.new(0, 5, 0))
+	Mock.advance(1)
+	moduleOf("Plots").deposit(spinner, { "Toaster" })
+	Mock.advance(0.5)
+
+	-- A fresh account starts at x1 with the first million priced in.
+	eq(spinner:GetAttribute("Rebirths"), 0, "starts with no rebirths")
+	local state = Remotes.Rebirth.OnServerInvoke(spinner, "State")
+	eq(state.Rebirths, 0, "the state reports zero rebirths")
+	eq(state.Multiplier, 1, "and a x1 multiplier")
+	eq(state.Cost, 1000000, "first rebirth costs 1M")
+	eq(state.CanAfford, false, "no free rebirths")
+
+	-- Not enough speed yet: the shrine says so and nothing changes.
+	local miss = Remotes.Rebirth.OnServerInvoke(spinner, "Buy")
+	eq(miss.Ok, false, "buying without the speed fails")
+	check(string.find(tostring(miss.Message), "speed", 1, true), "the error explains why")
+	eq(spinner:GetAttribute("Rebirths"), 0, "nothing was bought")
+
+	-- Train up a million-fifty thousand and take the trade.
+	PlayerData.addSpeed(spinner, 1050000 - PlayerData.getSpeedPoints(spinner))
+	local incomeBefore = spinner:GetAttribute("Income")
+	check(incomeBefore > 0, "the rebirther's warehouse must earn something for this test")
+	local bought = Remotes.Rebirth.OnServerInvoke(spinner, "Buy")
+	eq(bought.Ok, true, "rebirth bought: " .. tostring(bought.Message))
+	eq(spinner:GetAttribute("Rebirths"), 1, "the rebirth is counted")
+	eq(spinner:GetAttribute("SpeedPoints"), 0, "every speed point is spent")
+	eq(spinner:GetAttribute("Speed"), 4, "the Speed stat starts over")
+	eq(spinner:GetAttribute("WalkSpeed"), 16, "and you jog at the base speed again")
+	eq(spinner.leaderstats.Rebirths.Value, 1, "the leaderboard brags about the rebirth")
+	eq(spinner:GetAttribute("Income"), incomeBefore * 1.5, "coins per second pick up the x1.5")
+
+	-- The treadmill bonus follows suit: 100 trained points land as 150.
+	PlayerData.addSpeed(spinner, 100)
+	eq(spinner:GetAttribute("SpeedPoints"), 150, "treadmill gains are multiplied too")
+
+	-- And the next rebirth costs four times more.
+	local nextState = Remotes.Rebirth.OnServerInvoke(spinner, "State")
+	eq(nextState.Cost, 4000000, "the second rebirth costs 4M")
+	eq(nextState.NextMultiplier, 2, "x2 is the next step")
+	Mock.advance(0.5)
+end)
+
 step("no warnings were logged", function()
 	check(#Mock.warnings == 0, "warnings:\n  " .. table.concat(Mock.warnings, "\n  "))
 end)

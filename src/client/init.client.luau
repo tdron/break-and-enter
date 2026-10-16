@@ -20,7 +20,7 @@ for _, name in { "Config", "Items", "ItemModels", "Format" } do
 	sharedFolder:WaitForChild(name)
 end
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
-for _, name in { "Notify", "Busted", "Purchase", "Treadmill", "Storage", "Sell" } do
+for _, name in { "Notify", "Busted", "Purchase", "Treadmill", "Storage", "Sell", "Rebirth" } do
 	remotesFolder:WaitForChild(name)
 end
 
@@ -29,6 +29,7 @@ local DayNight = require(script.DayNight)
 local Hud = require(script.Hud)
 local LootIndex = require(script.LootIndex)
 local Notifications = require(script.Notifications)
+local Rebirth = require(script.Rebirth)
 local SellPoint = require(script.SellPoint)
 local Shop = require(script.Shop)
 local Storage = require(script.Storage)
@@ -58,6 +59,7 @@ Notifications.init(screen)
 DayNight.init()
 Shop.init(screen)
 LootIndex.init(screen)
+Rebirth.init(screen)
 Storage.init(screen)
 SellPoint.init(screen)
 
@@ -74,6 +76,9 @@ local function closeWindows(keep: string?)
 	end
 	if keep ~= "Sell" then
 		SellPoint.close()
+	end
+	if keep ~= "Rebirth" then
+		Rebirth.close()
 	end
 end
 
@@ -112,7 +117,8 @@ Remotes.Busted.OnClientEvent:Connect(function(lostCount: number, lostValue: numb
 end)
 
 -- Prompts in the world open their window: the market stall's shop counter, the
--- trader's counter opposite it, and the shelf prompts in your own warehouse.
+-- trader's counter opposite it, the rebirth shrine, and the shelf prompts in your
+-- own warehouse.
 ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt, who: Player)
 	if who ~= player then
 		return
@@ -123,6 +129,9 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 	elseif prompt.Name == "OpenSellPrompt" then
 		closeWindows("Sell")
 		SellPoint.open()
+	elseif prompt.Name == "OpenRebirthPrompt" then
+		closeWindows("Rebirth")
+		Rebirth.open()
 	elseif prompt.Name == "ShelfPrompt" then
 		closeWindows("Storage")
 		Storage.open()

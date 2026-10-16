@@ -437,6 +437,27 @@ test("item models fit on shelves and furniture", function()
 	end
 end)
 
+test("rebirths cost speed in steep millions", function()
+	eq(Config.rebirthCost(0), 1000000, "the first rebirth costs a million speed")
+	eq(Config.rebirthCost(1), 4000000, "the second costs four times that")
+	eq(Config.rebirthCost(2), 16000000)
+	local last = 0
+	for count = 0, 8 do
+		local cost = Config.rebirthCost(count)
+		check(cost > last, "every rebirth must cost strictly more (rebirth " .. count .. ")")
+		last = cost
+	end
+	eq(Config.rebirthCost(-2), Config.rebirthCost(0), "negative counts clamp to the first price")
+end)
+
+test("the rebirth multiplier starts at x1 and gains half a x per rebirth", function()
+	eq(Config.rebirthMultiplier(0), 1, "no rebirths, no bonus")
+	eq(Config.rebirthMultiplier(1), 1.5)
+	eq(Config.rebirthMultiplier(2), 2)
+	eq(Config.rebirthMultiplier(6), 4)
+	eq(Config.rebirthMultiplier(-1), 1, "clamped before the first rebirth")
+end)
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 if failed > 0 then
 	error("tests failed")

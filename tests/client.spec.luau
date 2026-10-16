@@ -827,6 +827,54 @@ step("epic and legendary loot carries a breathing aura in its rarity colour", fu
 	Mock.advance(0.1)
 end)
 
+-- A stand-in for the server's Rebirth handler.
+local rebirthRequests = {}
+Mock.invokeHandlers.Rebirth = function(action)
+	table.insert(rebirthRequests, tostring(action))
+	if action == "Buy" then
+		return { Ok = true, Message = "🔁 REBIRTH #1! Everything you train and earn is x1.5." }
+	end
+	return { Ok = true, Rebirths = 0, Multiplier = 1 }
+end
+
+step("the rebirth shrine's window prices the next rebirth", function()
+	local window = hud:FindFirstChild("Rebirth")
+	check(window, "no rebirth window")
+	eq(window.Visible, false, "hidden until the shrine prompt")
+
+	player:SetAttribute("Rebirths", 0)
+	player:SetAttribute("SpeedPoints", 1500000)
+	Mock.advance(0.2)
+	local rebirthPrompt = Instance.new("ProximityPrompt")
+	rebirthPrompt.Name = "OpenRebirthPrompt"
+	Mock.service("ProximityPromptService").PromptTriggered:Fire(rebirthPrompt, player)
+	Mock.advance(0.3)
+	eq(window.Visible, true, "the shrine prompt opens it")
+	check(findText(window, "REBIRTH SHRINE"), "the title says so")
+	check(findText(window, "Treadmill training"), "the treadmill bonus is listed")
+	check(findText(window, "Coins per second"), "the income bonus is listed")
+	check(findText(window, "back to 0"), "the reset warning shows")
+	check(findText(window, "1.5M / 1M speed"), "the bar shows your speed against the price")
+	local buyButton = window:FindFirstChild("Buy")
+	check(buyButton, "no rebirth button")
+	check(string.find(buyButton.Text, "1M SPEED", 1, true), "the button carries the price: " .. buyButton.Text)
+	buyButton.Activated:Fire()
+	Mock.advance(0.3)
+	check(table.find(rebirthRequests, "Buy"), "the click goes to the server")
+	check(findText(hud, "🔁 REBIRTH #1!"), "the shrine's answer is shown")
+
+	-- After the rebirth the window refreshes from the attributes alone.
+	player:SetAttribute("Rebirths", 2)
+	player:SetAttribute("SpeedPoints", 950000)
+	Mock.advance(0.2)
+	check(findText(window, "x2"), "the power chip shows x2")
+	check(findText(window, "Rebirth #3"), "the next rebirth is priced")
+	check(findText(window, "16M speed"), "at the 4x price")
+	window.Close.Activated:Fire()
+	Mock.advance(0.3)
+	eq(window.Visible, false, "close hides the window")
+end)
+
 step("no warnings were logged", function()
 	check(#Mock.warnings == 0, "warnings:\n  " .. table.concat(Mock.warnings, "\n  "))
 end)

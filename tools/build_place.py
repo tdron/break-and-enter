@@ -34,7 +34,7 @@ from rbxlx import C3, Float, Inst, Protected, Token, serialize  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 REMOTE_EVENTS = ["Notify", "Busted"]
-REMOTE_FUNCTIONS = ["Purchase", "Treadmill", "Storage", "Sell"]
+REMOTE_FUNCTIONS = ["Purchase", "Treadmill", "Storage", "Sell", "Rebirth"]
 
 
 def script_class_for(filename: str) -> tuple[str, str] | None:
@@ -82,11 +82,12 @@ def load_script_dir(path: str, name: str) -> Inst:
 
 def build_lighting() -> Inst:
     lighting = Inst("Lighting", "Lighting")
+    # Start state = the sunny pastel preset in Config.DayNight.Day (the heist clock fades the sky at runtime).
     lighting.set(
         ClockTime=Float(14.2),
-        Brightness=Float(2.6),
-        Ambient=C3.rgb(92, 92, 104),
-        OutdoorAmbient=C3.rgb(138, 138, 150),
+        Brightness=Float(3.0),
+        Ambient=C3.rgb(150, 150, 168),
+        OutdoorAmbient=C3.rgb(188, 188, 204),
         GlobalShadows=True,
         Technology=Token(3),  # ShadowMap
         EnvironmentDiffuseScale=Float(1),
@@ -95,17 +96,17 @@ def build_lighting() -> Inst:
     )
     atmosphere = Inst("Atmosphere", "Atmosphere", lighting)
     atmosphere.set(
-        Density=Float(0.28),
+        Density=Float(0.26),
         Offset=Float(0.2),
-        Color=C3.rgb(205, 220, 235),
-        Decay=C3.rgb(120, 140, 170),
-        Glare=Float(0.2),
-        Haze=Float(1.2),
+        Color=C3.rgb(212, 220, 250),
+        Decay=C3.rgb(160, 170, 220),
+        Glare=Float(0.15),
+        Haze=Float(0.8),
     )
     bloom = Inst("BloomEffect", "Bloom", lighting)
     bloom.set(Intensity=Float(0.6), Size=Float(24), Threshold=Float(1.6))
     color = Inst("ColorCorrectionEffect", "ColorCorrection", lighting)
-    color.set(Saturation=Float(0.12), Contrast=Float(0.05), Brightness=Float(0.01))
+    color.set(Saturation=Float(0.16), Contrast=Float(0.04), Brightness=Float(0.02))
     return lighting
 
 

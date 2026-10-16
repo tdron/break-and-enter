@@ -48,7 +48,15 @@ local unseen = 0
 local baselined = false -- true once the saved collection has arrived (it never counts as "new")
 
 local LOCKED_TINT = Color3.fromRGB(0, 0, 0)
-local CARD_COLOR = Color3.fromRGB(36, 40, 62)
+
+-- Tier title colours darkened for the light theme (the bright candy tier
+-- colours wash out on cream cards).
+local TIER_INK = {
+	Color3.fromRGB(52, 152, 62),
+	Color3.fromRGB(32, 116, 215),
+	Color3.fromRGB(142, 76, 215),
+	Color3.fromRGB(205, 128, 22),
+}
 
 local function getDiscovered(): { [string]: boolean }
 	local result: { [string]: boolean } = {}
@@ -71,7 +79,7 @@ end
 
 local function makePicture(parent: Instance, def: Items.ItemDef): ViewportFrame
 	-- UI.itemPicture strips the rarity aura, so the card shows the item itself.
-	local picture = UI.itemPicture(parent, def.Id, UDim2.new(1, -12, 0, 92), UDim2.fromOffset(6, 6))
+	local picture = UI.itemPicture(parent, def.Id, UDim2.new(1, -10, 0, 92), UDim2.fromOffset(5, 5))
 	picture.ImageColor3 = LOCKED_TINT
 	return picture
 end
@@ -89,34 +97,38 @@ end
 local function makeCard(parent: Instance, order: number, def: Items.ItemDef): Card
 	local frame: Frame = UI.new("Frame", {
 		Name = def.Id,
-		BackgroundColor3 = CARD_COLOR,
+		BackgroundColor3 = Theme.Panel,
 		LayoutOrder = order,
+		ZIndex = 4,
 		Parent = parent,
 	}, {
 		UI.corner(12),
-		UI.stroke(Items.Rarities[def.Rarity].Color, 2, 0.55),
+		UI.gradient(Theme.PanelTop, Theme.Panel),
+		UI.stroke(UI.rarityInk(def.Rarity), 2, 0.3),
 	})
 	local picture = makePicture(frame, def)
 	local name: TextLabel = UI.new("TextLabel", {
 		Name = "ItemName",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(4, 101),
+		Position = UDim2.fromOffset(4, 100),
 		Size = UDim2.new(1, -8, 0, 22),
 		Font = Theme.TitleFont,
 		Text = "???",
 		TextColor3 = Theme.Text,
 		TextScaled = true,
+		ZIndex = 5,
 		Parent = frame,
 	})
 	local info: TextLabel = UI.new("TextLabel", {
 		Name = "Info",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(4, 124),
+		Position = UDim2.fromOffset(4, 123),
 		Size = UDim2.new(1, -8, 0, 18),
 		Font = Theme.BoldFont,
 		Text = def.Rarity,
-		TextColor3 = Items.Rarities[def.Rarity].Color,
+		TextColor3 = UI.rarityInk(def.Rarity),
 		TextSize = 14,
+		ZIndex = 5,
 		Parent = frame,
 	})
 	local card: Card = { Item = def, Frame = frame, Picture = picture, Name = name, Info = info, Unlocked = false }
@@ -131,39 +143,45 @@ local function makeSection(parent: Instance, order: number, house: Config.HouseI
 	local frame: Frame = UI.new("Frame", {
 		Name = house.Id,
 		BackgroundColor3 = Theme.PanelLight,
-		BackgroundTransparency = 0.35,
+		BackgroundTransparency = 0.15,
 		Size = UDim2.new(1, -10, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		LayoutOrder = order,
+		ZIndex = 3,
 		Parent = parent,
 	}, {
-		UI.corner(14),
-		UI.padding(10),
-		UI.new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }),
+		UI.corner(16),
+		UI.cardGradient(),
+		UI.stroke(tier.Color, 1.5, 0.65),
+		UI.padding(12),
+		UI.new("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }),
 	})
 	local header: Frame = UI.new("Frame", {
 		Name = "Header",
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 46),
+		Size = UDim2.new(1, 0, 0, 48),
 		LayoutOrder = 1,
 		Parent = frame,
 	})
+	UI.iconChip(header, guard.Icon, tier.Color, Theme.Panel, 44, UDim2.fromOffset(0, 2))
 	UI.new("TextLabel", {
 		Name = "Title",
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, -90, 0, 26),
+		Position = UDim2.fromOffset(56, 0),
+		Size = UDim2.new(1, -160, 0, 26),
 		Font = Theme.TitleFont,
-		Text = string.format("%s  %s", guard.Icon, string.upper(house.DisplayName)),
-		TextColor3 = tier.Color,
+		Text = string.upper(house.DisplayName),
+		TextColor3 = TIER_INK[house.Tier] or Theme.Text,
 		TextSize = 22,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 4,
 		Parent = header,
 	})
 	UI.new("TextLabel", {
 		Name = "Guard",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(0, 26),
-		Size = UDim2.new(1, -90, 0, 18),
+		Position = UDim2.fromOffset(56, 26),
+		Size = UDim2.new(1, -160, 0, 18),
 		Font = Theme.BodyFont,
 		Text = string.format(
 			"%s%s %s · guarded by %s · %s speed",
@@ -176,19 +194,21 @@ local function makeSection(parent: Instance, order: number, house: Config.HouseI
 		TextColor3 = Theme.SubText,
 		TextSize = 14,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 4,
 		Parent = header,
 	})
 	local count: TextLabel = UI.new("TextLabel", {
 		Name = "Count",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, 0, 0, 6),
-		Size = UDim2.fromOffset(90, 30),
+		Position = UDim2.new(1, 0, 0, 8),
+		Size = UDim2.fromOffset(96, 30),
 		Font = Theme.TitleFont,
 		Text = "0/0",
 		TextColor3 = Theme.Gold,
-		TextSize = 22,
+		TextSize = 24,
 		TextXAlignment = Enum.TextXAlignment.Right,
+		ZIndex = 4,
 		Parent = header,
 	})
 	local grid: Frame = UI.new("Frame", {
@@ -230,7 +250,7 @@ local function refresh()
 		total += #section.Cards
 		local complete = houseFound == #section.Cards and houseFound > 0
 		section.Count.Text = string.format("%s%d/%d", if complete then "✅ " else "", houseFound, #section.Cards)
-		section.Count.TextColor3 = if complete then Theme.Green else Theme.Gold
+		section.Count.TextColor3 = if complete then Theme.GreenDark else Theme.GoldDark
 	end
 	local label, fill = progressLabel, progressFill
 	if label and fill then
@@ -258,84 +278,67 @@ function LootIndex.init(screen: ScreenGui)
 		Name = "LootIndex",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(760, 580),
+		Size = UDim2.fromOffset(780, 600),
 		BackgroundColor3 = Theme.Panel,
 		Visible = false,
+		ZIndex = 2,
 		Parent = screen,
 	}, {
-		UI.corner(18),
-		UI.stroke(Theme.Purple, 3, 0.1),
+		UI.shadow(20, 10),
+		UI.corner(20),
+		UI.stroke(Theme.Purple, 2.5, 0.2),
+		UI.bodyGradient(),
 		scale,
 	})
 	window = frame
 	windowScale = scale
 
-	UI.new("TextLabel", {
-		Name = "Title",
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(20, 10),
-		Size = UDim2.new(1, -90, 0, 50),
-		Font = Theme.TitleFont,
-		Text = "📖 LOOT INDEX",
-		TextColor3 = Theme.Purple,
-		TextSize = 36,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Parent = frame,
-	})
+	UI.titleBar(frame, "📖", "LOOT INDEX", Theme.Purple, Theme.PurpleDark, 58)
+	local close = UI.closeButton(frame, UDim2.new(1, -10, 0, 8))
+	close.Activated:Connect(function()
+		LootIndex.close()
+	end)
 	progressLabel = UI.new("TextLabel", {
 		Name = "Progress",
 		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -74, 0, 12),
-		Size = UDim2.fromOffset(260, 28),
+		Position = UDim2.fromOffset(24, 66),
+		Size = UDim2.fromOffset(240, 26),
 		Font = Theme.TitleFont,
 		Text = "",
-		TextColor3 = Theme.Gold,
-		TextSize = 24,
-		TextXAlignment = Enum.TextXAlignment.Right,
+		TextColor3 = Theme.GoldDark,
+		TextSize = 22,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 4,
 		Parent = frame,
 	})
 	local bar: Frame = UI.new("Frame", {
 		Name = "ProgressBar",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -74, 0, 44),
-		Size = UDim2.fromOffset(260, 10),
-		BackgroundColor3 = Color3.fromRGB(16, 18, 28),
+		Position = UDim2.fromOffset(24, 94),
+		Size = UDim2.new(1, -48, 0, 10),
+		BackgroundColor3 = Color3.fromRGB(94, 90, 122),
+		BackgroundTransparency = 0.78,
+		ZIndex = 4,
 		Parent = frame,
-	}, { UI.corner(5) })
+	}, { UI.corner(5), UI.stroke(Color3.new(1, 1, 1), 1, 0.88) })
 	progressFill = UI.new("Frame", {
 		Name = "Fill",
 		BackgroundColor3 = Theme.Purple,
 		Size = UDim2.fromScale(0, 1),
+		ZIndex = 5,
 		Parent = bar,
-	}, { UI.corner(5) })
-	local close: TextButton = UI.new("TextButton", {
-		Name = "Close",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -14, 0, 14),
-		Size = UDim2.fromOffset(44, 44),
-		BackgroundColor3 = Theme.Red,
-		Font = Theme.TitleFont,
-		Text = "X",
-		TextColor3 = Color3.new(1, 1, 1),
-		TextSize = 26,
-		Parent = frame,
-	}, { UI.corner(10) })
-	UI.bounce(close)
-	close.Activated:Connect(function()
-		LootIndex.close()
-	end)
+	}, { UI.corner(5), UI.gradient(Theme.Purple, Theme.PurpleDark) })
 
 	local list: ScrollingFrame = UI.new("ScrollingFrame", {
 		Name = "List",
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
-		Position = UDim2.fromOffset(16, 70),
-		Size = UDim2.new(1, -28, 1, -112),
+		Position = UDim2.fromOffset(16, 114),
+		Size = UDim2.new(1, -28, 1, -166),
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		ScrollBarThickness = 8,
 		ScrollBarImageColor3 = Theme.Purple,
+		ZIndex = 3,
 		Parent = frame,
 	}, {
 		UI.new("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder }),
@@ -344,18 +347,27 @@ function LootIndex.init(screen: ScreenGui)
 		table.insert(sections, makeSection(list, order, house))
 	end
 
+	local tipBar: Frame = UI.new("Frame", {
+		Name = "TipBar",
+		BackgroundColor3 = Theme.PanelTop,
+		BackgroundTransparency = 0.35,
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 16, 1, -10),
+		Size = UDim2.new(1, -32, 0, 36),
+		ZIndex = 3,
+		Parent = frame,
+	}, { UI.corner(12), UI.stroke(Color3.new(1, 1, 1), 1, 0.88) })
 	UI.new("TextLabel", {
 		Name = "Tip",
 		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.new(0, 20, 1, -8),
-		Size = UDim2.new(1, -40, 0, 30),
+		Size = UDim2.fromScale(1, 1),
 		Font = Theme.BodyFont,
 		Text = "💡 Every house has its own loot. Steal an item once to unlock it here forever. Rarer items show up less often!",
 		TextColor3 = Theme.SubText,
-		TextSize = 15,
+		TextSize = 14,
 		TextWrapped = true,
-		Parent = frame,
+		ZIndex = 4,
+		Parent = tipBar,
 	})
 
 	-- Everything you'd discovered before this session counts as already seen. The server
@@ -380,17 +392,22 @@ function LootIndex.attachBadge(button: GuiButton)
 	badge = UI.new("TextLabel", {
 		Name = "NewBadge",
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.new(1, -6, 0, 6),
-		Size = UDim2.fromOffset(28, 28),
+		Position = UDim2.new(1, -4, 0, 4),
+		Size = UDim2.fromOffset(30, 30),
 		BackgroundColor3 = Theme.Red,
 		Font = Theme.TitleFont,
 		Text = "",
 		TextColor3 = Color3.new(1, 1, 1),
-		TextSize = 16,
+		TextSize = 17,
+
 		Visible = false,
-		ZIndex = 5,
+		ZIndex = 6,
 		Parent = button,
-	}, { UI.corner(14), UI.stroke(Color3.new(1, 1, 1), 2, 0) })
+	}, {
+		UI.corner(15),
+		UI.gloss(),
+		UI.stroke(Color3.new(1, 1, 1), 2, 0.1),
+	})
 	updateBadge()
 end
 

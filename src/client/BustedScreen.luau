@@ -2,7 +2,9 @@
 --[[
 	BustedScreen
 	------------
-	The big red "BUSTED!" flash when a house guard (cat, dog or drone) catches you.
+	The big red "BUSTED!" flash when a house guard (cat, dog or drone) catches
+	you — a full-screen red vignette and a scale-popping headline, the same
+	dramatic knockout treatment competitive games give their combat banners.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15,6 +17,8 @@ local BustedScreen = {}
 local overlay: Frame? = nil
 local title: TextLabel? = nil
 local subtitle: TextLabel? = nil
+local titleScale: UIScale? = nil
+local bars: { Frame } = {}
 local showId = 0
 
 function BustedScreen.init(screen: ScreenGui)
@@ -26,7 +30,32 @@ function BustedScreen.init(screen: ScreenGui)
 		Visible = false,
 		ZIndex = 50,
 		Parent = screen,
+	}, {
+		-- Vignette feel: darker at the edges, hottest behind the headline.
+		UI.gradient(Color3.fromRGB(60, 0, 10), Color3.new(1, 1, 1)),
 	})
+	-- Police-light bars sliding in from the top and bottom.
+	local topBar: Frame = UI.new("Frame", {
+		Name = "TopBar",
+		BackgroundColor3 = Color3.fromRGB(120, 0, 14),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 0.16, 0),
+		ZIndex = 50,
+		Parent = frame,
+	})
+	local bottomBar: Frame = UI.new("Frame", {
+		Name = "BottomBar",
+		BackgroundColor3 = Color3.fromRGB(120, 0, 14),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.fromScale(0, 1),
+		Size = UDim2.new(1, 0, 0.16, 0),
+		ZIndex = 50,
+		Parent = frame,
+	})
+	bars = { topBar, bottomBar }
 	title = UI.new("TextLabel", {
 		Name = "Title",
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -42,6 +71,10 @@ function BustedScreen.init(screen: ScreenGui)
 		ZIndex = 51,
 		Parent = frame,
 	})
+	local scale = Instance.new("UIScale")
+	scale.Name = "Pop"
+	scale.Parent = title
+	titleScale = scale
 	subtitle = UI.new("TextLabel", {
 		Name = "Subtitle",
 		AnchorPoint = Vector2.new(0.5, 0),
@@ -81,10 +114,19 @@ function BustedScreen.show(lostCount: number, lostValue: number, houseName: stri
 
 	frame.Visible = true
 	frame.BackgroundTransparency = 0.25
+	for _, bar in bars do
+		bar.BackgroundTransparency = 0.55
+	end
 	titleLabel.TextTransparency = 0
 	subtitleLabel.TextTransparency = 0
 	titleLabel.Rotation = -8
 	UI.tween(titleLabel, 0.35, { Rotation = 0 }, Enum.EasingStyle.Back)
+	-- The headline pops in from small to oversized, then settles.
+	local pop = titleScale
+	if pop then
+		pop.Scale = 0.5
+		UI.tween(pop, 0.4, { Scale = 1 }, Enum.EasingStyle.Back)
+	end
 	UI.playSound(UI.Sounds.Busted, 0.8, 1)
 
 	task.delay(2.6, function()
@@ -92,6 +134,9 @@ function BustedScreen.show(lostCount: number, lostValue: number, houseName: stri
 			return
 		end
 		UI.tween(frame, 0.5, { BackgroundTransparency = 1 })
+		for _, bar in bars do
+			UI.tween(bar, 0.5, { BackgroundTransparency = 1 })
+		end
 		UI.tween(titleLabel, 0.5, { TextTransparency = 1 })
 		UI.tween(subtitleLabel, 0.5, { TextTransparency = 1 })
 		task.wait(0.55)

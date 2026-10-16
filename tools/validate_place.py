@@ -363,7 +363,8 @@ def check_structure(roots: list[Item], check: Checker) -> None:
     found = {(c.name, c.cls) for c in (remotes.children if remotes else [])}
     for expected in (("Notify", "RemoteEvent"), ("Busted", "RemoteEvent"), ("Purchase", "RemoteFunction"),
                      ("Treadmill", "RemoteFunction"), ("Storage", "RemoteFunction"),
-                     ("Sell", "RemoteFunction")):
+                     ("Sell", "RemoteFunction"),
+                     ("Rebirth", "RemoteFunction")):
         check.expect(expected in found, f"Missing remote {expected}")
     shared = replicated.child("Shared") if replicated else None
     check.expect(shared is not None and {"Config", "Items", "ItemModels", "Format", "Guards"} <= {c.name for c in shared.children},

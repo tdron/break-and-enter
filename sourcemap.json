@@ -99,6 +99,10 @@
       {
        "name": "Sell",
        "className": "RemoteFunction"
+      },
+      {
+       "name": "Rebirth",
+       "className": "RemoteFunction"
       }
      ]
     }
@@ -172,6 +176,13 @@
        ]
       },
       {
+       "name": "Rebirth",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/server/Rebirth.luau"
+       ]
+      },
+      {
        "name": "Treadmills",
        "className": "ModuleScript",
        "filePaths": [
@@ -230,6 +241,13 @@
          "className": "ModuleScript",
          "filePaths": [
           "src/client/Notifications.luau"
+         ]
+        },
+        {
+         "name": "Rebirth",
+         "className": "ModuleScript",
+         "filePaths": [
+          "src/client/Rebirth.luau"
          ]
         },
         {
