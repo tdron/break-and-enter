@@ -18,6 +18,15 @@
 	    the front gate the real speeds apply — yours from the treadmill, theirs
 	    from Config.Guards.Speed (and the late-game ones are very, very fast).
 	  * The hardest houses also have blinking laser tripwires.
+	  * Defenders are physical: each one drags a collider the size of its body around and is
+	    stopped by walls, doors and furniture like anybody else. They get where they are going
+	    by feeling for the wall first (Workspace:Blockcast) and stepping off their straight
+	    line round it, and if an opening is too small for them - the T-Rex is 5.6 studs wide,
+	    the cars 5.3 - they take the roomiest way past instead of grinding in the doorway.
+	  * Anything with legs walks there: a deliberately choppy stop-motion cycle (see
+	    WalkCycle / Config.Walk) driven by how fast the body is really moving, so a defender
+	    pinned against a wall stops stepping instead of moonwalking on the spot. Hoverers
+	    (drones), rollers (the museum's fleet) and the tracked security bots get nothing.
 	  * DAYTIME (see DayNight): houses lock up, anyone inside is shown the door
 	    and every house restocks. That's the only time loot comes back.
 
@@ -28,6 +37,13 @@
 	    GuardDocks  Folder of Parts where the guards rest (pet beds / drone pads)
 	    Doors       Folder of Models: a "Hinge" part + door parts (attribute OpenAngle)
 	    Lasers      Folder of Parts (attribute Phase)
+	    Route       Folder of invisible markers (Door, Hall, the room vias, Gate, Street) that a
+	                defender walks between: the doorways, and the way in off the street, so that
+	                one crossing the house goes through the openings rather than at the walls
+	                around them.
+	    Rooms       Invisible boxes over each room, attribute Via naming the Route node that is
+	                that room's way out, so "get to the thing in the next room" is answered with
+	                a doorway rather than a straight line at the wall between them.
 ]]
 
 local Players = game:GetService("Players")
@@ -39,6 +55,7 @@ local Workspace = game:GetService("Workspace")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
 local Guards = require(ReplicatedStorage.Shared.Guards)
+local WalkCycle = require(ReplicatedStorage.Shared.WalkCycle)
 local ItemModels = require(ReplicatedStorage.Shared.ItemModels)
 local Items = require(ReplicatedStorage.Shared.Items)
 local DayNight = require(script.Parent.DayNight)
@@ -61,15 +78,34 @@ type Guard = {
 	AlignPosition: AlignPosition,
 	AlignOrientation: AlignOrientation,
 	Home: CFrame, -- where the root rests
+	Filter: RaycastParams, -- the cast filter: a defender never feels its own body with it
+	ProbeParams: RaycastParams, -- the same, plus whatever the body is standing on or leaning on (see probe)
+	Hidden: { any }, -- that list, one entry per thing hidden: resets itself on every look at the way ahead
 	Flying: boolean,
 	State: string, -- "Idle" | "Windup" | "Chase"
 	ActivateAt: number,
 	Bob: number, -- phase offset for the trotting bounce
 	Trot: number, -- how bouncy this kind of defender is (cars don't bounce)
+	Walk: WalkCycle.Cycle, -- the stop-motion legs (no limbs: nothing steps)
+	LastPosition: Vector3, -- where the body was last frame, for measuring its real speed
+	Move: Vector3?, -- the line it is currently walking, if the last look at the way ahead is
+	MoveClear: number, -- still usable ... and how far that line is clear
+	MoveDetour: boolean, -- the cached line is a step off the straight line, not the line itself
+	Sight: number, -- seconds that look at the way ahead stays good for, before it looks again
+	SlideSide: number, -- -1 / 0 / 1: the side it stepped off on, so it commits to a way round
+	Blocked: number, -- looks in a row that found the straight line blocked (see wayAhead)
+	ClearLooks: number, -- looks in a row that found it clear, before it stops leaning to a side
+	Stuck: number, -- seconds it has wanted to move without actually moving
+	Sidestep: number,
+	Sidestepped: boolean,
+	Pinned: number,
+	LastWay: Vector3?,
+	Way: Vector3?, -- the doorway or gate it is making for, until it is through it (see routeTo) -- seconds left of walking sideways rather than forwards
 }
 
 type Door = {
 	Model: Model,
+	Spot: Vector3, -- the hinge: where a defender walking home has to be to be let in
 	Prompt: ProximityPrompt,
 	Angle: NumberValue,
 	OpenAngle: number,
@@ -95,6 +131,9 @@ type House = {
 	Spots: { Spot },
 	Guards: { Guard },
 	Doors: { Door },
+	Route: { [string]: Vector3 }, -- the doorways to thread (Rooms.<name>.Via names one; see routeTo)
+	Rooms: { BasePart }, -- invisible boxes over the floors, named after the room they cover
+	Via: { [string]: Vector3 }, -- the doorway out of each room, by room name
 	Lasers: { BasePart },
 	AlarmActive: boolean,
 	LastOccupiedAt: number,
@@ -144,6 +183,27 @@ local function insideHouse(house: House, position: Vector3): boolean
 	return house.ZoneCFrame:PointToObjectSpace(position).Z < house.ZoneHalfSize.Z - house.FrontInset
 end
 
+-- Where a defender on the wrong side of the front door heads for: the middle of the doorway
+-- itself. Everything a defender has to get through is on the house's centre line - the doorway,
+-- the porch, the path and the gate in the fence - so asking for the doorway is asking for the one
+-- line it can walk out (or in) on, rather than a diagonal at a door jamb it does not fit past.
+-- Returns nil when there is no door in the way, or when the body is already in it.
+local function throughTheDoor(house: House, from: Vector3, target: Vector3): Vector3?
+	local wall = house.ZoneHalfSize.Z - house.FrontInset
+	local here = house.ZoneCFrame:PointToObjectSpace(from).Z
+	local there = house.ZoneCFrame:PointToObjectSpace(target).Z
+	if (here < wall) == (there < wall) then
+		return nil
+	end
+	-- A stud past the wall, on the far side: aiming there puts the body in the opening, and once
+	-- it is in it the straight line to where it is really going goes through the opening too.
+	local doorway = lotPoint(house, 0, (if here < wall then wall + 1 else wall - 1))
+	if (Vector3.new(from.X - doorway.X, 0, from.Z - doorway.Z)).Magnitude <= 2.5 then
+		return nil
+	end
+	return doorway
+end
+
 -- How far a chase can go: this house's own property, plus the street from the front door
 -- all the way back west to the canyon mouth. Inside the yard (past the mouth) it is over.
 local function inChaseArea(house: House, position: Vector3): boolean
@@ -185,6 +245,554 @@ local function isImmune(player: Player, now: number): boolean
 	return (bustedUntil[player] or 0) > now
 end
 
+--------------------------------------------------------------------------------
+-- Walking there without walking through things
+--
+-- A defender with a body cannot be dragged at a wall: it would scrape along it for ever, or jam
+-- in a doorway it does not fit through. So each one works out its own way forward, a fraction of
+-- a second at a time, out of one question asked of the engine - "how far can I go this way?" -
+-- with a block cast shaped like the body:
+
+--   * straight on while the way is clear,
+--   * the first small turn off that line which opens up real ground when it is not, preferring
+--     the side it already leaned to so it commits to a way round instead of dithering, and
+--   * the roomiest line of all when it is boxed in (a wall it cannot walk round, a doorway too
+--     narrow for it), which is also what slides a corner along a wall rather than into it.
+
+-- The cast is shaped like the body, not its centre: the root's own collider, so a corner can no
+-- more be walked through than the wall on either side of it.
+
+local WAYPOINT_REACHED = 3 -- close enough to a doorway to count as through it
+local WAYPOINT_THROUGH = 3 -- how far past a doorway to aim, so a body walks through instead of at it
+local HALL_ROOM = "Hall" -- the room every other one opens off, and the way to the street
+local RETURN_RADIUS = 2.5 -- close enough to its bed to be home again (studs)
+local DOOR_RADIUS = 12 -- how close a defender walking home has to be for a door to be opened for it
+local STEP_UP = 1.4 -- the tallest step (porch stairs, kerb) a defender walks up in one move
+local PROBE_HEIGHT = 9 -- how high the floor probe starts above the body
+local SIGHT_TIME = 0.12 -- seconds a look at the way ahead stays good before it looks again
+local FLOOR_NORMAL = 0.7 -- a surface facing up at least this steeply is a floor to walk on, not a wall
+local HEAD_ON = 0.75 -- how squarely a body has to be facing a surface it is touching to be stopped by it
+local TOUCHING = 0.05 -- a hit nearer than this is something the body is already up against
+local PROBE_TRIES = 4 -- things a look at the way ahead may discount before it gives up and says clear
+local SIDESTEP_TIME = 0.4 -- how long a body that gets nowhere walks sideways for (see updateGuards)
+local SIDESTEP_REACH = 2.5 -- how far it tries to walk sideways (studs)
+local ROAD_Z = 20 -- the middle of the pavement: where a defender off the street walks back to
+local OFF_ROAD = 6 -- and how far off it has to be before walking back is what it should be doing
+-- (the gateway itself sits on the property line, so the trigger has to clear it)
+local STUCK_SPEED = 4 -- slower than this and a defender is not walking, it is shuffling at something
+local AIM_CLOSE = 1.5 -- being this close to where it was told to go is arrival, not being stuck
+local PINNED_TIME = 1.5 -- standing still this long at one of its own doorways is wedged on the frame
+local SQUEEZE_STEP = 2.0 -- and that much of a step is enough to be through it
+
+local function distance_of(aim: Vector3, from: Vector3): number
+	local flat = Vector3.new(aim.X - from.X, 0, aim.Z - from.Z)
+	return flat.Magnitude
+end
+
+local function halfExtent(guard: Guard, direction: Vector3): number
+	local size = guard.Root.Size
+	return math.abs(direction.X) * size.X * 0.5
+		+ math.abs(direction.Y) * size.Y * 0.5
+		+ math.abs(direction.Z) * size.Z * 0.5
+end
+
+-- How far ahead a defender looks: further at speed (or it steps into the wall it just found),
+-- capped so even a security car does not probe across the whole map.
+-- The floor this defender is standing over, from a ray dropped straight down from above its head.
+-- Something at hip height (a table it has walked under, a fence rail) is not a floor, so anything
+-- higher than a step above its feet is ignored. Returns the height of the surface to stand on.
+local function floorBelow(guard: Guard, position: Vector3): number?
+	local origin = Vector3.new(position.X, position.Y + PROBE_HEIGHT, position.Z)
+	local hit = Workspace:Raycast(origin, Vector3.new(0, -(PROBE_HEIGHT + STEP_UP + 4), 0), guard.Filter)
+	if not hit then
+		return nil
+	end
+	if hit.Position.Y > position.Y - guard.Look.RootHeight + STEP_UP then
+		return nil
+	end
+	return hit.Position.Y
+end
+
+local function lookahead(speed: number): number
+	return math.min(Config.Alarm.WallLookahead + speed * Config.Alarm.WallLookaheadPerSpeed, Config.Alarm.WallLookaheadMax)
+end
+
+-- One block cast from the body, in place, pointed where it wants to go. The guard's own model is
+-- filtered out of it (its body starts inside that, and everything else it wears is CanQuery =
+-- false), so what it feels is the world: walls, doors, furniture, and the other defenders.
+-- Returns how many studs are clear, and the surface normal only when something is really there.
+local function probe(guard: Guard, direction: Vector3, length: number, at: Vector3?): (number, Vector3?)
+	if length <= 0 then
+		return 0, nil
+	end
+	local root = guard.Root
+	-- `at` asks the same question from a point along the way ("if I got that far, what then?").
+	local base = if at then root.CFrame + (at - root.Position) else root.CFrame
+	-- A cast reports the *nearest* thing it meets, and a body is always already touching things:
+	-- the floor under its feet, the wall its shoulder is against. Anything it is touching comes
+	-- back as a hit at no distance at all, and answering that would say "wedged" whichever way it
+	-- was asked - including the ways it can plainly walk. So whatever it turns out to be leaning
+	-- on or standing in is taken out of the cast and the cast is asked again; that is also the
+	-- only way to look past it, because the floor under a body's feet is under them the whole way
+	-- along the line.
+	local hidden = guard.Hidden
+	for index = #hidden, 2, -1 do
+		hidden[index] = nil
+	end
+	for _ = 1, PROBE_TRIES do
+		local hit = Workspace:Blockcast(base, root.Size, direction * length, guard.ProbeParams)
+		if not hit then
+			return length, nil
+		end
+		local normal = hit.Normal
+		if normal.Magnitude < 0.5 then
+			return length, nil
+		end
+		local distance = math.clamp(hit.Distance, 0, length)
+		local touching = distance < TOUCHING
+		local floor = normal.Y > FLOOR_NORMAL
+		local glancing = direction:Dot(normal) > -HEAD_ON
+		-- Something it can walk over rather than up against: a kerb, the garden path, the lip of
+		-- a step, the rise onto a porch. Whichever face of it a cast reports, a surface low
+		-- enough to stand on is not a wall - and that is the whole point of asking at any
+		-- distance, because a body walking *at* a low step hits the step's face studs before it
+		-- gets there, which reads as a wall and has it working its way along the edge instead of
+		-- stepping up onto it.
+		local underfoot = false
+		local part = hit.Instance
+		if part and part:IsA("BasePart") then
+			underfoot = part.Position.Y + part.Size.Y * 0.5 <= root.Position.Y - guard.Look.RootHeight + STEP_UP
+		end
+		local walkOver = underfoot or (touching and (floor or glancing))
+		if walkOver and hit.Instance then
+			table.insert(hidden, hit.Instance)
+			continue
+		end
+		-- Facing it squarely (or something genuinely in the way further along the line).
+		return distance, normal
+	end
+	return length, nil
+end
+
+-- The name of the room this position is standing in, or nothing when it is not in one of them
+-- (outside, or on its way through a doorway). See House.Rooms.
+local function roomOf(house: House, position: Vector3): string?
+	for _, roomPart in house.Rooms do
+		local relative = roomPart.CFrame:PointToObjectSpace(position)
+		local half = roomPart.Size / 2
+		if math.abs(relative.X) <= half.X and math.abs(relative.Y) <= half.Y and math.abs(relative.Z) <= half.Z then
+			return roomPart.Name
+		end
+	end
+	return nil
+end
+
+-- Where a defender should head for to reach `aim` from where it is.
+--
+-- Out in the open that is simply the aim, and so is anything in the same room - furniture in the
+-- way of something in the same room is just furniture, and the steering walks round it. But the
+-- walls between rooms are another matter: every room in a house opens off the hall, and the hall
+-- onto the street, so the way to anything in another room is out of this room's doorway
+-- (Rooms.<name>.Via, put there by the map), down the hall, and in through the other room's. That
+-- is a route a body can walk - and one that never asks it to find its way through a wall.
+-- A few studs past a waypoint, on the line the body is walking: a doorway is something to go
+-- *through*, and a body that stops dead in the middle of one - or clips a jamb coming at it
+-- side-on - turns a clean walk through into a scrape along the frame. Aiming through it walks it
+-- through. (For an opening the body is already level with, this is just a nudge along.)
+local function throughPoint(from: Vector3, node: Vector3): Vector3
+	local offset = Vector3.new(node.X - from.X, 0, node.Z - from.Z)
+	if offset.Magnitude < 1e-3 then
+		return node
+	end
+	return node + offset.Unit * WAYPOINT_THROUGH
+end
+
+local function routeTo(house: House, guard: Guard, aim: Vector3): Vector3
+	local from = guard.Root.Position
+	-- A waypoint it has already picked stays picked until it is through it. Asking the room boxes
+	-- again every frame is what has a body standing in a doorway dithering between the room it
+	-- just left and the one it is walking into, one stud either side of the line between them.
+	local way = guard.Way
+	if way and distance_of(way, from) > WAYPOINT_REACHED then
+		return throughPoint(from, way)
+	end
+	guard.Way = nil
+
+	local here, there = roomOf(house, from), roomOf(house, aim)
+	-- A defender that has been shoved off the street - over the kerb, round a lamp post, along
+	-- the pickets - walks back onto it before anything else. The road is the one stretch of
+	-- ground every way in and out of a lot runs along, and a body working its way along a garden
+	-- fence instead is how it ends up stuck in the corner of somebody's yard with its own gate
+	-- on the far side of the fence.
+	if here == nil and not Houses.isOnProperty(from) and math.abs(from.Z) - ROAD_Z > OFF_ROAD then
+		local off = math.abs(from.Z) - ROAD_Z
+		if off > OFF_ROAD then
+			local road = Vector3.new(from.X, from.Y, if from.Z < 0 then -ROAD_Z else ROAD_Z)
+			return Vector3.new(road.X, road.Y, road.Z)
+		end
+	end
+	-- Off the lot and going back to it (or on it and going off): the way in and out is the garden
+	-- gate - the one gap in the front fence, in the middle of the path. Walking at the house
+	-- across the front fence, or at the street across it, is how a body ends up pacing along the
+	-- pickets for ever: the gate is on the house's centre line, and so is everything else it has
+	-- to get through, so the way in and out of a lot is one straight line through the gate.
+	if here == nil then
+		local gate = house.Route.Gate
+		local leaving = Houses.isOnProperty(from) and not Houses.isOnProperty(aim)
+		local coming = not Houses.isOnProperty(from) and Houses.isOnProperty(aim)
+		-- The way in or out of a lot. Leaving is the gateway and then the street; coming home it
+		-- is the other way round, so that the walk in is made along the fence and the turn
+		-- through the gateway happens square in front of it rather than across the pickets.
+		--
+		-- Which of the two a body coming home is walking to is decided by where it is, not by
+		-- which one it has most recently been near: "the far one" is what has a body stepping
+		-- over its own marker and straight back out to the marker it just left, for ever. Past
+		-- the pavement marker the gateway is the nearer of the two, and that is the sign that
+		-- the approach is done with and the way in is through the gate.
+		local street = house.Route.Street
+		if leaving then
+			if distance_of(gate, from) > WAYPOINT_REACHED then
+				guard.Way = gate
+				return throughPoint(from, gate)
+			end
+		elseif coming then
+			local approaching = street
+				and distance_of(gate, from) > distance_of(gate, street)
+				and distance_of(street, from) > WAYPOINT_REACHED
+			if approaching then
+				guard.Way = street
+				return throughPoint(from, street)
+			end
+			if distance_of(gate, from) > WAYPOINT_REACHED then
+				guard.Way = gate
+				return throughPoint(from, gate)
+			end
+		end
+		-- Out of doors and going indoors (the bed in its own room, the quarry in one of ours):
+		-- in through the front door first. Its marker stands in the middle of the doorway - the
+		-- door leaf is one more thing to walk round, and a body aimed at the middle of the
+		-- opening has the room to do it - and the marker for the hall, the room every doorway
+		-- opens off, stands a few studs inside it.
+		if there ~= nil then
+			local door, hall = house.Route.Door, house.Route.Hall
+			if door and distance_of(door, from) > WAYPOINT_REACHED then
+				guard.Way = door
+				return throughPoint(from, door)
+			end
+			if hall and distance_of(hall, from) > WAYPOINT_REACHED then
+				guard.Way = hall
+				return throughPoint(from, hall)
+			end
+		end
+	end
+	if here == there then
+		return aim
+	end
+	local goal = throughTheDoor(house, from, aim) or aim
+	-- A room: its own way out is the doorway onto the hall. From the hall, the way on is the
+	-- doorway of the room it is heading for. Out of doors there is nothing to thread - the door
+	-- in the front wall is the aim (see throughTheDoor).
+	local room = if here == HALL_ROOM then there elseif here ~= nil then here else nil
+	local via = if room then house.Via[room] else nil
+	if via and distance_of(via, from) > WAYPOINT_REACHED then
+		guard.Way = via
+		return throughPoint(from, via)
+	end
+	return goal
+end
+
+local function aroundTheCorner(guard: Guard, from: Vector3, aim: Vector3, direction: Vector3): (Vector3?, number?)
+	local reach = lookahead(guard.AlignPosition.MaxVelocity or 0)
+	local side = if guard.SlideSide ~= 0 then guard.SlideSide else 1
+	local bestAlong: number? = nil
+	local bestWay: Vector3? = nil
+	for _, turn in { side, -side } do
+		local turned = CFrame.Angles(0, math.rad(90 * turn), 0) * direction
+		local clear = select(1, probe(guard, turned, reach * 3))
+		for _, along in { 3, 6, 10, 16 } do
+			if along <= clear and (bestAlong == nil or along < bestAlong) then
+				local point = from + turned * along
+				local toGoal = Vector3.new(aim.X - point.X, 0, aim.Z - point.Z)
+				local left = toGoal.Magnitude
+				local towards = if left > 0.1 then toGoal / left else direction
+				-- Stepping sideways is a way round something; stepping *away* from where it is
+				-- going is how a body that just follows clear ground ends up deeper in a dead end
+				-- (behind a fence, in somebody's front yard) with nothing but walls left.
+				if turned:Dot(towards) < -0.05 then
+					continue
+				end
+				-- And the point has to have a line on to the goal, looked at far enough ahead
+				-- that the wall it is stepping round shows up in the answer.
+				if left > 0.1 and not select(2, probe(guard, towards, math.min(left, math.max(reach * 2, 24)), point)) then
+					bestAlong, bestWay = along, turned
+				end
+			end
+		end
+	end
+	if bestWay and bestAlong then
+		guard.SlideSide = if bestWay:Dot(CFrame.Angles(0, math.rad(90), 0) * direction) > 0 then 1 else -1
+		return bestWay, bestAlong
+	end
+	return nil
+end
+
+-- Which line to walk. The expensive half of steering, so it is asked for a few times a second at
+-- most (see steer): a clear look costs one cast, and working out a way round costs several.
+--
+-- When the straight line is blocked the defender first looks for a one-turn detour (above), and
+-- failing that goes *round*: it turns off its line the same way every time - the side it first
+-- found room on - until something opens up, which is how anything with a body works its way
+-- along a wall and round the end of it. Turning back the way it came as soon as that looks clear
+-- too is what has it dithering in corners instead of getting anywhere.
+local TURNS = { 30, 50, 70, 90, 110, 130, 150 }
+local GIVE_UP = 60 -- blocked looks in a row before it tries going round the other way instead
+local COMMITTED = 3 -- clear looks in a row before it stops leaning to that side
+
+local function wayAhead(guard: Guard, direction: Vector3, aim: Vector3, from: Vector3): (Vector3, number, number, boolean)
+	local reach = lookahead(guard.AlignPosition.MaxVelocity or 0)
+	local clear, blocked = probe(guard, direction, reach)
+	if not blocked then
+		guard.Blocked = 0
+		guard.ClearLooks += 1
+		if guard.ClearLooks >= COMMITTED then
+			guard.SlideSide = 0
+		end
+		return direction, clear, distance_of(aim, from) + 1, false
+	end
+
+	guard.ClearLooks = 0
+	local corner, along = aroundTheCorner(guard, from, aim, direction)
+	if corner and along then
+		-- Round the corner and straight at it from there: walk exactly that far, then look again.
+		return corner, along, along, true
+	end
+
+	guard.Blocked += 1
+	if guard.Blocked > GIVE_UP then
+		-- Been trying to get round something for a while now: it is probably the wrong way round.
+		guard.Blocked, guard.SlideSide = 0, -guard.SlideSide
+	end
+	if guard.SlideSide == 0 then
+		-- First look at this obstacle: lean to whichever side has the more room on it.
+		local right = select(1, probe(guard, CFrame.Angles(0, math.rad(30), 0) * direction, reach))
+		local left = select(1, probe(guard, CFrame.Angles(0, math.rad(-30), 0) * direction, reach))
+		guard.SlideSide = if right >= left then 1 else -1
+	end
+
+	for _, degrees in TURNS do
+		local turned = CFrame.Angles(0, math.rad(degrees * guard.SlideSide), 0) * direction
+		local turnedClear, turnedBlocked = probe(guard, turned, reach)
+		if not turnedBlocked then
+			return turned, turnedClear, distance_of(aim, from) + 1, true
+		end
+	end
+	-- Everything up to facing the other way is blocked too (a doorway it does not fit, a wall it
+	-- has walked into side-on): press on at where it is going and let the body slide along
+	-- whatever it meets. Walking off on the roomiest line found - which is usually straight back
+	-- the way it came - is how a defender ends up pacing the same stretch of fence for ever;
+	-- the dodge for a body that really is pinned is in updateGuards.
+	return direction, clear, distance_of(aim, from) + 1, true
+end
+
+-- Where to drag this defender this frame to get it closer to `aim`. Returns a point rather than a
+-- direction: defenders are moved by an AlignPosition, so the thing they are told is a place to go.
+local function steer(guard: Guard, aim: Vector3, followFloor: boolean): Vector3
+	local from = guard.Root.Position
+	local flat = Vector3.new(aim.X - from.X, 0, aim.Z - from.Z)
+	local distance = flat.Magnitude
+	if distance < 0.05 then
+		return aim
+	end
+	local direction = flat / distance
+
+	-- Walking a line it has already checked costs no casts at all, so a settled defender only
+	-- feels for the way ahead when the line has gone stale or no longer points at where it is
+	-- going. (The body itself is what stops it if the line has quietly run out.) Staleness is
+	-- counted in game seconds by updateGuards rather than read off the clock, so a defender
+	-- behaves the same however many frames a second the server manages.
+	local line = guard.Move
+	local way, clear, ceiling
+	if guard.Sidestep > 0 then
+		-- A body that wants to be somewhere and cannot get there (see updateGuards) walks
+		-- sideways along whatever is stopping it for a moment instead of pushing at it. This is
+		-- the way round an engine that reports nothing at all about the thing it is against.
+		local left = CFrame.Angles(0, math.rad(90), 0) * direction
+		local right = CFrame.Angles(0, math.rad(-90), 0) * direction
+		local leftClear, leftBlocked = probe(guard, left, SIDESTEP_REACH)
+		local rightClear, rightBlocked = probe(guard, right, SIDESTEP_REACH)
+		local side = guard.SlideSide
+		if side == 0 then
+			-- Both sides are usually open along a wall, so the one to take is the one that ends up
+			-- closer to where it is going - along the wall towards the door, not away from it.
+			local leftward = distance_of(aim, from + left * SIDESTEP_REACH)
+			local rightward = distance_of(aim, from + right * SIDESTEP_REACH)
+			side = if leftward <= rightward then 1 else -1
+		end
+		-- Unless the side it wanted is shut, in which case the other one: the whole point of the
+		-- walk sideways is to find the way round, and the way round is the one that opens up.
+		if side > 0 and leftBlocked and not rightBlocked then
+			side = -1
+		elseif side < 0 and rightBlocked and not leftBlocked then
+			side = 1
+		end
+		guard.SlideSide = side
+		way = if side > 0 then left else right
+		clear, ceiling = if side > 0 then leftClear else rightClear, SIDESTEP_REACH
+	elseif line and guard.Sight > 0 and (guard.MoveDetour or line:Dot(direction) > 0.9) then
+		way, clear, ceiling = line, guard.MoveClear, distance + 1
+	else
+		local turned
+		way, clear, ceiling, turned = wayAhead(guard, direction, aim, from)
+		-- A detour is a place to be, not a new goal: walk to it, then think again.
+		guard.Move, guard.MoveClear, guard.Sight, guard.MoveDetour = way, clear, SIGHT_TIME, turned
+		ceiling = if turned then math.min(ceiling, clear) else ceiling
+	end
+
+	local height = aim.Y
+	if followFloor then
+		local ahead = from + way * (halfExtent(guard, way) + 1.5)
+		local floor = floorBelow(guard, from) or floorBelow(guard, ahead)
+		if floor then
+			height = math.min(math.max(floor + guard.Look.RootHeight, from.Y - STEP_UP), from.Y + STEP_UP)
+		end
+	end
+
+	-- Never past what the last look said was clear, and never further than the goal needs.
+	guard.LastWay = way
+	local reach = math.min(clear, ceiling)
+	return Vector3.new(from.X + way.X * reach, height, from.Z + way.Z * reach)
+end
+
+-- A defender going home cannot pick a lock: anything shut within reach of it is opened for it.
+local function letThemIn(house: House, position: Vector3)
+	if DayNight.isDaytime() then
+		return -- the houses are locked up: nobody is let in during the day
+	end
+	for _, door in house.Doors do
+		if not door.IsOpen and (door.Spot - position).Magnitude <= DOOR_RADIUS then
+			setDoorOpen(door, true)
+		end
+	end
+end
+
+local function defendersComingHome(house: House): boolean
+	for _, guard in house.Guards do
+		if guard.State == "Return" then
+			return true
+		end
+	end
+	return false
+end
+
+-- Everything a defender does when it is not chasing you: the walk cycle follows whatever its body
+-- is really doing (so being shoved into a wall stops the legs), and one on its way home is walked
+-- there through the front door rather than teleported.
+local function updateGuards(house: House, dt: number, now: number)
+	for _, guard in house.Guards do
+		local from = guard.Root.Position
+		local moved = Vector3.new(from.X - guard.LastPosition.X, 0, from.Z - guard.LastPosition.Z).Magnitude
+		guard.LastPosition = from
+		WalkCycle.update(guard.Walk, dt, if dt > 0 then moved / dt else 0)
+		guard.Sight = math.max(0, guard.Sight - dt)
+		guard.Sidestep = math.max(0, guard.Sidestep - dt)
+
+		-- Nobody walks on the spot. A defender that is being dragged somewhere and has not
+		-- moved is up against something the casts will not tell us about, so it steps sideways
+		-- along it for a moment - the way an animal that bumps into a wall works along it.
+		-- Wedged on a door frame. The casts cannot always tell a body pressed into an opening
+		-- from one pressed into the wall around it, and a defender that spends a second and a
+		-- half standing in the same spot at one of its own house's doorways is on the frame
+		-- rather than at anything real: it takes the step through and carries on.
+		local seeking = (guard.AlignPosition.Position - from).Magnitude > AIM_CLOSE
+		if seeking and (guard.State == "Chase" or guard.State == "Return") and moved < STUCK_SPEED * dt then
+			guard.Pinned += dt
+			if guard.Pinned >= PINNED_TIME then
+				guard.Pinned = 0
+				local near, nearDistance = nil, WAYPOINT_REACHED + 0.5
+				for _, node in house.Route do
+					local distance = distance_of(node, from)
+					if distance < nearDistance then
+						near, nearDistance = node, distance
+					end
+				end
+				if near then
+					-- Along the line it was walking, not at the marker: a body standing on the
+					-- marker has no way to go but the way it was already going. The step is only
+					-- taken if the far side of the frame is open, so this is walking through the
+					-- doorway, never through the wall around it.
+					local heading = guard.LastWay
+					if heading == nil or heading.Magnitude < 0.5 then
+						local offset = Vector3.new(near.X - from.X, 0, near.Z - from.Z)
+						heading = if offset.Magnitude > 1e-3 then offset.Unit else nil
+					end
+					if heading then
+						local ahead = from + heading * (halfExtent(guard, heading) + 0.5)
+						if not select(2, probe(guard, heading, SQUEEZE_STEP, ahead)) then
+							guard.Root.CFrame = guard.Root.CFrame + heading * SQUEEZE_STEP
+							guard.LastPosition = guard.Root.Position
+							guard.Move, guard.Sight, guard.Stuck, guard.LastWay = nil, 0, 0, nil
+						end
+					end
+				end
+			end
+			guard.Stuck += dt
+			if guard.Stuck >= SIDESTEP_TIME and guard.Sidestep <= 0 then
+				guard.Stuck = 0
+				if guard.Sidestepped then
+					-- The last dodge went nowhere either: walk the other side of the obstacle.
+					guard.SlideSide = -guard.SlideSide
+				else
+					-- Let the steering pick the side that gets it closer to where it is going.
+					guard.SlideSide = 0
+				end
+				guard.Move, guard.Sight = nil, 0
+				guard.MoveDetour = false
+				guard.Sidestepped = true
+				guard.Sidestep = SIDESTEP_TIME
+			end
+		else
+			guard.Stuck = 0
+			guard.Sidestepped = false
+			guard.Pinned = 0
+		end
+
+		if guard.State ~= "Return" then
+			continue
+		end
+		local home = guard.Home.Position
+		-- It may have to get back through a wall to reach the bed: through the doorway first.
+		local target = home
+		if not guard.Flying then
+			local hop = routeTo(house, guard, home)
+			target = Vector3.new(hop.X, from.Y, hop.Z)
+			if insideHouse(house, from) ~= insideHouse(house, home) then
+				letThemIn(house, from)
+			end
+		end
+		local homeward = Vector3.new(from.X - home.X, 0, from.Z - home.Z).Magnitude
+		if homeward <= RETURN_RADIUS and math.abs(from.Y - home.Y) <= 2 then
+			-- Home again.
+			guard.State = "Idle"
+			guard.Move = nil
+			guard.MoveDetour = false
+			guard.AlignPosition.Position = guard.Home.Position
+			guard.AlignOrientation.CFrame = guard.Home.Rotation
+			guard.Look.Status.Text = if guard.Flying then "" else SLEEPING
+			WalkCycle.rest(guard.Walk)
+		else
+			guard.AlignPosition.MaxVelocity = Config.Alarm.GuardReturnSpeed
+			-- Not clamped to the chase lane: the way home leaves the street through the gate,
+			-- which is past the lane, and routeTo is what keeps it off other people's property.
+			local move = steer(guard, target, not guard.Flying)
+			guard.AlignPosition.Position = move
+			local heading = Vector3.new(move.X - from.X, 0, move.Z - from.Z)
+			if heading.Magnitude > 0.05 then
+				guard.AlignOrientation.CFrame = CFrame.lookAt(Vector3.zero, heading.Unit)
+			end
+		end
+	end
+end
+
 -- "the Ginger Cat" / "the Pugs"
 local function guardPhrase(house: House): string
 	local name = house.GuardInfo.DisplayName
@@ -213,8 +821,11 @@ local function triggerAlarm(house: House, culprit: Player?)
 	house.AlarmActive = true
 	house.Model:SetAttribute("AlarmActive", true)
 	for _, guard in house.Guards do
+		guard.Way = nil
 		guard.State = "Windup"
 		guard.ActivateAt = now + house.Settings.AlarmWindup
+		guard.Move, guard.Sight, guard.Stuck, guard.Sidestep = nil, 0, 0, 0
+		guard.MoveDetour = false
 		Guards.setAlert(guard.Look, house.GuardId, true)
 		guard.Look.Status.Text = ALERT
 		-- Drones rise up and animals jump out of bed during the wind-up, so players see them coming.
@@ -250,19 +861,32 @@ local function clearIntruder(player: Player, house: House)
 	end
 end
 
-local function endAlarm(house: House)
+local function endAlarm(house: House, bedtime: boolean?)
 	house.AlarmActive = false
 	house.Model:SetAttribute("AlarmActive", false)
 	for player in house.Intruders do
 		clearIntruder(player, house)
 	end
 	for _, guard in house.Guards do
-		guard.State = "Idle"
-		guard.AlignPosition.Position = guard.Home.Position
+		guard.Move, guard.Sight, guard.Stuck, guard.Sidestep = nil, 0, 0, 0
+		guard.MoveDetour = false
 		guard.AlignPosition.MaxVelocity = Config.Alarm.GuardReturnSpeed
-		guard.AlignOrientation.CFrame = guard.Home.Rotation
 		Guards.setAlert(guard.Look, house.GuardId, false)
-		guard.Look.Status.Text = if guard.Flying then "" else SLEEPING
+		if bedtime then
+			-- Daytime: the owners are home and the doors lock behind them, so a defender that is
+			-- still out on the street is called straight in to bed rather than left out all day.
+			guard.State = "Idle"
+			guard.AlignPosition.Position = guard.Home.Position
+			guard.AlignOrientation.CFrame = guard.Home.Rotation
+			WalkCycle.rest(guard.Walk)
+			guard.Look.Status.Text = if guard.Flying then "" else SLEEPING
+		else
+			-- Home on foot (or on wheels, or hovering): a defender does not cheat back through
+			-- the walls it just had to walk round. updateGuards walks it in.
+			guard.Way = nil
+			guard.State = "Return"
+			guard.Look.Status.Text = ""
+		end
 	end
 end
 
@@ -363,20 +987,21 @@ local function updateAlarm(house: House, thieves: { Thief }, now: number)
 				end
 			end
 			if target then
-				local aimed = target.Root.Position
-				-- A defender that is still indoors while the thief has made it outside heads for the
-				-- front door first, so it leaves the way you would expect it to.
-				if insideHouse(house, from) and not insideHouse(house, aimed) then
-					local porch = lotPoint(house, 0, house.ZoneHalfSize.Z - house.FrontInset + 3)
-					aimed = Vector3.new(porch.X, from.Y + guard.Look.RootHeight, porch.Z)
-				end
+				-- The way to it may be through the house: out of the room it is in, or in through
+				-- the front door (see routeTo).
+				local aimed = routeTo(house, guard, target.Root.Position)
 				local aim = aimAt(guard, aimed, now)
-				guard.AlignPosition.Position = clampToChase(house, aim)
+				-- Its feet follow the aim (the thief's own height), not the floor: that is what
+				-- carries the bounce, and inside a house the two are the same thing.
+				local move = clampToChase(house, steer(guard, aim, false))
+				guard.AlignPosition.Position = move
 				-- The standard speed in the house, its real (often terrifying) speed outside.
 				guard.AlignPosition.MaxVelocity = chaseSpeed(house, from)
-				local flat = Vector3.new(aim.X - from.X, 0, aim.Z - from.Z)
-				if flat.Magnitude > 0.1 then
-					guard.AlignOrientation.CFrame = CFrame.lookAt(Vector3.zero, flat.Unit)
+				-- Face where it is really going: a defender that has to walk out of a doorway
+				-- backwards should be walking out of it, not moonwalking round the corner.
+				local heading = Vector3.new(move.X - from.X, 0, move.Z - from.Z)
+				if heading.Magnitude > 0.05 then
+					guard.AlignOrientation.CFrame = CFrame.lookAt(Vector3.zero, heading.Unit)
 				end
 				local height = math.abs(aimed.Y - from.Y)
 				if bestDistance <= catchRadius(guard) and height <= CATCH_HEIGHT then
@@ -402,7 +1027,7 @@ local function getThieves(): { Thief }
 	return thieves
 end
 
-local function onHeartbeat()
+local function onHeartbeat(dt: number)
 	local now = os.clock()
 	local thieves = getThieves()
 
@@ -415,6 +1040,7 @@ local function onHeartbeat()
 		if house.AlarmActive then
 			updateAlarm(house, thieves, now)
 		end
+		updateGuards(house, dt, now)
 	end
 end
 
@@ -570,6 +1196,16 @@ local function buildGuard(house: House, dock: BasePart): Guard
 	local root = look.Root
 	look.Status.Text = if flying then "" else SLEEPING
 
+	local filter = RaycastParams.new()
+	filter.FilterType = Enum.RaycastFilterType.Exclude
+	filter.FilterDescendantsInstances = { look.Model }
+	-- The way-ahead cast keeps the same list and pushes what it is discounting onto the end of it,
+	-- so nothing is allocated per look (which matters: defenders look several times a frame).
+	local hidden: { any } = { look.Model }
+	local probeParams = RaycastParams.new()
+	probeParams.FilterType = Enum.RaycastFilterType.Exclude
+	probeParams.FilterDescendantsInstances = hidden
+
 	local attachment = Instance.new("Attachment")
 	attachment.Name = "GuardAttachment"
 	attachment.Parent = root
@@ -602,11 +1238,29 @@ local function buildGuard(house: House, dock: BasePart): Guard
 		AlignPosition = alignPosition,
 		AlignOrientation = alignOrientation,
 		Home = root.CFrame,
+		Filter = filter,
+		ProbeParams = probeParams,
+		Hidden = hidden,
 		Flying = flying,
 		State = "Idle",
 		ActivateAt = 0,
 		Bob = rng:NextNumber() * math.pi * 2,
 		Trot = TROT[house.GuardInfo.Kind] or 0.4,
+		Walk = WalkCycle.new(look.Limbs),
+		LastPosition = root.Position,
+		Move = nil,
+		MoveClear = 0,
+		MoveDetour = false,
+		Sight = 0,
+		SlideSide = 0,
+		Blocked = 0,
+		ClearLooks = 0,
+		Stuck = 0,
+		Sidestep = 0,
+		Sidestepped = false,
+		Pinned = 0,
+		LastWay = nil,
+		Way = nil,
 	}
 end
 
@@ -678,6 +1332,7 @@ local function setupDoor(house: House, doorModel: Model): Door?
 
 	local door: Door = {
 		Model = doorModel,
+		Spot = hingeCFrame.Position,
 		Prompt = prompt,
 		Angle = angle,
 		OpenAngle = if type(openAngle) == "number" then openAngle else -95,
@@ -794,7 +1449,7 @@ local function onDaytime()
 	showEveryoneOut()
 	for _, house in houses do
 		if house.AlarmActive then
-			endAlarm(house)
+			endAlarm(house, true)
 		end
 		for _, door in house.Doors do
 			door.Prompt.Enabled = false
@@ -885,6 +1540,9 @@ local function setupHouse(model: Model)
 		Spots = {},
 		Guards = {},
 		Doors = {},
+		Route = {},
+		Rooms = {},
+		Via = {},
 		Lasers = {},
 		AlarmActive = false,
 		LastOccupiedAt = 0,
@@ -909,6 +1567,32 @@ local function setupHouse(model: Model)
 		for _, dock in docks:GetChildren() do
 			if dock:IsA("BasePart") then
 				table.insert(house.Guards, buildGuard(house, dock))
+			end
+		end
+	end
+
+	local route = model:FindFirstChild("Route")
+	if route then
+		for _, node in route:GetChildren() do
+			if node:IsA("BasePart") then
+				-- The markers sit on the floor; the aim maths measures a character's root part, so
+				-- lift each one the standard root height - the same place a thief standing there
+				-- would be - and everything downstream reads them the same way.
+				house.Route[node.Name] = node.Position + Vector3.new(0, FEET_BELOW_ROOT, 0)
+			end
+		end
+	end
+
+	local rooms = model:FindFirstChild("Rooms")
+	if rooms then
+		for _, roomPart in rooms:GetChildren() do
+			if roomPart:IsA("BasePart") then
+				table.insert(house.Rooms, roomPart)
+				local via = roomPart:GetAttribute("Via")
+				local node = if type(via) == "string" then house.Route[via] else nil
+				if node then
+					house.Via[roomPart.Name] = node
+				end
 			end
 		end
 	end
@@ -944,7 +1628,7 @@ local function doorLoop()
 		for _, house in houses do
 			for _, door in house.Doors do
 				if door.IsOpen and now >= door.CloseAt then
-					if anyoneOnProperty(house) then
+					if anyoneOnProperty(house) or defendersComingHome(house) then
 						door.CloseAt = now + 5 -- never slam a door on someone
 					else
 						setDoorOpen(door, false)

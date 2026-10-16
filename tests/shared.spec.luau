@@ -459,6 +459,18 @@ test("the rebirth multiplier gains x0.1 per rebirth, forever", function()
 	eq(Config.rebirthMultiplier(-1), 1, "clamped before the first rebirth")
 end)
 
+test("the stride keeps up with the ground the body is covering", function()
+	local WalkCycle = require(Shared.WalkCycle)
+	eq(WalkCycle.strideRate(Config.Walk.Stride), 1, "one stride per Stride studs")
+	eq(WalkCycle.strideRate(Config.Walk.Stride * 0.5), 0.5, "half the speed, half the stride rate")
+	eq(WalkCycle.strideRate(-Config.Walk.Stride), 1, "backwards strides too")
+	eq(WalkCycle.strideRate(0), Config.Walk.MinRate, "standing still strides no slower than the floor")
+	eq(WalkCycle.strideRate(Config.Walk.Stride * 0.01), Config.Walk.MinRate)
+	eq(WalkCycle.strideRate(Config.Walk.Stride * 1000), Config.Walk.MaxRate, "nor faster than the ceiling")
+	check(Config.Walk.MaxRate > Config.Walk.MinRate, "the ceiling must be above the floor")
+	check(Config.Walk.Swing > 0 and Config.Walk.Swing < 90, "the legs need a sensible swing")
+end)
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 if failed > 0 then
 	error("tests failed")

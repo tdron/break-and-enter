@@ -69,6 +69,13 @@
        "filePaths": [
         "src/shared/Items.luau"
        ]
+      },
+      {
+       "name": "WalkCycle",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/shared/WalkCycle.luau"
+       ]
       }
      ]
     },

@@ -131,6 +131,9 @@ def part(parent: Inst, name: str, size, cf: CF, color, material: str = "SmoothPl
         props["shape"] = Token(SHAPES[shape])
     if not collide:
         props["CanCollide"] = False
+        # Nothing collides with it, so nothing should feel it either: a cast that stopped on a
+        # flower would have every defender in the front yard walking round the flowerbeds.
+        props["CanQuery"] = False
     if transparency:
         props["Transparency"] = Float(transparency)
     if reflectance:
@@ -272,6 +275,8 @@ class HouseBuilder:
         self.yard = model(self.model, "Yard", lot_cf)
         self.spots = Inst("Folder", "ItemSpots", self.model)
         self.docks = Inst("Folder", "GuardDocks", self.model)
+        self.route = Inst("Folder", "Route", self.model)
+        self.rooms = Inst("Folder", "Rooms", self.model)
         self.doors = Inst("Folder", "Doors", self.model)
         self.sirens = Inst("Folder", "Sirens", self.model)
         self.lasers = Inst("Folder", "Lasers", self.model)
@@ -301,6 +306,34 @@ class HouseBuilder:
     def y(self, name, size, pos, color, material="SmoothPlastic", rot=None, **kw) -> Inst:
         """Part in lot coordinates (yard)."""
         return self.p(name, size, pos, color, material, rot, parent=self.yard, frame=self.lot_cf, **kw)
+
+    def route_node(self, name: str, x: float, z: float):
+        """An invisible marker on the way in or out of a room: where a guard has to thread a
+        doorway. Sized and placed in plan coordinates like everything else (so it scales with the
+        house), and queryable by nothing: it is a signpost, not furniture."""
+        return self.p(name, (0.6, 0.6, 0.6), (x, self.FLOOR_Y, z), (255, 60, 60),
+                      parent=self.route, transparency=1, collide=False, query=False, touch=False, shadow=False)
+
+    def route_lot(self, name: str, x: float, z: float):
+        """A route marker in the lot's own frame, for a signpost that is not part of the house plan:
+        the gate in the front fence, the pavement outside it, and the middle of the front doorway -
+        the way in and out of the lot for a defender that walks it."""
+        return self.p(name, (0.6, 0.6, 0.6), (x, self.FLOOR_Y, z), (255, 60, 60), parent=self.route,
+                      frame=self.lot_cf, transparency=1, collide=False, query=False, touch=False, shadow=False)
+
+    def room(self, name: str, x0: float, z0: float, x1: float, z1: float, via: str | None = None):
+        """A box over one room's floor, invisible and unqueryable, with the room's name on it. The
+        server asks which room a defender (or its quarry) is standing in, so that a doorway only
+        ever counts as the way to something in *another* room - a table in the way of something in
+        the same room is just a table, and is walked around. `via` names the route node that is
+        that room's way out (every room here opens off the hall)."""
+        box = self.p(name, (abs(x1 - x0), ROOM_BOX_H, abs(z1 - z0)),
+                     ((x0 + x1) / 2, self.FLOOR_Y + ROOM_BOX_H / 2, (z0 + z1) / 2),
+                     (60, 200, 255), parent=self.rooms, transparency=1, collide=False, query=False, touch=False,
+                     shadow=False)
+        if via:
+            box.attr(Via=via)
+        return box
 
     def frame(self, x: float, z: float, facing: str, y: float | None = None) -> CF:
         """A spot on the plan's floor, scaled up with the house: furniture and guard posts land where
@@ -907,6 +940,7 @@ CLIFF_FACE_Z = HOUSE_FRONT_Z + CLIFF_SETBACK
 FENCE_STYLES = {1: "picket", 2: "hedge", 3: "modern"}
 PET_BEDS = {"Cat": 2.8, 1: 2.8, 2: 3.4, 3: 4.2}
 # Beds sized to the animal that sleeps in them (guard id -> bed size).
+ROOM_BOX_H = 20.0  # tall enough that anywhere on a room's floor is inside its box
 PET_BED_SIZES = {"TuxedoCat": 2.8, "Puppy": 2.6, "Labrador": 3.6, "GuardDog": 4.2}
 # Where each kind of defender waits, in house coordinates (x, z, facing). The first post is the
 # one a house with a single defender uses; a car defender parks on the drive instead.
@@ -951,6 +985,24 @@ def build_house(folder, info, tier_info, lot_cf, palette):
     hb.wall_z(4, -zi, zi, 0.5, H, [doorway(11, 5, 9), doorway(-9, 5, 9)], OFFWHITE, "Plaster", "InteriorWall")
     hb.wall_x(0, -xi, -4.25, 0.5, H, [doorway(-16, 8, 9)], OFFWHITE, "Plaster", "InteriorWall")
     hb.wall_x(2, 4.25, xi, 0.5, H, [], OFFWHITE, "Plaster", "InteriorWall")
+    # The doorway in each wall of the middle rooms, and the middle of the hall by the front door.
+    # A defender posted in one of the side rooms can see none of the front door from where it
+    # sleeps, so those doorways are what it aims at to get out (and back in) without nosing along
+    # the walls looking for a way round. They stand where the walls above have their openings.
+    hb.route_node("WestFront", -4, 10)
+    hb.route_node("WestRear", -4, -10)
+    hb.route_node("EastFront", 4, 11)
+    hb.route_node("EastRear", 4, -9)
+    hb.route_node("Hall", 0, 16)
+    # And the rooms themselves, so the server can tell "the other side of that wall" from "the far
+    # side of the table" - and which doorway is the way out of each one. They are inset from the
+    # walls they share, so standing in a doorway counts as being in the hall, which is what the
+    # routes through a house are all built on.
+    hb.room("Living", -xi + 0.3, 0.3, -4.6, zi - 0.3, "WestFront")
+    hb.room("Kitchen", -xi + 0.3, -zi + 0.3, -4.6, -0.3, "WestRear")
+    hb.room("Study", 4.6, 2.6, xi - 0.3, zi - 0.3, "EastFront")
+    hb.room("Bedroom", 4.6, -zi + 0.3, xi - 0.3, 2.0, "EastRear")
+    hb.room("Hall", -4.6, -zi + 0.3, 4.6, zi - 0.3)
     hb.gable_roof(9.5, 1.4, palette["roof"])
     hb.p("Chimney", (3.0, 9, 3.0), (-17, H + 5.5, -8), (186, 108, 88), "Brick")
     hb.door("x", D / 2 - t / 2, 0, 5, 9, +1, palette["door"], step=False)
@@ -1028,6 +1080,15 @@ def build_house(folder, info, tier_info, lot_cf, palette):
     if guard["kind"] == "Vehicle":
         fence_gaps.append((12, 13))  # the driveway the security car pulls out of
     hb.fence(FENCE_STYLES.get(tier, "picket"), fence_gaps, back_z=front - CLIFF_SETBACK)
+    # The way in and out of the lot, in the order it is walked. Leaving: the gateway, in the middle
+    # of the front fence where the path runs out to the street, and then the pavement outside it.
+    # Coming home it is the other way round, so the walk to the gate is made along the fence and
+    # the turn through the gateway happens square in front of it.
+    hb.route_lot("Street", 0, LOT_D / 2 + 6)
+    hb.route_lot("Gate", 0, LOT_D / 2 - 0.2)
+    # And the front door itself: the marker in the middle of the doorway, so a defender coming in
+    # off the path aims through the opening rather than at the wall beside it.
+    hb.route_lot("Door", 0, LOT_D / 2 - FRONT_YARD - 0.3)
     hb.sign(-8.5, LOT_D / 2 - 3.2, info["display"], tier_info, tier, guard, guard_count)
     for x in (-24, -16, 16, 24):
         bush(hb.yard, lot_cf * CF(x, 0, front + 1.6), 2.6, palette["bush"])
@@ -1633,7 +1694,7 @@ def market_npc(parent: Inst, name: str, cf: CF, *, accent, tag_text: str, face_e
         q("Leg", (0.85, 2.0, 0.95), (0, 1.0, sz * 0.5), pants)
         q("Arm", (0.8, 2.1, 0.8), (0, 2.95, sz * 1.45), shirt)
         q("Cuff", (0.85, 0.45, 0.85), (0, 2.0, sz * 1.45), accent)
-    torso = q("Torso", (1.15, 2.3, 2.1), (0, 3.15, 0), accent)
+    q("Torso", (1.15, 2.3, 2.1), (0, 3.15, 0), accent)
     q("Apron", (0.5, 1.6, 1.7), (0.4, 2.7, 0), (60, 62, 74))
     head = q("Head", (1.3, 1.3, 1.3), (0.05, 5.05, 0), skin)
     surface_text(head, "Right", face_emoji, color=(255, 255, 255), font="Fredoka", stroke=None,
@@ -1659,7 +1720,6 @@ def market_hall(map_folder: Inst):
     BACK = CX - D / 2            # -329
     SHELL = (238, 240, 246)
     BRAND = (146, 106, 238)      # matches the title arch over the road
-    CONCRETE = (198, 200, 202)
     INK = (46, 42, 62)
     STEEL = (138, 146, 164)
     WOOD = (224, 180, 128)
@@ -1774,7 +1834,7 @@ def market_hall(map_folder: Inst):
     )
     for side, x, text, col in posters:
         z = side * (W / 2 - 0.55)
-        fr = p("PosterFrame", (2.9, 1.8, 0.18), (x, 4.6, z), col)
+        p("PosterFrame", (2.9, 1.8, 0.18), (x, 4.6, z), col)
         bd = p("Poster", (2.5, 1.4, 0.22), (x, 4.6, z), (250, 250, 250), collide=False)
         surface_text(bd, "Back" if side < 0 else "Front", text, color=INK, pixels_per_stud=22,
                      stroke=None)
@@ -1828,11 +1888,10 @@ def _hall_bay(bay: Inst, hall: Inst, zc: float, accent, counter_name: str, hang_
               npc_name: str, npc_tag: str, npc_face: str, *, kind: str):
     """One counter bay inside the market hall. Counter parts live in the gameplay model (`bay`);
     the hanging wayfinding board goes with the hall. Everything faces the doors (+x)."""
-    CX, W = YARD_CX, HALL_W
+    CX = YARD_CX
     FRONT, BACK = CX + HALL_D / 2, CX - HALL_D / 2
     CONCRETE = (198, 200, 202)
     INK = (46, 42, 62)
-    STEEL = (138, 146, 164)
 
     def q(n, size, pos, col, mat="SmoothPlastic", rot=None, **kw):
         frame = CF(*pos)
@@ -2037,10 +2096,9 @@ def build_yard(map_folder: Inst, ground: Inst, decor: Inst):
     shrine_x, shrine_z = YARD_CX + HALL_D / 2 + 2.6, -(HALL_W / 2 + 2.4)
     shrine = model(map_folder, "Shrine", CF(shrine_x, 0, shrine_z))
     shrine_brand = (146, 106, 238)      # the title-arch violet
-    shrine_light = (212, 186, 255)
     part(shrine, "Base", (4.0, 0.5, 4.0), CF(shrine_x, 0.61, shrine_z), (250, 248, 242), "Marble")
     part(shrine, "Plinth", (2.6, 1.2, 2.6), CF(shrine_x, 1.46, shrine_z), shrine_brand, "SmoothPlastic")
-    pillar = part(shrine, "RebirthShrine", (1.5, 2.0, 1.5), CF(shrine_x, 3.06, shrine_z),
+    part(shrine, "RebirthShrine", (1.5, 2.0, 1.5), CF(shrine_x, 3.06, shrine_z),
                   (172, 134, 232), "SmoothPlastic")
     part(shrine, "Halo", (2.6, 0.14, 2.6), CF(shrine_x - 0.07, 4.6, shrine_z) * CF.deg(0, 0, 90),
          (186, 140, 255), "Neon", shape="Cylinder", collide=False, shadow=False)
