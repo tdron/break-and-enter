@@ -111,9 +111,9 @@ Remotes.Notify.OnClientEvent:Connect(function(text: string, kind: string?)
 	Notifications.show(text, kind)
 end)
 
-Remotes.Busted.OnClientEvent:Connect(function(lostCount: number, lostValue: number, houseName: string, catcher: string?)
+Remotes.Busted.OnClientEvent:Connect(function(lostCount: number, lostValue: number, houseName: string, catcher: string?, outcome: string?)
 	closeWindows()
-	BustedScreen.show(lostCount, lostValue, houseName, catcher)
+	BustedScreen.show(lostCount, lostValue, houseName, catcher, outcome)
 end)
 
 -- Prompts in the world open their window: the market stall's shop counter, the

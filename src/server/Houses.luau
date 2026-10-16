@@ -9,8 +9,10 @@
 	    defenders give chase. Who lives where is Config.Houses / Config.Guards:
 	    a tuxedo cat, then a puppy, a labrador, a guard dog, the home owner, an
 	    off-duty officer, a wizard, a T-Rex, security bots and finally the museum's
-	    fleet of security cars. Get caught = BUSTED (you drop everything you're
-	    carrying and get sent back to your warehouse).
+	    fleet of security cars. Get caught = BUSTED: you ragdoll where you were
+	    caught instead of teleporting to the warehouse. Inside, the defender throws
+	    you through the front door into the road; outside, it recovers your loot
+	    and heads home with it.
 	  * They do NOT give up at the property line any more: they chase you all the
 	    way back down the street and turn around at the canyon mouth, so the yard
 	    is the only safe place. While anybody is on a property (you or them)
@@ -62,7 +64,6 @@ local DayNight = require(script.Parent.DayNight)
 local Inventory = require(script.Parent.Inventory)
 local Notify = require(script.Parent.Notify)
 local PlayerData = require(script.Parent.PlayerData)
-local Plots = require(script.Parent.Plots)
 
 local BustedEvent = ReplicatedStorage.Remotes.Busted
 
@@ -70,6 +71,15 @@ type Spot = {
 	Part: BasePart,
 	Item: Model?,
 	ItemId: string?,
+}
+
+-- A stable, serialisable description of the exact world spot from which a bag
+-- item came. Inventory keeps this alongside each carried item until it is sold,
+-- deposited, or reclaimed during a bust.
+type ReturnedLoot = {
+	ItemId: string,
+	HouseId: string,
+	SpotId: string,
 }
 
 type Guard = {
@@ -101,6 +111,8 @@ type Guard = {
 	Pinned: number,
 	LastWay: Vector3?,
 	Way: Vector3?, -- the doorway or gate it is making for, until it is through it (see routeTo) -- seconds left of walking sideways rather than forwards
+	RecoveredLoot: { ReturnedLoot }, -- returned only once this specific catcher reaches home
+	RecoveredSack: BasePart?, -- visible proof that the road catcher took the loot
 }
 
 type Door = {
@@ -108,6 +120,7 @@ type Door = {
 	Spot: Vector3, -- the hinge: where a defender walking home has to be to be let in
 	Prompt: ProximityPrompt,
 	Angle: NumberValue,
+	Slam: Sound,
 	OpenAngle: number,
 	IsOpen: boolean,
 	CloseAt: number,
@@ -129,6 +142,7 @@ type House = {
 	ChaseMaxX: number, -- chases never go further east than this house's own property
 	Loot: Folder,
 	Spots: { Spot },
+	SpotById: { [string]: Spot },
 	Guards: { Guard },
 	Doors: { Door },
 	Route: { [string]: Vector3 }, -- the doorways to thread (Rooms.<name>.Via names one; see routeTo)
@@ -142,6 +156,18 @@ type House = {
 
 type Thief = { Player: Player, Root: BasePart, Humanoid: Humanoid }
 
+type MotorState = { Motor: Motor6D, Enabled: boolean }
+type PartState = { Part: BasePart, CanCollide: boolean }
+type Ragdoll = {
+	Humanoid: Humanoid,
+	Motors: { MotorState },
+	Parts: { PartState },
+	Constraints: { Instance },
+	AutoRotate: boolean,
+	PlatformStand: boolean,
+	RequiresNeck: boolean,
+}
+
 local FEET_BELOW_ROOT = 3 -- a standard character's HumanoidRootPart floats this high above its feet
 local CATCH_HEIGHT = 7 -- guards can't reach thieves this far above/below them
 local SLEEPING = "💤"
@@ -152,11 +178,15 @@ local TROT = { Cat = 0.4, Dog = 0.4, Beast = 0.55, Human = 0.12, Wizard = 0.12, 
 local Houses = {}
 
 local houses: { House } = {}
+local housesById: { [string]: House } = {}
 -- Declared up here because the alarm opens the front door before the door code is defined.
-local setDoorOpen: (door: Door, open: boolean) -> ()
+local setDoorOpen: (door: Door, open: boolean, slam: boolean?) -> ()
+local restoreRecoveredLoot: (loot: { ReturnedLoot }) -> number
+local updateRecoveredSack: (guard: Guard) -> ()
 local rng = Random.new()
 local bustedUntil: { [Player]: number } = {}
 local laserCooldown: { [Player]: number } = {}
+local ragdolls: { [Model]: Ragdoll } = {}
 
 local function playerFromHit(hit: BasePart): Player?
 	local model = hit:FindFirstAncestorOfClass("Model")
@@ -771,7 +801,13 @@ local function updateGuards(house: House, dt: number, now: number)
 		end
 		local homeward = Vector3.new(from.X - home.X, 0, from.Z - home.Z).Magnitude
 		if homeward <= RETURN_RADIUS and math.abs(from.Y - home.Y) <= 2 then
-			-- Home again.
+			-- Home again. A road catcher only puts recovered pieces back once it has made the
+			-- full retreat, so its loot sack tells the story all the way home.
+			if #guard.RecoveredLoot > 0 then
+				restoreRecoveredLoot(guard.RecoveredLoot)
+				table.clear(guard.RecoveredLoot)
+				updateRecoveredSack(guard)
+			end
 			guard.State = "Idle"
 			guard.Move = nil
 			guard.MoveDetour = false
@@ -890,7 +926,193 @@ local function endAlarm(house: House, bedtime: boolean?)
 	end
 end
 
-local function bust(player: Player, house: House)
+local function endRagdoll(character: Model)
+	local ragdoll = ragdolls[character]
+	if not ragdoll then
+		return
+	end
+	ragdolls[character] = nil
+	for _, state in ragdoll.Motors do
+		if state.Motor.Parent then
+			state.Motor.Enabled = state.Enabled
+		end
+	end
+	for _, state in ragdoll.Parts do
+		if state.Part.Parent then
+			state.Part.CanCollide = state.CanCollide
+		end
+	end
+	for _, constraint in ragdoll.Constraints do
+		if constraint.Parent then
+			constraint:Destroy()
+		end
+	end
+	local humanoid = ragdoll.Humanoid
+	if humanoid.Parent then
+		humanoid.RequiresNeck = ragdoll.RequiresNeck
+		humanoid.PlatformStand = ragdoll.PlatformStand
+		humanoid.AutoRotate = ragdoll.AutoRotate
+		pcall(function()
+			humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+		end)
+	end
+	character:SetAttribute("Ragdolled", false)
+end
+
+-- Turn the character's non-root Motor6Ds into physical ball sockets briefly. Keeping the root
+-- connected preserves the camera/ownership anchor while the visible body goes limp and flies.
+local function beginRagdoll(character: Model, humanoid: Humanoid)
+	if ragdolls[character] then
+		return
+	end
+	local ragdoll: Ragdoll = {
+		Humanoid = humanoid,
+		Motors = {},
+		Parts = {},
+		Constraints = {},
+		AutoRotate = humanoid.AutoRotate,
+		PlatformStand = humanoid.PlatformStand,
+		RequiresNeck = humanoid.RequiresNeck,
+	}
+	ragdolls[character] = ragdoll
+	character:SetAttribute("Ragdolled", true)
+	humanoid.RequiresNeck = false
+	humanoid.AutoRotate = false
+	humanoid.PlatformStand = true
+	pcall(function()
+		humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+	end)
+
+	for _, descendant in character:GetDescendants() do
+		if descendant:IsA("BasePart") and descendant.Name ~= "HumanoidRootPart" then
+			table.insert(ragdoll.Parts, { Part = descendant, CanCollide = descendant.CanCollide })
+			descendant.CanCollide = true
+		elseif descendant:IsA("Motor6D") then
+			local part0, part1 = descendant.Part0, descendant.Part1
+			if part0 and part1 and part0.Name ~= "HumanoidRootPart" and part1.Name ~= "HumanoidRootPart" then
+				table.insert(ragdoll.Motors, { Motor = descendant, Enabled = descendant.Enabled })
+				local attachment0 = Instance.new("Attachment")
+				attachment0.Name = "BustRagdollAttachment"
+				attachment0.CFrame = descendant.C0
+				attachment0.Parent = part0
+				local attachment1 = Instance.new("Attachment")
+				attachment1.Name = "BustRagdollAttachment"
+				attachment1.CFrame = descendant.C1
+				attachment1.Parent = part1
+				local socket = Instance.new("BallSocketConstraint")
+				socket.Name = "BustRagdollJoint"
+				socket.Attachment0 = attachment0
+				socket.Attachment1 = attachment1
+				socket.LimitsEnabled = true
+				socket.TwistLimitsEnabled = true
+				socket.Parent = part0
+				descendant.Enabled = false
+				table.insert(ragdoll.Constraints, attachment0)
+				table.insert(ragdoll.Constraints, attachment1)
+				table.insert(ragdoll.Constraints, socket)
+			end
+		end
+	end
+	task.delay(Config.Alarm.BustRagdollTime, function()
+		endRagdoll(character)
+	end)
+end
+
+local function unseat(humanoid: Humanoid)
+	if humanoid.SeatPart then
+		local seatWeld = humanoid.SeatPart:FindFirstChild("SeatWeld")
+		if seatWeld then
+			seatWeld:Destroy()
+		end
+		humanoid.Sit = false
+	end
+end
+
+updateRecoveredSack = function(guard: Guard)
+	if guard.RecoveredSack then
+		guard.RecoveredSack:Destroy()
+		guard.RecoveredSack = nil
+	end
+	local count = #guard.RecoveredLoot
+	if count == 0 then
+		return
+	end
+	local sack = Instance.new("Part")
+	sack.Name = "RecoveredLoot"
+	sack.Shape = Enum.PartType.Ball
+	sack.Size = Vector3.new(math.min(1 + count * 0.18, 2.8), math.min(1 + count * 0.18, 2.8), math.min(1 + count * 0.18, 2.8))
+	sack.Color = Color3.fromRGB(150, 110, 62)
+	sack.Material = Enum.Material.Fabric
+	sack.CanCollide = false
+	sack.CanQuery = false
+	sack.CanTouch = false
+	sack.Massless = true
+	local weld = Instance.new("Weld")
+	weld.Name = "RecoveredLootWeld"
+	weld.Part0 = guard.Root
+	weld.Part1 = sack
+	weld.C0 = CFrame.new(0, guard.Root.Size.Y / 2 + sack.Size.Y / 2, guard.Root.Size.Z / 2)
+	weld.Parent = sack
+	local label = Instance.new("BillboardGui")
+	label.Name = "RecoveredLabel"
+	label.Size = UDim2.fromOffset(80, 28)
+	label.StudsOffsetWorldSpace = Vector3.new(0, sack.Size.Y / 2 + 0.45, 0)
+	label.MaxDistance = 65
+	label.LightInfluence = 0
+	label.Parent = sack
+	local text = Instance.new("TextLabel")
+	text.BackgroundTransparency = 1
+	text.Size = UDim2.fromScale(1, 1)
+	text.Font = Enum.Font.BuilderSansBold
+	text.Text = string.format("%d LOOT", count)
+	text.TextColor3 = Color3.fromRGB(255, 220, 90)
+	text.TextStrokeTransparency = 0.25
+	text.TextScaled = true
+	text.Parent = label
+	sack.Parent = guard.Look.Model
+	guard.RecoveredSack = sack
+end
+
+local function launch(root: BasePart, direction: Vector3, speed: number)
+	local flat = Vector3.new(direction.X, 0, direction.Z)
+	if flat.Magnitude < 1e-3 then
+		flat = Vector3.new(0, 0, 1)
+	end
+	pcall(function()
+		root:SetNetworkOwner(nil)
+	end)
+	root.AssemblyLinearVelocity = flat.Unit * speed + Vector3.new(0, Config.Alarm.BustLaunchUpward, 0)
+	root.AssemblyAngularVelocity = Vector3.new(rng:NextNumber(-12, 12), rng:NextNumber(-12, 12), rng:NextNumber(-12, 12))
+end
+
+local function throwThroughDoor(house: House, character: Model, humanoid: Humanoid, root: BasePart)
+	local road = lotPoint(house, 0, house.ZoneHalfSize.Z + Config.Alarm.BustRoadMiddleOffset)
+	local doorway = house.Route.Door or lotPoint(house, 0, house.ZoneHalfSize.Z - house.FrontInset + 1)
+	local direction = Vector3.new(road.X - doorway.X, 0, road.Z - doorway.Z)
+	if direction.Magnitude < 1e-3 then
+		direction = house.ZoneCFrame.LookVector
+	end
+	-- Place the still-rigged character just inside the threshold, then make it limp and launch it
+	-- along the front-path line. This guarantees the ejection uses the real front door rather than
+	-- letting furniture or a back wall eat the impulse.
+	local start = doorway - direction.Unit * 1.5
+	character:PivotTo(CFrame.lookAt(start, start + direction))
+	for _, door in house.Doors do
+		setDoorOpen(door, true)
+	end
+	unseat(humanoid)
+	beginRagdoll(character, humanoid)
+	launch(root, direction, Config.Alarm.BustIndoorLaunchSpeed)
+	task.delay(Config.Alarm.BustDoorSlamDelay, function()
+		if not DayNight.isDaytime() then
+			for _, door in house.Doors do
+				setDoorOpen(door, false, true)
+			end
+		end
+	end)
+end
+
+local function bust(player: Player, house: House, guard: Guard)
 	local now = os.clock()
 	if isImmune(player, now) then
 		return
@@ -898,31 +1120,47 @@ local function bust(player: Player, house: House)
 	bustedUntil[player] = now + Config.Alarm.BustImmunity
 	clearIntruder(player, house)
 
-	local lost = Inventory.takeCarried(player)
-	local lostValue = 0
-	for _, itemId in lost do
-		lostValue += Items.getValue(itemId)
-	end
-	local catcher = (if #house.Guards == 1 then "The " else "A ") .. house.GuardInfo.DisplayName
-	BustedEvent:FireClient(player, #lost, lostValue, house.Name, catcher)
-
 	local character = player.Character
 	local humanoid = if character then character:FindFirstChildOfClass("Humanoid") else nil
-	if humanoid and humanoid.SeatPart then
-		local seatWeld = humanoid.SeatPart:FindFirstChild("SeatWeld")
-		if seatWeld then
-			seatWeld:Destroy()
+	local root = if character then character:FindFirstChild("HumanoidRootPart") else nil
+	local caughtInside = root ~= nil and root:IsA("BasePart") and insideHouse(house, root.Position)
+
+	local lost = Inventory.takeCarriedWithOrigins(player)
+	local lostValue = 0
+	local recovered: { ReturnedLoot } = {}
+	for _, loot in lost do
+		lostValue += Items.getValue(loot.ItemId)
+		if loot.Origin then
+			table.insert(recovered, {
+				ItemId = loot.ItemId,
+				HouseId = loot.Origin.HouseId,
+				SpotId = loot.Origin.SpotId,
+			})
 		end
-		humanoid.Sit = false
 	end
-	local target = Plots.getSpawnCFrame(player)
-	if character and target then
-		task.delay(0.2, function()
-			if character.Parent then
-				character:PivotTo(target)
-			end
-		end)
+	local catcher = (if #house.Guards == 1 then "The " else "A ") .. house.GuardInfo.DisplayName
+	BustedEvent:FireClient(player, #lost, lostValue, house.Name, catcher, if caughtInside then "door" else "road")
+
+	if caughtInside then
+		restoreRecoveredLoot(recovered)
+		if character and humanoid and root and root:IsA("BasePart") then
+			throwThroughDoor(house, character, humanoid, root)
+		end
+	else
+		for _, loot in recovered do
+			table.insert(guard.RecoveredLoot, loot)
+		end
+		updateRecoveredSack(guard)
+		if character and humanoid and root and root:IsA("BasePart") then
+			unseat(humanoid)
+			beginRagdoll(character, humanoid)
+			launch(root, root.Position - guard.Root.Position, Config.Alarm.BustRoadLaunchSpeed)
+		end
 	end
+
+	-- The successful catcher has the recovered bag on its back, then follows the normal physical
+	-- home route. The original spots are refilled only when it gets there.
+	endAlarm(house)
 end
 
 -- Where a guard heads to catch this position.
@@ -1005,7 +1243,7 @@ local function updateAlarm(house: House, thieves: { Thief }, now: number)
 				end
 				local height = math.abs(aimed.Y - from.Y)
 				if bestDistance <= catchRadius(guard) and height <= CATCH_HEIGHT then
-					bust(target.Player, house)
+					bust(target.Player, house, guard)
 				end
 			end
 		end
@@ -1092,8 +1330,8 @@ local function setStealable(spot: Spot, stealable: boolean)
 	end
 end
 
-local function spawnItem(house: House, spot: Spot)
-	local itemId = Items.roll(house.LootHouse, rng)
+local function spawnItem(house: House, spot: Spot, forcedItemId: string?)
+	local itemId = forcedItemId or Items.roll(house.LootHouse, rng)
 	local def = Items.get(itemId)
 	local model = ItemModels.build(itemId)
 	if not def or not model then
@@ -1134,6 +1372,24 @@ local function restock(house: House)
 	end
 end
 
+-- Recreate recovered loot with its original id on its original marker, never by rolling a new
+-- item. If daytime has already restocked that marker, it is already safely occupied and must not
+-- be duplicated.
+restoreRecoveredLoot = function(loot: { ReturnedLoot }): number
+	local restored = 0
+	for _, entry in loot do
+		local house = housesById[entry.HouseId]
+		local spot = if house then house.SpotById[entry.SpotId] else nil
+		if house and spot and spot.Item == nil then
+			spawnItem(house, spot, entry.ItemId)
+			if spot.Item then
+				restored += 1
+			end
+		end
+	end
+	return restored
+end
+
 onSteal = function(house: House, spot: Spot, model: Model, player: Player)
 	local itemId = spot.ItemId
 	if spot.Item ~= model or not itemId or not model.Parent then
@@ -1142,7 +1398,10 @@ onSteal = function(house: House, spot: Spot, model: Model, player: Player)
 	if DayNight.isDaytime() or isImmune(player, os.clock()) then
 		return
 	end
-	local ok, reason = Inventory.addCarried(player, itemId)
+	local ok, reason = Inventory.addCarried(player, itemId, {
+		HouseId = house.Id,
+		SpotId = spot.Part.Name,
+	})
 	if not ok then
 		Notify.send(player, reason or "You can't carry that right now.", "error")
 		return
@@ -1261,13 +1520,15 @@ local function buildGuard(house: House, dock: BasePart): Guard
 		Pinned = 0,
 		LastWay = nil,
 		Way = nil,
+		RecoveredLoot = {},
+		RecoveredSack = nil,
 	}
 end
 
 --------------------------------------------------------------------------------
 -- Doors
 --------------------------------------------------------------------------------
-setDoorOpen = function(door: Door, open: boolean)
+setDoorOpen = function(door: Door, open: boolean, slam: boolean?)
 	door.IsOpen = open
 	if open then
 		door.Prompt.Enabled = false
@@ -1276,10 +1537,14 @@ setDoorOpen = function(door: Door, open: boolean)
 			Value = door.OpenAngle,
 		}):Play()
 	else
-		TweenService:Create(door.Angle, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
+		local duration = if slam then 0.18 else 0.9
+		TweenService:Create(door.Angle, TweenInfo.new(duration, Enum.EasingStyle.Quad, if slam then Enum.EasingDirection.In else Enum.EasingDirection.InOut), {
 			Value = 0,
 		}):Play()
-		task.delay(0.9, function()
+		if slam then
+			door.Slam:Play()
+		end
+		task.delay(duration, function()
 			if not door.IsOpen and not DayNight.isDaytime() then
 				door.Prompt.Enabled = true
 			end
@@ -1330,11 +1595,21 @@ local function setupDoor(house: House, doorModel: Model): Door?
 	prompt.Enabled = not DayNight.isDaytime()
 	prompt.Parent = panel
 
+	local slam = Instance.new("Sound")
+	slam.Name = "SlamSound"
+	slam.SoundId = Config.Sounds.DoorSlam
+	slam.Volume = 1.35
+	slam.RollOffMode = Enum.RollOffMode.InverseTapered
+	slam.RollOffMinDistance = 4
+	slam.RollOffMaxDistance = 70
+	slam.Parent = panel
+
 	local door: Door = {
 		Model = doorModel,
 		Spot = hingeCFrame.Position,
 		Prompt = prompt,
 		Angle = angle,
+		Slam = slam,
 		OpenAngle = if type(openAngle) == "number" then openAngle else -95,
 		IsOpen = false,
 		CloseAt = 0,
@@ -1538,6 +1813,7 @@ local function setupHouse(model: Model)
 		ChaseMaxX = maxX + 4,
 		Loot = loot,
 		Spots = {},
+		SpotById = {},
 		Guards = {},
 		Doors = {},
 		Route = {},
@@ -1557,6 +1833,7 @@ local function setupHouse(model: Model)
 			if part:IsA("BasePart") then
 				local spot: Spot = { Part = part, Item = nil, ItemId = nil }
 				table.insert(house.Spots, spot)
+				house.SpotById[part.Name] = spot
 				spawnItem(house, spot)
 			end
 		end
@@ -1619,6 +1896,7 @@ local function setupHouse(model: Model)
 	end
 
 	table.insert(houses, house)
+	housesById[house.Id] = house
 end
 
 local function doorLoop()
@@ -1642,6 +1920,7 @@ end
 function Houses.onPlayerRemoving(player: Player)
 	bustedUntil[player] = nil
 	laserCooldown[player] = nil
+	Inventory.forgetPlayer(player)
 	for _, house in houses do
 		house.Intruders[player] = nil
 	end

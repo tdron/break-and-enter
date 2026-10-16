@@ -362,6 +362,15 @@ Config.Alarm = {
 	CatchRadius = 3.75, -- studs (measured along the ground) between a guard and you to get BUSTED
 	CalmDownTime = 4, -- seconds with nobody in the chase area before the alarm resets
 	BustImmunity = 4, -- seconds you can't be caught again after getting busted
+	-- A bust knocks a thief down rather than resetting them at their warehouse. An indoor bust
+	-- starts at the front door and lands in the middle of the road; an outdoor bust goes away
+	-- from the defender that made the catch.
+	BustRagdollTime = 2.4,
+	BustLaunchUpward = 52,
+	BustIndoorLaunchSpeed = 78,
+	BustRoadLaunchSpeed = 48,
+	BustRoadMiddleOffset = 24, -- studs past a lot's front edge (+Z faces the road centre)
+	BustDoorSlamDelay = 0.35,
 	DroneAimHeight = 1.5, -- drones aim this far above your HumanoidRootPart
 	DroneDockHeight = 5, -- how high drones hover above their charging dock
 	GuardReturnSpeed = 16, -- how fast guards walk/fly back to bed once the alarm calms down
@@ -474,6 +483,7 @@ Config.Sounds = {
 	Click = "rbxasset://sounds/volume_slider.ogg",
 	Error = "rbxasset://sounds/action_jump_land.mp3",
 	Busted = "rbxasset://sounds/ouch.ogg",
+	DoorSlam = "rbxasset://sounds/action_jump_land.mp3",
 	AlarmBeep = "rbxasset://sounds/volume_slider.ogg",
 	LevelUp = "rbxasset://sounds/action_jump.mp3",
 }

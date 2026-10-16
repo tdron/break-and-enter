@@ -42,15 +42,6 @@ function Market.list(player: Player): { Sale }
 	return sales
 end
 
-local function remove(list: { string }, itemId: string): boolean
-	local index = table.find(list, itemId)
-	if not index then
-		return false
-	end
-	table.remove(list, index)
-	return true
-end
-
 -- Sells one item out of the bag the player is carrying.
 function Market.sell(player: Player, itemId: string): (boolean, string)
 	local session = PlayerData.get(player)
@@ -58,12 +49,11 @@ function Market.sell(player: Player, itemId: string): (boolean, string)
 	if not session or not def then
 		return false, "That item has gone missing."
 	end
-	if not remove(session.Carried, itemId) then
+	if not Inventory.removeCarried(player, itemId) then
 		return false, string.format("No %s in your bag.", def.DisplayName)
 	end
 	local value = Items.getSellValue(itemId)
 	PlayerData.addCash(player, value)
-	Inventory.refresh(player)
 	return true, string.format("💵 Sold %s for %s", def.DisplayName, Format.money(value))
 end
 

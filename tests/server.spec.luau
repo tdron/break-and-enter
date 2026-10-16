@@ -98,6 +98,21 @@ local function spawnCharacter(player, position: Vector3)
 	torso.Size = Vector3.new(2, 1.6, 1)
 	torso.CFrame = CFrame.new(position + Vector3.new(0, 0.6, 0))
 	torso.Parent = character
+	-- A tiny articulated limb makes the integration catch test exercise the real Motor6D ->
+	-- BallSocket ragdoll conversion, not just Humanoid.PlatformStand.
+	local arm = Mock.newInstance("Part")
+	arm.Name = "LeftArm"
+	arm.Size = Vector3.new(0.5, 1.4, 0.5)
+	arm.CFrame = CFrame.new(position + Vector3.new(-1.2, 0.5, 0))
+	arm.Parent = character
+	local shoulder = Mock.newInstance("Motor6D")
+	shoulder.Name = "LeftShoulder"
+	shoulder.Part0 = torso
+	shoulder.Part1 = arm
+	shoulder.C0 = CFrame.new()
+	shoulder.C1 = CFrame.new()
+	shoulder.Enabled = true
+	shoulder.Parent = torso
 	character.PrimaryPart = root
 	character.Parent = workspace
 	player.Character = character
@@ -186,6 +201,19 @@ local cottage = Map.Houses.House1 -- Maple Cottage, guarded by a ginger cat
 -- Every house stands on the same 0.5-stud foundation, so the floor inside one is always at this
 -- height: it is where a thief - and the guard that comes after them - walks.
 local HOUSE_FLOOR = 0.7
+local firstStolenItemId: string? = nil
+local firstStolenSpot: Vector3? = nil
+
+local function itemAt(house, itemId: string, position: Vector3)
+	for _, item in house.Loot:GetChildren() do
+		local rootPart = item:FindFirstChild("Root")
+		if item:GetAttribute("ItemId") == itemId and rootPart and rootPart:IsA("BasePart")
+			and (rootPart.Position - position).Magnitude < 0.05 then
+			return item
+		end
+	end
+	return nil
+end
 
 step("pick the front door lock", function()
 	local door = cottage.Doors:GetChildren()[1]
@@ -214,7 +242,10 @@ end
 
 step("steal an item and trip the alarm", function()
 	local mark = #Mock.remoteLog
-	local item = stealFrom(cottage, thief, root)
+	local item = cottage.Loot:GetChildren()[1]
+	firstStolenItemId = item:GetAttribute("ItemId")
+	firstStolenSpot = item.Root.Position
+	stealFrom(cottage, thief, root)
 	Mock.advance(0.1)
 	eq(thief:GetAttribute("Carried"), 1, "Carried")
 	eq(item.Parent, nil, "stolen item removed")
@@ -237,8 +268,9 @@ step("steal an item and trip the alarm", function()
 	eq(cat.Root.Status.Icon.Text, "❗", "the cat wakes up")
 end)
 
-step("standing still gets you busted by the cat", function()
+step("an indoor catch ragdolls you through the door and restores the exact loot spot", function()
 	local mark = #Mock.remoteLog
+	local sounds = Mock.soundsPlayed
 	local busted = nil
 	local cat = cottage:FindFirstChild("Guard")
 	local start = cat.Root.Position
@@ -258,16 +290,94 @@ step("standing still gets you busted by the cat", function()
 	check(busted, "the cat never caught the thief")
 	eq(busted.args[3], "Maple Cottage", "busted at")
 	eq(busted.args[4], "The Tuxedo Cat", "busted by")
-	eq(thief:GetAttribute("Carried"), 0, "carried loot lost")
+	eq(busted.args[5], "door", "indoor catch outcome")
+	eq(thief:GetAttribute("Carried"), 0, "bag emptied by the catcher")
 	eq(character:FindFirstChild("LootSack"), nil, "sack removed")
+	check(humanoid.PlatformStand, "the indoor bust should ragdoll the thief")
+	check(character:GetAttribute("Ragdolled"), "the character advertises its ragdoll state")
+	check(character:FindFirstChild("BustRagdollJoint", true), "the ragdoll should replace body motors with ball sockets")
+	check(firstStolenItemId and firstStolenSpot, "the theft origin was not recorded")
+	check(itemAt(cottage, firstStolenItemId :: string, firstStolenSpot :: Vector3), "stolen item did not return to its original marker")
+	eq(#cottage.Loot:GetChildren(), 5, "the caught item is returned immediately inside")
 	Mock.advance(0.5)
-	check((root.Position - plot.Spawn.Position).Magnitude < 10, "not teleported home after bust")
+	-- The launch starts at the actual front door, never at the warehouse spawn.
+	check((root.Position - cottage.Route.Door.Position).Magnitude < 6, "not placed at the front door for ejection")
+	check((root.Position - plot.Spawn.Position).Magnitude > 20, "the old warehouse teleport must be gone")
+	check(root.AssemblyLinearVelocity.Z > 0, "House1's indoor launch should head toward the road")
+	local door = cottage.Doors:GetChildren()[1]
+	eq(door.OpenAngle.Value, 0, "the front door slams shut after the ejection")
+	check(door.Panel:FindFirstChild("SlamSound"), "the slammed door needs a replicated sound")
+	check(Mock.soundsPlayed > sounds, "the slam should play a sound")
 	eq(thief:GetAttribute("AlarmHouse"), "", "banner cleared")
 end)
 
 step("alarm calms down once the property is empty", function()
 	Mock.advance(6)
 	eq(cottage:GetAttribute("AlarmActive"), false, "alarm should reset")
+end)
+
+step("a road catch sends the guard home carrying loot before it restores the source spot", function()
+	-- Let the first catcher settle fully at its post before beginning a second theft.
+	Mock.advance(20)
+	local Houses = moduleOf("Houses")
+	local cat = cottage:FindFirstChild("Guard")
+	local home = cat.Root.AlignPosition.Position
+	check((cat.Root.Position - home).Magnitude < 8, "the cat did not return home before the road catch")
+
+	local item = cottage.Loot:GetChildren()[1]
+	local itemId = item:GetAttribute("ItemId")
+	local origin = item.Root.Position
+	stealFrom(cottage, thief, root)
+	local mark = #Mock.remoteLog
+	-- Get well down the road while the cat finds its way through the building, so it cannot make a
+	-- second indoor catch before crossing the gate.
+	local street = cottage.Route.Street.Position + Vector3.new(0, 3, 0)
+	root.CFrame = CFrame.new(street + Vector3.new(-70, 0, 0))
+	local reachedRoad = false
+	for _ = 1, 120 do
+		Mock.advance(0.5)
+		if not Houses.isOnProperty(cat.Root.Position) then
+			reachedRoad = true
+			break
+		end
+	end
+	check(reachedRoad, "the cat never reached the road to make an outdoor catch")
+	root.CFrame = CFrame.new(street)
+
+	local busted = nil
+	for _ = 1, 160 do
+		Mock.advance(0.25)
+		for index = mark + 1, #Mock.remoteLog do
+			if Mock.remoteLog[index].remote == "Busted" then
+				busted = Mock.remoteLog[index]
+			end
+		end
+		if busted then
+			break
+		end
+	end
+	check(busted, "the cat never caught the thief on the road")
+	eq(busted.args[5], "road", "road catch outcome")
+	eq(thief:GetAttribute("Carried"), 0, "the road catcher took the bag")
+	check(humanoid.PlatformStand, "the road catch should ragdoll the thief")
+	check(character:GetAttribute("Ragdolled"), "road catch sets the ragdoll state")
+	check(cat:FindFirstChild("RecoveredLoot", true), "the catcher should visibly carry the recovered loot")
+	check(not itemAt(cottage, itemId, origin), "the item should travel home with the catcher before restoring")
+
+	local beforeReturn = (cat.Root.Position - home).Magnitude
+	Mock.advance(4)
+	check((cat.Root.Position - home).Magnitude < beforeReturn, "the catcher should retreat toward its own house")
+
+	local restored = false
+	for _ = 1, 80 do
+		Mock.advance(1)
+		if itemAt(cottage, itemId, origin) and not cat:FindFirstChild("RecoveredLoot", true) then
+			restored = true
+			break
+		end
+	end
+	check(restored, "the road catch did not return the exact stolen item to its original spot")
+	check((root.Position - plot.Spawn.Position).Magnitude > 20, "a road bust must not teleport to the warehouse")
 end)
 
 step("they chase you out of the house and all the way back down the street", function()
