@@ -137,17 +137,13 @@ end
 -- Speed training
 --
 -- The "Speed" stat is the player-facing number: the HUD, leaderboard and
--- treadmill all show it. It is deliberately five times the real movement rate:
---
---     Speed 80  =  16 studs/s   (what you start with)
---     Speed 81  =  16.2 studs/s (one trained speed point = 0.2 studs/s)
---
--- That keeps the stat satisfying to grow while the character's physical speed
--- remains honest and easy to compare with defenders. There is no ceiling.
+-- treadmill all show it. It deliberately grows five times faster than the
+-- physical movement value, which stays an implementation detail rather than a
+-- second player-facing stat. There is no ceiling.
 --------------------------------------------------------------------------------
 Config.Speed = {
-	BaseWalkSpeed = 16, -- Roblox default walk speed
-	DisplayMultiplier = 5, -- displayed Speed is always this many times studs/s
+	BaseWalkSpeed = 16, -- Roblox default walk speed (server movement only)
+	DisplayMultiplier = 5, -- displayed Speed grows at this multiple of movement
 	-- Speed is uncapped; set a number here if you ever want a ceiling back.
 	MaxWalkSpeed = math.huge,
 }

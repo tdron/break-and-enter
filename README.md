@@ -153,8 +153,8 @@ Every garage has its own treadmill out front, to the left of the loading dock. A
 - Press **ESCAPE**, **Space**, or **A** on a gamepad to hop off beside it. Walk back on to run again.
 - A treadmill hands out **speed**: level 1 gives **+1 speed every 4 seconds**. Every upgrade **doubles the amount** and **halves the wait**, so each level trains you exactly **four times faster**: by level 8 you're getting 128 speed every 1/32 of a second, which is **4,096 a second**.
 - Every whole gain rises as a cyan **`+SPEED`** number directly above your runner — there is no persistent treadmill bar covering the bottom of the screen.
-- One speed point is **+1 displayed Speed** on your HUD and leaderboard. Displayed Speed is always **five times** your real movement rate: a fresh player is *Speed 80* at 16 studs/s, and *Speed 80 ➜ 81* really is 16 ➜ 16.2 studs/s.
-- **There is no speed cap.** Keep running and you'll leave the whole street in the dust — even the museum's fleet only runs at 125,000,000 studs/s, which is Speed 625 million. A maxed treadmill adds 4,096 displayed Speed per second (819.2 studs/s), so it eventually gets you there. The T-Rex (100,000 studs/s) is the first real wall: Speed 500,000.
+- One speed point is **+1 displayed Speed** on your HUD and leaderboard. Your displayed stat starts at **Speed 80**; raw movement measurements stay hidden so the number you train is the only speed number you need.
+- **There is no speed cap.** Keep running and you'll eventually leave the whole street in the dust. A maxed treadmill adds 4,096 displayed Speed per second, so even the toughest homes become escapable.
 - You upgrade the treadmill itself, either at the market stall in the yard or by holding **E** at its console. Its trim gets flashier with every level, and only you can use or upgrade yours.
 - Prices climb the same way the treadmill does: every level costs **four times** the last one.
 

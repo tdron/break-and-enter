@@ -99,7 +99,6 @@ for name, value in {
 	BagCapacity = 2,
 	StoredCount = 0,
 	StorageCapacity = 10,
-	WalkSpeed = 16,
 	SpeedPoints = 0,
 	SpeedProgress = 0,
 	Speed = 80,
@@ -379,10 +378,9 @@ step("walking onto your treadmill makes you run by yourself", function()
 	check(not hud:FindFirstChild("Training", true), "the treadmill level must not restore a bottom bar")
 
 	-- A replicated training gain now floats over the runner instead of filling a
-	-- permanent bottom bar. Displayed Speed stays exactly 5x the real studs/s.
+	-- permanent bottom bar. The HUD only uses the displayed Speed stat.
 	player:SetAttribute("SpeedPoints", 3)
 	player:SetAttribute("Speed", 83)
-	player:SetAttribute("WalkSpeed", 16.6)
 	Mock.advance(0.1)
 	local gain = root:FindFirstChild("TreadmillSpeedGain")
 	check(gain, "a speed gain should float above the character")

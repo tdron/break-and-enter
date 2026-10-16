@@ -283062,17 +283062,13 @@ end
 -- Speed training
 --
 -- The "Speed" stat is the player-facing number: the HUD, leaderboard and
--- treadmill all show it. It is deliberately five times the real movement rate:
---
---     Speed 80  =  16 studs/s   (what you start with)
---     Speed 81  =  16.2 studs/s (one trained speed point = 0.2 studs/s)
---
--- That keeps the stat satisfying to grow while the character's physical speed
--- remains honest and easy to compare with defenders. There is no ceiling.
+-- treadmill all show it. It deliberately grows five times faster than the
+-- physical movement value, which stays an implementation detail rather than a
+-- second player-facing stat. There is no ceiling.
 --------------------------------------------------------------------------------
 Config.Speed = {
-	BaseWalkSpeed = 16, -- Roblox default walk speed
-	DisplayMultiplier = 5, -- displayed Speed is always this many times studs/s
+	BaseWalkSpeed = 16, -- Roblox default walk speed (server movement only)
+	DisplayMultiplier = 5, -- displayed Speed grows at this multiple of movement
 	-- Speed is uncapped; set a number here if you ever want a ceiling back.
 	MaxWalkSpeed = math.huge,
 }
@@ -286901,10 +286897,9 @@ local function triggerAlarm(house: House, culprit: Player?)
 		Notify.send(
 			culprit,
 			string.format(
-				"🚨 ALARM! %s%s woke up! It moves at your speed in here — through the gate it runs at %s studs/s!",
+				"🚨 ALARM! %s%s woke up! You move evenly in here — get through the gate before it reaches full speed!",
 				string.upper(string.sub(phrase, 1, 1)),
-				string.sub(phrase, 2),
-				Format.commas(house.GuardSpeed)
+				string.sub(phrase, 2)
 			),
 			"warning"
 		)
@@ -286916,7 +286911,7 @@ local function clearIntruder(player: Player, house: House)
 	if player.Parent and player:GetAttribute("AlarmHouse") == house.Name then
 		player:SetAttribute("AlarmHouse", "")
 		player:SetAttribute("AlarmGuard", "")
-		player:SetAttribute("AlarmSpeed", 0)
+		player:SetAttribute("AlarmSpeed", nil)
 	end
 end
 
@@ -287213,7 +287208,7 @@ local function updateAlarm(house: House, thieves: { Thief }, now: number)
 			house.Intruders[thief.Player] = true
 			thief.Player:SetAttribute("AlarmGuard", guardPhrase(house))
 			thief.Player:SetAttribute("AlarmHouse", house.Name)
-			thief.Player:SetAttribute("AlarmSpeed", house.GuardSpeed)
+			thief.Player:SetAttribute("AlarmSpeed", nil)
 		end
 	end
 	for player in house.Intruders do
@@ -288395,12 +288390,15 @@ return Notify
 
 	Important numbers are mirrored onto Player attributes so the client UI can
 	react to them without any extra remotes:
-	  Cash, Income, Carried, CarriedList, BagCapacity,
-	  StoredCount, StorageCapacity, Speed, SpeedPoints, SpeedProgress,
-	  Rebirths (production multiplier is x1 + x0.5 per rebirth: see Config.Rebirth),
-	  WalkSpeed (the real speed; WalkSpeed is held at Config.Alarm.InsideSpeed
-	  while InHouse is true), InHouse, Level_<UpgradeId>, Discovered
-	  (comma-separated item ids for the Loot Index)
+  Cash, Income, Carried, CarriedList, BagCapacity,
+  StoredCount, StorageCapacity, Speed, SpeedPoints, SpeedProgress,
+  Rebirths (production multiplier is x1 + x0.5 per rebirth: see Config.Rebirth),
+  InHouse, Level_<UpgradeId>, Discovered (comma-separated item ids for the Loot
+  Index).
+
+  The physical Humanoid.WalkSpeed is server-controlled and deliberately is not
+  replicated as a Player attribute: the player-facing Speed stat is the only
+  speed number shown to players.
 
 	Saving uses DataStoreService. When the place is unpublished or Studio API
 	access is off, the game still works but progress is session-only.
@@ -288667,7 +288665,9 @@ function PlayerData.replicate(player: Player)
 	player:SetAttribute("SpeedPoints", profile.SpeedPoints)
 	player:SetAttribute("SpeedProgress", profile.SpeedPoints - math.floor(profile.SpeedPoints))
 	player:SetAttribute("Speed", Config.speedStatForPoints(profile.SpeedPoints))
-	player:SetAttribute("WalkSpeed", PlayerData.getWalkSpeed(player))
+	-- Remove the old replicated physical-speed attribute for players joining a
+	-- server that was updated in place.
+	player:SetAttribute("WalkSpeed", nil)
 	player:SetAttribute("Rebirths", profile.Rebirths)
 	for _, upgrade in Config.Upgrades do
 		player:SetAttribute("Level_" .. upgrade.Id, profile.Levels[upgrade.Id])
@@ -288757,7 +288757,9 @@ end
 
 function PlayerData.applyWalkSpeed(player: Player)
 	local walkSpeed = PlayerData.getWalkSpeed(player)
-	player:SetAttribute("WalkSpeed", walkSpeed)
+	-- This is intentionally assigned only to the Humanoid. Replicating it as a
+	-- Player attribute exposed the true studs-per-second value next to the
+	-- player-facing (5×) Speed stat.
 	local character = player.Character
 	local humanoid = if character then character:FindFirstChildOfClass("Humanoid") else nil
 	if humanoid then
@@ -290746,7 +290748,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		local stored, storage = getNumber("StoredCount", 0), getNumber("StorageCapacity", 10)
 		storageValue.Text = string.format("%d / %d", stored, storage)
 		storageValue.TextColor3 = if stored >= storage then Theme.Orange else Theme.Text
-		-- The server's display stat is always five times the physical WalkSpeed.
+		-- Speed is the player-facing stat; raw Humanoid studs-per-second is never shown here.
 		speedValue.Text = Format.commas(getNumber("Speed", Config.speedStatForPoints(getNumber("SpeedPoints", 0))))
 	end
 
@@ -290783,7 +290785,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		end
 	end
 
-	for _, name in { "Income", "Carried", "BagCapacity", "StoredCount", "StorageCapacity", "WalkSpeed", "Speed" } do
+	for _, name in { "Income", "Carried", "BagCapacity", "StoredCount", "StorageCapacity", "Speed" } do
 		player:GetAttributeChangedSignal(name):Connect(function()
 			updateStats()
 			updateObjective()

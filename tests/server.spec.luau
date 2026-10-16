@@ -186,7 +186,7 @@ step("player gets a warehouse, data and a spawn", function()
 	eq(thief:GetAttribute("Cash"), 0, "Cash")
 	eq(thief:GetAttribute("BagCapacity"), 2, "BagCapacity")
 	eq(thief:GetAttribute("StorageCapacity"), 10, "StorageCapacity")
-	eq(thief:GetAttribute("WalkSpeed"), 16, "WalkSpeed")
+	eq(thief:GetAttribute("WalkSpeed"), nil, "true walk speed is not replicated")
 	eq(humanoid.WalkSpeed, 16, "humanoid walk speed")
 	check(thief:FindFirstChild("leaderstats"), "leaderstats missing")
 	eq(thief.RespawnLocation, plot.Spawn, "RespawnLocation")
@@ -252,13 +252,13 @@ step("steal an item and trip the alarm", function()
 	eq(cottage:GetAttribute("AlarmActive"), true, "alarm")
 	eq(thief:GetAttribute("AlarmHouse"), "Maple Cottage", "AlarmHouse banner")
 	eq(thief:GetAttribute("AlarmGuard"), "the Tuxedo Cat", "the banner names the guard")
-	eq(thief:GetAttribute("AlarmSpeed"), Config.Guards.TuxedoCat.Speed, "the banner knows how fast it is")
+	eq(thief:GetAttribute("AlarmSpeed"), nil, "the guard's true speed is not replicated")
 	eq(thief:GetAttribute("InHouse"), true, "the thief is inside a house")
 	eq(humanoid.WalkSpeed, Config.Alarm.InsideSpeed, "where everyone moves at the standard Roblox speed")
 	check(character:FindFirstChild("LootSack"), "loot sack not shown")
 	check(sawMessage(thief, mark, "Stole"), "no steal message")
 	check(sawMessage(thief, mark, "Tuxedo Cat woke up"), "the alarm message should name the cat")
-	check(sawMessage(thief, mark, "through the gate it runs at 10 studs/s"), "the alarm warns about the gate")
+	check(sawMessage(thief, mark, "before it reaches full speed"), "the alarm warns about the gate without revealing studs/s")
 	eq(#cottage.Loot:GetChildren(), 4, "loot left")
 	-- First time stealing this item: it's unlocked in the Loot Index
 	local itemId = item:GetAttribute("ItemId")
@@ -386,8 +386,9 @@ step("they chase you out of the house and all the way back down the street", fun
 	-- Train a pile of speed first: inside a house it must not matter one bit.
 	PlayerData.addSpeed(thief, 5000)
 	Mock.advance(0.2)
-	local realSpeed = thief:GetAttribute("WalkSpeed")
+	local realSpeed = humanoid.WalkSpeed
 	check(realSpeed > 1000, "training should have made you quick, got " .. tostring(realSpeed))
+	eq(thief:GetAttribute("WalkSpeed"), nil, "training must not expose true walk speed")
 
 	-- Let anything from the last step get home first, so "its post" is where the cat sleeps.
 	Mock.advance(30)
@@ -957,7 +958,7 @@ step("progress saves on leave and loads on rejoin", function()
 	eq(plot.Treadmill.Console.UpgradeTreadmillPrompt.Enabled, false, "no upgrades on an empty treadmill")
 
 	local returning = newPlayer(101, "Thief")
-	spawnCharacter(returning, Vector3.new(0, 5, 0))
+	local _, returningHumanoid = spawnCharacter(returning, Vector3.new(0, 5, 0))
 	Mock.advance(1)
 	eq(returning:GetAttribute("PlotIndex"), 1, "gets a free plot again")
 	eq(returning:GetAttribute("StoredCount"), #stored, "stored items restored")
@@ -966,7 +967,8 @@ step("progress saves on leave and loads on rejoin", function()
 	eq(#plot.Display:GetChildren(), #stored, "shelves rebuilt")
 	check(returning:GetAttribute("SpeedPoints") >= 1, "trained speed restored")
 	check(returning:GetAttribute("Speed") >= 80, "Speed stat restored")
-	eq(returning:GetAttribute("Speed"), 5 * returning:GetAttribute("WalkSpeed"), "displayed Speed is 5x walk speed")
+	eq(returning:GetAttribute("WalkSpeed"), nil, "rejoined players do not receive true walk speed")
+	eq(returning:GetAttribute("Speed"), 5 * returningHumanoid.WalkSpeed, "displayed Speed remains 5x walk speed server-side")
 	eq(returning:GetAttribute("Level_Treadmill"), 3, "treadmill level restored")
 	local discovered = string.split(returning:GetAttribute("Discovered"), ",")
 	eq(#discovered, #saved.Discovered, "Loot Index restored")
@@ -987,13 +989,14 @@ step("old saves with gym treadmill unlocks become treadmill levels", function()
 	eq(elite:GetAttribute("Discovered"), "Toaster,Laptop", "items you already own count as discovered")
 	eq(pro:GetAttribute("Level_Treadmill"), 3, "pro unlock -> treadmill level 3")
 
-	-- Speed used to be saved as whole levels worth +1 walk speed each: an old save
-	-- with 8 levels must come back at exactly the same walk speed (16 + 8 = 24).
+	-- Old saves still convert to the same server-side movement rate, but that raw
+	-- value is no longer published as a Player attribute.
 	local legacy = newPlayer(505, "LegacyRunner")
 	Mock.advance(0.5)
 	eq(legacy:GetAttribute("SpeedPoints"), 40, "8 old speed levels -> 40 display-speed points")
-	eq(legacy:GetAttribute("Speed"), 120, "which is Speed 120 at five times the walk speed")
-	eq(legacy:GetAttribute("WalkSpeed"), 24, "and the same walk speed they had before")
+	eq(legacy:GetAttribute("Speed"), 120, "which is Speed 120")
+	eq(legacy:GetAttribute("WalkSpeed"), nil, "legacy players do not receive true walk speed")
+	eq(moduleOf("PlayerData").getWalkSpeed(legacy), 24, "legacy movement rate stays intact server-side")
 
 	for _, player in { elite, pro, legacy } do
 		player.Parent = nil
@@ -1012,7 +1015,7 @@ step("the rebirth shrine trades all your speed for a permanent multiplier", func
 
 	-- A fresh arrival with a toaster on the shelves (so there's an income to multiply).
 	local spinner = newPlayer(606, "Rebirther")
-	spawnCharacter(spinner, Vector3.new(0, 5, 0))
+	local _, spinnerHumanoid = spawnCharacter(spinner, Vector3.new(0, 5, 0))
 	Mock.advance(1)
 	moduleOf("Plots").deposit(spinner, { "Toaster" })
 	Mock.advance(0.5)
@@ -1040,7 +1043,8 @@ step("the rebirth shrine trades all your speed for a permanent multiplier", func
 	eq(spinner:GetAttribute("Rebirths"), 1, "the rebirth is counted")
 	eq(spinner:GetAttribute("SpeedPoints"), 0, "every speed point is spent")
 	eq(spinner:GetAttribute("Speed"), 80, "the Speed stat starts over")
-	eq(spinner:GetAttribute("WalkSpeed"), 16, "and you jog at the base speed again")
+	eq(spinner:GetAttribute("WalkSpeed"), nil, "rebirth does not expose true walk speed")
+	eq(spinnerHumanoid.WalkSpeed, 16, "and you jog at the base speed again")
 	eq(spinner.leaderstats.Rebirths.Value, 1, "the leaderboard brags about the rebirth")
 	eq(spinner:GetAttribute("Income"), incomeBefore * 1.1, "coins per second pick up the x1.1")
 

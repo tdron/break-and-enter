@@ -380,7 +380,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		local stored, storage = getNumber("StoredCount", 0), getNumber("StorageCapacity", 10)
 		storageValue.Text = string.format("%d / %d", stored, storage)
 		storageValue.TextColor3 = if stored >= storage then Theme.Orange else Theme.Text
-		-- The server's display stat is always five times the physical WalkSpeed.
+		-- Speed is the player-facing stat; raw Humanoid studs-per-second is never shown here.
 		speedValue.Text = Format.commas(getNumber("Speed", Config.speedStatForPoints(getNumber("SpeedPoints", 0))))
 	end
 
@@ -417,7 +417,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		end
 	end
 
-	for _, name in { "Income", "Carried", "BagCapacity", "StoredCount", "StorageCapacity", "WalkSpeed", "Speed" } do
+	for _, name in { "Income", "Carried", "BagCapacity", "StoredCount", "StorageCapacity", "Speed" } do
 		player:GetAttributeChangedSignal(name):Connect(function()
 			updateStats()
 			updateObjective()

@@ -7,12 +7,15 @@
 
 	Important numbers are mirrored onto Player attributes so the client UI can
 	react to them without any extra remotes:
-	  Cash, Income, Carried, CarriedList, BagCapacity,
-	  StoredCount, StorageCapacity, Speed, SpeedPoints, SpeedProgress,
-	  Rebirths (production multiplier is x1 + x0.5 per rebirth: see Config.Rebirth),
-	  WalkSpeed (the real speed; WalkSpeed is held at Config.Alarm.InsideSpeed
-	  while InHouse is true), InHouse, Level_<UpgradeId>, Discovered
-	  (comma-separated item ids for the Loot Index)
+  Cash, Income, Carried, CarriedList, BagCapacity,
+  StoredCount, StorageCapacity, Speed, SpeedPoints, SpeedProgress,
+  Rebirths (production multiplier is x1 + x0.5 per rebirth: see Config.Rebirth),
+  InHouse, Level_<UpgradeId>, Discovered (comma-separated item ids for the Loot
+  Index).
+
+  The physical Humanoid.WalkSpeed is server-controlled and deliberately is not
+  replicated as a Player attribute: the player-facing Speed stat is the only
+  speed number shown to players.
 
 	Saving uses DataStoreService. When the place is unpublished or Studio API
 	access is off, the game still works but progress is session-only.
@@ -279,7 +282,9 @@ function PlayerData.replicate(player: Player)
 	player:SetAttribute("SpeedPoints", profile.SpeedPoints)
 	player:SetAttribute("SpeedProgress", profile.SpeedPoints - math.floor(profile.SpeedPoints))
 	player:SetAttribute("Speed", Config.speedStatForPoints(profile.SpeedPoints))
-	player:SetAttribute("WalkSpeed", PlayerData.getWalkSpeed(player))
+	-- Remove the old replicated physical-speed attribute for players joining a
+	-- server that was updated in place.
+	player:SetAttribute("WalkSpeed", nil)
 	player:SetAttribute("Rebirths", profile.Rebirths)
 	for _, upgrade in Config.Upgrades do
 		player:SetAttribute("Level_" .. upgrade.Id, profile.Levels[upgrade.Id])
@@ -369,7 +374,9 @@ end
 
 function PlayerData.applyWalkSpeed(player: Player)
 	local walkSpeed = PlayerData.getWalkSpeed(player)
-	player:SetAttribute("WalkSpeed", walkSpeed)
+	-- This is intentionally assigned only to the Humanoid. Replicating it as a
+	-- Player attribute exposed the true studs-per-second value next to the
+	-- player-facing (5×) Speed stat.
 	local character = player.Character
 	local humanoid = if character then character:FindFirstChildOfClass("Humanoid") else nil
 	if humanoid then

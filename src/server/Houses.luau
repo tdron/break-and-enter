@@ -878,10 +878,9 @@ local function triggerAlarm(house: House, culprit: Player?)
 		Notify.send(
 			culprit,
 			string.format(
-				"🚨 ALARM! %s%s woke up! It moves at your speed in here — through the gate it runs at %s studs/s!",
+				"🚨 ALARM! %s%s woke up! You move evenly in here — get through the gate before it reaches full speed!",
 				string.upper(string.sub(phrase, 1, 1)),
-				string.sub(phrase, 2),
-				Format.commas(house.GuardSpeed)
+				string.sub(phrase, 2)
 			),
 			"warning"
 		)
@@ -893,7 +892,7 @@ local function clearIntruder(player: Player, house: House)
 	if player.Parent and player:GetAttribute("AlarmHouse") == house.Name then
 		player:SetAttribute("AlarmHouse", "")
 		player:SetAttribute("AlarmGuard", "")
-		player:SetAttribute("AlarmSpeed", 0)
+		player:SetAttribute("AlarmSpeed", nil)
 	end
 end
 
@@ -1190,7 +1189,7 @@ local function updateAlarm(house: House, thieves: { Thief }, now: number)
 			house.Intruders[thief.Player] = true
 			thief.Player:SetAttribute("AlarmGuard", guardPhrase(house))
 			thief.Player:SetAttribute("AlarmHouse", house.Name)
-			thief.Player:SetAttribute("AlarmSpeed", house.GuardSpeed)
+			thief.Player:SetAttribute("AlarmSpeed", nil)
 		end
 	end
 	for player in house.Intruders do
