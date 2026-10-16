@@ -191,10 +191,22 @@ def surface_text(target: Inst, face: str, text: str, *, color=(255, 255, 255), f
     return label
 
 
-def point_light(parent: Inst, color=(255, 236, 200), brightness: float = 1.0, light_range: float = 18,
-                shadows: bool = False) -> Inst:
+# Keep practical lights at one restrained street-light level.  Previously the
+# three wide warehouse lights overlapped at high intensity, while nearby lamps
+# used several unrelated values, making exposure jump sharply between areas.
+LIGHT_BRIGHTNESS_MAX = 0.55
+LIGHT_RANGE_MAX = 24
+
+
+def point_light(parent: Inst, color=(255, 226, 180), brightness: float = LIGHT_BRIGHTNESS_MAX,
+                light_range: float = 22, shadows: bool = False) -> Inst:
     light = Inst("PointLight", "Light", parent)
-    light.set(Color=C3.rgb(*color), Brightness=Float(brightness), Range=Float(light_range), Shadows=shadows)
+    light.set(
+        Color=C3.rgb(*color),
+        Brightness=Float(min(brightness, LIGHT_BRIGHTNESS_MAX)),
+        Range=Float(min(light_range, LIGHT_RANGE_MAX)),
+        Shadows=shadows,
+    )
     return light
 
 
@@ -1089,7 +1101,7 @@ def build_house(folder, info, tier_info, lot_cf, palette):
     # And the front door itself: the marker in the middle of the doorway, so a defender coming in
     # off the path aims through the opening rather than at the wall beside it.
     hb.route_lot("Door", 0, LOT_D / 2 - FRONT_YARD - 0.3)
-    hb.sign(-8.5, LOT_D / 2 - 3.2, info["display"], tier_info, tier, guard, guard_count)
+    # Keep the front garden uncluttered: house-name/difficulty yard labels were removed.
     for x in (-24, -16, 16, 24):
         bush(hb.yard, lot_cf * CF(x, 0, front + 1.6), 2.6, palette["bush"])
     for x in (-29.5, 29.5):
@@ -1443,7 +1455,7 @@ def build_mansion(folder, info, tier_info, lot_cf):
     # Grounds (house front wall at lot z = 25 in the plan, 25 * MS on the ground)
     ly("Driveway", (14, 0.14, 40.6), (0, 0.07, 54.7), (204, 194, 178), "Cobblestone")
     hb.fence("estate", [(0, 16 * MS)], back_z=(25 - CLIFF_SETBACK) * MS)
-    hb.sign(-15 * MS, 71 * MS, info["display"], tier_info, 4, info["guard"], info.get("count", 1))
+    # The museum grounds use the same label-free frontage as every other house.
     for sx in (-1, 1):
         ly("GatePillar", (3.6, 12, 3.6), (sx * 9.6, 6, 74.4), (222, 208, 180), "Limestone")
         lamp_part = ly("GateLamp", (1.6, 1.6, 1.6), (sx * 9.6, 12.8, 74.4), (255, 230, 170), "Neon", shape="Ball")

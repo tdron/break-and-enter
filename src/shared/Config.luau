@@ -408,26 +408,26 @@ Config.DayNight = {
 	DayLength = 30, -- seconds (houses closed, loot restocks)
 	FadeTime = 5, -- seconds the sky takes to change
 	Night = {
-		-- Pastel moonlight: clearly night, but soft violet instead of pitch navy.
+		-- Semi-dim, neutral street lighting with enough fill to read paths and interiors.
 		ClockTime = 0.3,
-		Brightness = 1.9,
-		ExposureCompensation = 0.4,
-		Ambient = Color3.fromRGB(118, 120, 158),
-		OutdoorAmbient = Color3.fromRGB(150, 152, 198),
-		FogColor = Color3.fromRGB(96, 102, 148),
-		AtmosphereColor = Color3.fromRGB(132, 142, 202),
-		AtmosphereDecay = Color3.fromRGB(98, 108, 172),
+		Brightness = 1.15,
+		ExposureCompensation = -0.15,
+		Ambient = Color3.fromRGB(62, 65, 82),
+		OutdoorAmbient = Color3.fromRGB(78, 82, 104),
+		FogColor = Color3.fromRGB(58, 62, 78),
+		AtmosphereColor = Color3.fromRGB(84, 90, 112),
+		AtmosphereDecay = Color3.fromRGB(58, 64, 84),
 	},
 	Day = {
-		-- Bright washed daylight: white-ish sky that makes the candy town glow.
+		-- Restrained overcast daylight avoids an exposure jump when leaving a building.
 		ClockTime = 13.5,
-		Brightness = 3.0,
-		ExposureCompensation = 0.05,
-		Ambient = Color3.fromRGB(150, 150, 168),
-		OutdoorAmbient = Color3.fromRGB(188, 188, 204),
-		FogColor = Color3.fromRGB(228, 226, 240),
-		AtmosphereColor = Color3.fromRGB(212, 220, 250),
-		AtmosphereDecay = Color3.fromRGB(160, 170, 220),
+		Brightness = 1.65,
+		ExposureCompensation = -0.1,
+		Ambient = Color3.fromRGB(108, 108, 116),
+		OutdoorAmbient = Color3.fromRGB(132, 132, 142),
+		FogColor = Color3.fromRGB(178, 180, 190),
+		AtmosphereColor = Color3.fromRGB(174, 180, 198),
+		AtmosphereDecay = Color3.fromRGB(126, 132, 150),
 	},
 } :: {
 	NightLength: number,

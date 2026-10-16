@@ -62,7 +62,7 @@ Every house — the museum included — puts **five items out** at a time. House
 | 🏠 10: Aspen House (lasers!) | 🚔 a Security Car | 2.0 s | 125,000,000 | $1,400–$22,000 |
 | 🏛️ Grand Mansion **museum** (laser vault!) | 🚔 a fleet of four Security Cars | 3.0 s | 125,000,000 | $12,000–$120,000 |
 
-**Every defender waits at its own post** — a pet bed for the animals, a chair for the people, a nest for the T-Rex, a charging pad for the bots and a marked parking bay for the cars — and each house's yard sign shows who is in there and how fast they run. When you trip the alarm they wake up (eyes glowing red) and, after a short wind-up, come after you.
+**Every defender waits at its own post** — a pet bed for the animals, a chair for the people, a nest for the T-Rex, a charging pad for the bots and a marked parking bay for the cars. When you trip the alarm they wake up (eyes glowing red) and, after a short wind-up, come after you.
 
 **The speed rule.** Inside a property *everyone* — you and them — moves at the standard Roblox speed. It is only out on the street that the numbers above apply, so a chase is a straight footrace: you keep whatever the treadmill has earned you, and they get their listed speed. (They are also quicker off the mark than you are, which is why houses 5+ are a treadmill problem, not a sneak problem.)
 
