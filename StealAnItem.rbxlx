@@ -283061,30 +283061,34 @@ end
 --------------------------------------------------------------------------------
 -- Speed training
 --
--- The "Speed" stat (the HUD, the leaderboard and the treadmill all quote it) is
--- a quarter of the speed you actually move at:
+-- The "Speed" stat is the player-facing number: the HUD, leaderboard and
+-- treadmill all show it. It is deliberately five times the real movement rate:
 --
---     Speed 4  =  16 studs/s   (what you start with)
---     Speed 5  =  20 studs/s   (one speed point = four studs/s)
+--     Speed 80  =  16 studs/s   (what you start with)
+--     Speed 81  =  16.2 studs/s (one trained speed point = 0.2 studs/s)
 --
--- There is no ceiling: the longer you run, the faster you get.
+-- That keeps the stat satisfying to grow while the character's physical speed
+-- remains honest and easy to compare with defenders. There is no ceiling.
 --------------------------------------------------------------------------------
 Config.Speed = {
 	BaseWalkSpeed = 16, -- Roblox default walk speed
-	SpeedDivisor = 4, -- the speed you move at is the Speed stat times this
+	DisplayMultiplier = 5, -- displayed Speed is always this many times studs/s
 	-- Speed is uncapped; set a number here if you ever want a ceiling back.
 	MaxWalkSpeed = math.huge,
 }
 
--- The Speed stat for a number of trained speed points (it starts at BaseWalkSpeed / SpeedDivisor).
+-- The player-facing Speed for a number of trained speed points. SpeedPoints
+-- count display-speed gained above the base 80, so only complete points change
+-- the stat (and create a floating gain number on the client).
 function Config.speedStatForPoints(points: number): number
-	local base = math.floor(Config.Speed.BaseWalkSpeed / Config.Speed.SpeedDivisor)
+	local base = Config.Speed.BaseWalkSpeed * Config.Speed.DisplayMultiplier
 	return base + math.max(0, math.floor(points))
 end
 
--- The speed you move at: always exactly SpeedDivisor times the Speed stat.
+-- The real movement speed in studs/s: always exactly one fifth of the
+-- displayed Speed stat.
 function Config.walkSpeedForPoints(points: number): number
-	local walkSpeed = Config.speedStatForPoints(points) * Config.Speed.SpeedDivisor
+	local walkSpeed = Config.speedStatForPoints(points) / Config.Speed.DisplayMultiplier
 	return math.min(walkSpeed, Config.Speed.MaxWalkSpeed)
 end
 
@@ -288062,7 +288066,7 @@ local Items = require(ReplicatedStorage.Shared.Items)
 export type Profile = {
 	Cash: number,
 	Levels: { [string]: number },
-	SpeedPoints: number, -- trained speed; the Speed stat is its whole part (see Config.Speed)
+	SpeedPoints: number, -- trained display-speed; whole points raise the 5x Speed stat
 	Rebirths: number, -- completed rebirths; drives the production multiplier (see Config.Rebirth)
 	Stored: { string },
 	TotalStolen: number,
@@ -288177,10 +288181,18 @@ local function sanitize(raw: any): Profile
 			end
 		end
 	end
-	-- Speed used to be stored as whole levels (+1 walk speed each) plus leftover XP;
-	-- turn that back into the same speed. (New saves store SpeedPoints directly.)
+	-- Version 1 stored points under the old 1 point = 4 studs/s rule. Version 2
+	-- counts display-speed points instead, where Speed is always 5x studs/s.
+	-- Convert old saves so players keep exactly the same physical movement speed.
+	local version = math.floor(readNumber(raw.Version, 0, 0, 1e9))
 	local legacyLevel = readNumber(raw.SpeedLevel, 0, 0, 1e9)
-	profile.SpeedPoints = readNumber(raw.SpeedPoints, legacyLevel / Config.Speed.SpeedDivisor, 0, 1e15)
+	local savedPoints = readNumber(raw.SpeedPoints, -1, -1, 1e15)
+	if savedPoints >= 0 then
+		profile.SpeedPoints = if version >= 2 then savedPoints else savedPoints * 20
+	else
+		-- Very old saves used one SpeedLevel per extra stud/s.
+		profile.SpeedPoints = legacyLevel * Config.Speed.DisplayMultiplier
+	end
 	profile.Rebirths = math.floor(readNumber(raw.Rebirths, 0, 0, 1e12)) -- rebirths never cap out
 	profile.Stored = readItemList(raw.Stored, Config.getUpgradeValue("Storage", profile.Levels.Storage))
 	-- The getaway car (and its trunk) is gone. Anything an old save still had in the trunk is
@@ -288263,8 +288275,8 @@ function PlayerData.getSpeedPoints(player: Player): number
 	return if session then session.Profile.SpeedPoints else 0
 end
 
--- The Speed stat the HUD, the leaderboard and the treadmill quote (a quarter of
--- the speed the player moves at).
+-- The player-facing Speed stat shown by the HUD, leaderboard and treadmill.
+-- It is always five times the real movement speed in studs/s.
 function PlayerData.getSpeedStat(player: Player): number
 	return Config.speedStatForPoints(PlayerData.getSpeedPoints(player))
 end
@@ -288406,7 +288418,9 @@ function PlayerData.applyWalkSpeed(player: Player)
 	local session = sessions[player]
 	local stats = if session then session.Leaderstats else nil
 	if stats then
-		stats.Speed.Value = walkSpeed
+		-- Keep the leaderboard aligned with the HUD's player-facing Speed value,
+		-- not the smaller physical studs-per-second value.
+		stats.Speed.Value = PlayerData.getSpeedStat(player)
 	end
 end
 
@@ -288520,7 +288534,7 @@ function PlayerData.save(player: Player): boolean
 	end
 	local profile = session.Profile
 	local payload = {
-		Version = 1,
+		Version = 2,
 		SavedAt = os.time(),
 		Cash = profile.Cash,
 		Levels = table.clone(profile.Levels),
@@ -289236,9 +289250,9 @@ return Rebirth
 	character starts running by itself: there are no keys to hold, so you can
 	go AFK and keep getting faster. ESCAPE (or Space) hops you off.
 
-	Training hands out "speed" (see Config.Speed): every point is +4 studs/s of
-	walk speed, which is how you outrun the faster security drones in the fancier
-	houses. It never stops paying off - there is no speed cap - but you upgrade
+Training hands out player-facing "speed" (see Config.Speed): the displayed
+Speed number is always five times the real walk speed in studs/s. It never
+stops paying off - there is no speed cap - but you upgrade
 	the treadmill itself (in the shop, or the prompt on its console) to train
 	faster: every level doubles the speed gained and halves the wait between
 	gains, so each level is four times as fast as the last.
@@ -289287,8 +289301,6 @@ type Treadmill = {
 type Trainer = {
 	Treadmill: Treadmill,
 	AwayTime: number, -- seconds spent too far from the belt
-	PendingPoints: number, -- speed gained since the last "Speed up!" toast
-	LastToast: number,
 }
 
 local TICK = 0.25
@@ -289296,7 +289308,6 @@ local TICK = 0.25
 -- server sees the character a little behind where the player's own screen has it.
 local START_DISTANCE = 20
 local AWAY_GRACE = 2 -- seconds you may spend off the belt before training stops
-local TOAST_INTERVAL = 8 -- at most one "Speed up!" toast this often
 
 local Treadmills = {}
 
@@ -289381,25 +289392,6 @@ local function refreshDisplay(treadmill: Treadmill)
 	end
 end
 
-local function sendSpeedToast(player: Player, trainer: Trainer)
-	local gained = trainer.PendingPoints
-	if gained <= 0 then
-		return
-	end
-	trainer.PendingPoints = 0
-	trainer.LastToast = os.clock()
-	Notify.send(
-		player,
-		string.format(
-			"⚡ Speed up! +%d — Speed %s (%s studs/s)",
-			gained,
-			Format.commas(PlayerData.getSpeedStat(player)),
-			Format.commas(PlayerData.getWalkSpeed(player))
-		),
-		"level"
-	)
-end
-
 local function setTrainer(player: Player, trainer: Trainer?)
 	if trainer then
 		trainers[player] = trainer
@@ -289432,17 +289424,16 @@ function Treadmills.start(player: Player): (boolean, string)
 	if distance > START_DISTANCE then
 		return false, "Walk onto your treadmill to train!"
 	end
-	setTrainer(player, { Treadmill = treadmill, AwayTime = 0, PendingPoints = 0, LastToast = 0 })
+	setTrainer(player, { Treadmill = treadmill, AwayTime = 0 })
 	return true, ""
 end
 
--- Stops training (no-op if the player isn't training). `reason` is shown as a toast.
+-- Stops training (no-op if the player isn't training).
 function Treadmills.stop(player: Player, reason: string?)
 	local trainer = trainers[player]
 	if not trainer then
 		return
 	end
-	sendSpeedToast(player, trainer)
 	setTrainer(player, nil)
 	if reason and player.Parent then
 		Notify.send(player, reason, "info")
@@ -289476,13 +289467,10 @@ local function train(player: Player, trainer: Trainer, dt: number)
 	-- The treadmill's level sets how fast it trains: "amount every interval",
 	-- doubling the amount and halving the interval with every level.
 	local level = PlayerData.getUpgradeLevel(player, "Treadmill")
-	local gained = PlayerData.addSpeed(player, Config.treadmillRate(level) * dt)
-	if gained > 0 then
-		trainer.PendingPoints += gained
-	end
-	if trainer.PendingPoints > 0 and os.clock() - trainer.LastToast >= TOAST_INTERVAL then
-		sendSpeedToast(player, trainer)
-	end
+	-- PlayerData replicates the displayed Speed whenever a whole point lands.
+	-- The local treadmill controller turns that delta into a floating +Speed
+	-- number over the runner, rather than filling a persistent HUD bar.
+	PlayerData.addSpeed(player, Config.treadmillRate(level) * dt)
 end
 
 local function loop()
@@ -290036,7 +290024,7 @@ return DayNight
 	  * A cinematic night/daytime clock (top centre) with a phase progress bar
 	  * A pulsing full-width alarm banner while a house's guards chase you
 	  * A pill objective hint telling new players what to do next
-	  * The treadmill training bar (while you run on your treadmill)
+	  * Floating treadmill gain numbers above the runner (owned by TreadmillController)
 ]]
 
 local Players = game:GetService("Players")
@@ -290390,69 +290378,6 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		UI.scaled(),
 	})
 
-	----------------------------------------------------------------------------
-	-- Training bar (neon cyan while on the treadmill)
-	----------------------------------------------------------------------------
-	local trainingPanel: Frame = UI.new("Frame", {
-		Name = "Training",
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -66),
-		Size = UDim2.fromOffset(460, 62),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		BackgroundTransparency = 0.06,
-		Visible = false,
-		ZIndex = 2,
-		Parent = screen,
-	}, {
-		UI.shadow(14, 5),
-		UI.corner(14),
-		UI.stroke(Theme.CyanDark, 2, 0.1),
-		UI.gloss(),
-		UI.scaled(),
-	})
-	local trainingTitle: TextLabel = UI.new("TextLabel", {
-		Name = "Title",
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(14, 6),
-		Size = UDim2.new(1, -210, 0, 26),
-		Font = Theme.TitleFont,
-		Text = "",
-		TextColor3 = Theme.CyanDark,
-		TextSize = 20,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 3,
-		Parent = trainingPanel,
-	})
-	local trainingRate: TextLabel = UI.new("TextLabel", {
-		Name = "Rate",
-		AnchorPoint = Vector2.new(1, 0),
-		BackgroundTransparency = 1,
-		Position = UDim2.new(1, -14, 0, 6),
-		Size = UDim2.fromOffset(190, 26),
-		Font = Theme.BoldFont,
-		Text = "",
-		TextColor3 = Theme.OrangeDark,
-		TextSize = 17,
-		TextXAlignment = Enum.TextXAlignment.Right,
-		ZIndex = 3,
-		Parent = trainingPanel,
-	})
-	local barBack: Frame = UI.new("Frame", {
-		Name = "Bar",
-		BackgroundColor3 = Color3.fromRGB(94, 90, 122),
-		BackgroundTransparency = 0.8,
-		Position = UDim2.fromOffset(14, 38),
-		Size = UDim2.new(1, -28, 0, 16),
-		ZIndex = 3,
-		Parent = trainingPanel,
-	}, { UI.corner(8) })
-	local barFill: Frame = UI.new("Frame", {
-		Name = "Fill",
-		BackgroundColor3 = Theme.Cyan,
-		Size = UDim2.fromScale(0, 1),
-		ZIndex = 4,
-		Parent = barBack,
-	}, { UI.corner(8), UI.gradient(Theme.Cyan, Theme.CyanDark) })
 
 	----------------------------------------------------------------------------
 	-- Updating
@@ -290468,7 +290393,8 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		local stored, storage = getNumber("StoredCount", 0), getNumber("StorageCapacity", 10)
 		storageValue.Text = string.format("%d / %d", stored, storage)
 		storageValue.TextColor3 = if stored >= storage then Theme.Orange else Theme.Text
-		speedValue.Text = Config.speedStatForPoints(getNumber("SpeedPoints", 0))
+		-- The server's display stat is always five times the physical WalkSpeed.
+		speedValue.Text = Format.commas(getNumber("Speed", Config.speedStatForPoints(getNumber("SpeedPoints", 0))))
 	end
 
 	local function updateObjective()
@@ -290504,20 +290430,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		end
 	end
 
-	local function updateTraining()
-		local training = player:GetAttribute("Training") == true
-		trainingPanel.Visible = training
-		if training then
-			local treadmillLevel = getNumber("Level_Treadmill", 1)
-			local speed = Config.speedStatForPoints(getNumber("SpeedPoints", 0))
-			trainingRate.Text = string.format("Lv %d · ⚡ %s", treadmillLevel, Config.treadmillText(treadmillLevel))
-			trainingTitle.Text = string.format("🏃 Speed %d (%s studs/s)", speed, Format.short(getNumber("WalkSpeed", 16)))
-			-- The bar fills up to the next whole speed point.
-			UI.tween(barFill, 0.2, { Size = UDim2.fromScale(math.clamp(getNumber("SpeedProgress", 0), 0, 1), 1) })
-		end
-	end
-
-	for _, name in { "Income", "Carried", "BagCapacity", "StoredCount", "StorageCapacity", "WalkSpeed" } do
+	for _, name in { "Income", "Carried", "BagCapacity", "StoredCount", "StorageCapacity", "WalkSpeed", "Speed" } do
 		player:GetAttributeChangedSignal(name):Connect(function()
 			updateStats()
 			updateObjective()
@@ -290555,9 +290468,6 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		updateObjective()
 	end)
 	player:GetAttributeChangedSignal("Training"):Connect(updateObjective)
-	for _, name in { "Training", "SpeedPoints", "SpeedProgress", "Level_Treadmill" } do
-		player:GetAttributeChangedSignal(name):Connect(updateTraining)
-	end
 	player:GetAttributeChangedSignal("Cash"):Connect(function()
 		targetCash = getNumber("Cash", 0)
 	end)
@@ -290565,7 +290475,6 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 	updateStats()
 	updateObjective()
 	updateAlarm()
-	updateTraining()
 	updateClock(true)
 
 	local pulse = 0
@@ -292619,6 +292528,7 @@ local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Format = require(ReplicatedStorage.Shared.Format)
 local Notifications = require(script.Parent.Notifications)
 local UI = require(script.Parent.UI)
 
@@ -292663,6 +292573,12 @@ local escapeFrame: Frame? = nil
 local keyCap: TextLabel? = nil
 local escapeLabel: TextLabel? = nil
 local signGui: BillboardGui? = nil
+
+-- Each whole displayed-speed point the server replicates becomes one short-lived
+-- floating number over the runner. Keeping the last value locally makes this
+-- work without a presentation-only RemoteEvent.
+local lastDisplayedSpeed: number? = nil
+local gainNumberCount = 0
 
 --------------------------------------------------------------------------------
 -- Helpers
@@ -292922,6 +292838,70 @@ local function attachSign()
 	updateEscapeButton()
 end
 
+-- Shows the amount from a single replicated speed gain directly above the
+-- character. BillboardGui keeps the feedback tied to the runner in both third
+-- person and mobile camera views instead of taking up persistent HUD space.
+local function showSpeedGain(amount: number)
+	if amount <= 0 then
+		return
+	end
+	local character = player.Character
+	local root = if character then character:FindFirstChild("HumanoidRootPart") else nil
+	if not (root and root:IsA("BasePart")) then
+		return
+	end
+
+	gainNumberCount += 1
+	local lane = (gainNumberCount % 3) - 1
+	local startOffset = Vector3.new(lane * 0.6, 3.6, 0)
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "TreadmillSpeedGain"
+	gui.Adornee = root
+	gui.Size = UDim2.fromOffset(190, 54)
+	gui.StudsOffsetWorldSpace = startOffset
+	gui.AlwaysOnTop = true
+	gui.LightInfluence = 0
+	gui.MaxDistance = 150
+	gui.Parent = root
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Amount"
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Theme.TitleFont
+	label.Text = "⚡ +" .. Format.commas(amount) .. " SPEED"
+	label.TextColor3 = Theme.Cyan
+	label.TextSize = 28
+	label.TextStrokeColor3 = Theme.CyanDark
+	label.TextStrokeTransparency = 0.15
+	label.Parent = gui
+
+	UI.tween(gui, 0.85, { StudsOffsetWorldSpace = startOffset + Vector3.new(0, 3.25, 0) }, Enum.EasingStyle.Quad)
+	task.delay(0.62, function()
+		if label.Parent then
+			UI.tween(label, 0.2, { TextTransparency = 1, TextStrokeTransparency = 1 })
+		end
+	end)
+	task.delay(0.88, function()
+		if gui.Parent then
+			gui:Destroy()
+		end
+	end)
+end
+
+local function onDisplayedSpeedChanged()
+	local speed = player:GetAttribute("Speed")
+	if type(speed) ~= "number" then
+		return
+	end
+	local previous = lastDisplayedSpeed
+	lastDisplayedSpeed = speed
+	-- Ignore the initial replication and non-treadmill changes such as rebirthing.
+	if previous and speed > previous and player:GetAttribute("Training") == true then
+		showSpeedGain(speed - previous)
+	end
+end
+
 --------------------------------------------------------------------------------
 -- Getting on and off
 --------------------------------------------------------------------------------
@@ -293113,6 +293093,9 @@ end
 
 function TreadmillController.init(screen: ScreenGui)
 	createEscapeButton(screen)
+	local speed = player:GetAttribute("Speed")
+	lastDisplayedSpeed = if type(speed) == "number" then speed else nil
+	player:GetAttributeChangedSignal("Speed"):Connect(onDisplayedSpeedChanged)
 	player:GetAttributeChangedSignal("PlotIndex"):Connect(attachSign)
 	task.spawn(attachSign)
 

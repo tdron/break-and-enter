@@ -274,7 +274,7 @@ step("they chase you out of the house and all the way back down the street", fun
 	local mark = #Mock.remoteLog
 	local PlayerData = moduleOf("PlayerData")
 	-- Train a pile of speed first: inside a house it must not matter one bit.
-	PlayerData.addSpeed(thief, 400)
+	PlayerData.addSpeed(thief, 5000)
 	Mock.advance(0.2)
 	local realSpeed = thief:GetAttribute("WalkSpeed")
 	check(realSpeed > 1000, "training should have made you quick, got " .. tostring(realSpeed))
@@ -502,16 +502,6 @@ step("buy upgrades in the shop", function()
 	eq(treadmill.AccentBar.Color, Config.treadmillColor(2), "trim colour follows the level")
 end)
 
-local function speedToasts(player, since: number): number
-	local count = 0
-	for _, message in notificationsFor(player, since) do
-		if string.find(message, "Speed up", 1, true) then
-			count += 1
-		end
-	end
-	return count
-end
-
 step("AFK training on your own treadmill", function()
 	local mark = #Mock.remoteLog
 	local treadmill = plot.Treadmill
@@ -522,7 +512,7 @@ step("AFK training on your own treadmill", function()
 	eq(treadmill:GetAttribute("OwnerUserId"), 101, "treadmill knows its owner")
 	eq(treadmill:GetAttribute("Running"), false, "belt idle")
 	eq(thief:GetAttribute("SpeedPoints"), 0, "no speed trained yet")
-	eq(thief:GetAttribute("Speed"), 4, "Speed starts at a quarter of the 16 studs/s you walk at")
+	eq(thief:GetAttribute("Speed"), 80, "Speed starts at five times the 16 studs/s you walk at")
 	eq(humanoid.WalkSpeed, 16, "walking at the Roblox default")
 
 	-- You have to actually be on it.
@@ -543,14 +533,14 @@ step("AFK training on your own treadmill", function()
 	Mock.advance(0.3)
 	check(string.find(console.Text, "+1 speed / 4s", 1, true), "console shows the level 1 rate: " .. console.Text)
 
-	-- Level 1 hands out one speed every 4 seconds: +1 Speed, which is +4 studs/s.
+	-- Level 1 hands out one displayed speed every 4 seconds. The displayed
+	-- value is always exactly five times the physical studs/s value.
 	Mock.advance(5)
-	eq(thief:GetAttribute("Speed"), 5, "one speed after the first 4 seconds")
-	eq(humanoid.WalkSpeed, 20, "and you really do move 4 studs/s faster")
-	check(sawMessage(thief, mark, "Speed up"), "no speed-up message")
+	eq(thief:GetAttribute("Speed"), 81, "one displayed speed after the first 4 seconds")
+	eq(humanoid.WalkSpeed, 16.2, "Speed 81 means 16.2 studs/s")
 	Mock.advance(8)
-	eq(thief:GetAttribute("Speed"), 7, "a speed point every 4 seconds (3 of them in 12 seconds)")
-	eq(humanoid.WalkSpeed, 28, "walk speed is 4x the Speed stat")
+	eq(thief:GetAttribute("Speed"), 83, "a displayed speed point every 4 seconds (3 in 12 seconds)")
+	eq(humanoid.WalkSpeed, 16.6, "displayed Speed stays 5x the walk speed")
 	eq(thief:GetAttribute("Training"), true, "still training")
 
 	-- Level 2 doubles the gain and halves the wait: four times the speed per second.
@@ -564,13 +554,12 @@ step("AFK training on your own treadmill", function()
 	check(thief:GetAttribute("Speed") >= before + 4, "level 2 should train 4x faster than level 1")
 	check(thief:GetAttribute("Speed") <= before + 6, "level 2 shouldn't be faster than that")
 
-	-- A maxed treadmill pours speed on; the toasts get batched.
+	-- A maxed treadmill pours speed on. The client converts each replicated
+	-- increase into its own floating number instead of server toast batching.
 	session.Profile.Levels.Treadmill = #Config.UpgradesById.Treadmill.Values
-	local burstMark = #Mock.remoteLog
 	before = thief:GetAttribute("Speed")
 	Mock.advance(3)
 	check(thief:GetAttribute("Speed") >= before + 8000, "a maxed treadmill should pour on the speed")
-	check(speedToasts(thief, burstMark) <= 2, "speed toasts should be batched, got " .. speedToasts(thief, burstMark))
 	eq(thief:GetAttribute("SpeedMaxed"), nil, "there is no speed cap")
 	session.Profile.Levels.Treadmill = 2
 	Mock.advance(0.3)
@@ -866,8 +855,8 @@ step("progress saves on leave and loads on rejoin", function()
 	check(returning:GetAttribute("Cash") >= cash, "cash restored")
 	eq(#plot.Display:GetChildren(), #stored, "shelves rebuilt")
 	check(returning:GetAttribute("SpeedPoints") >= 1, "trained speed restored")
-	check(returning:GetAttribute("Speed") >= 5, "Speed stat restored")
-	eq(returning:GetAttribute("WalkSpeed"), 4 * returning:GetAttribute("Speed"), "walk speed is 4x the Speed stat")
+	check(returning:GetAttribute("Speed") >= 80, "Speed stat restored")
+	eq(returning:GetAttribute("Speed"), 5 * returning:GetAttribute("WalkSpeed"), "displayed Speed is 5x walk speed")
 	eq(returning:GetAttribute("Level_Treadmill"), 3, "treadmill level restored")
 	local discovered = string.split(returning:GetAttribute("Discovered"), ",")
 	eq(#discovered, #saved.Discovered, "Loot Index restored")
@@ -892,8 +881,8 @@ step("old saves with gym treadmill unlocks become treadmill levels", function()
 	-- with 8 levels must come back at exactly the same walk speed (16 + 8 = 24).
 	local legacy = newPlayer(505, "LegacyRunner")
 	Mock.advance(0.5)
-	eq(legacy:GetAttribute("SpeedPoints"), 2, "8 old speed levels -> 2 speed points")
-	eq(legacy:GetAttribute("Speed"), 6, "which is Speed 6 at a quarter of the speed")
+	eq(legacy:GetAttribute("SpeedPoints"), 40, "8 old speed levels -> 40 display-speed points")
+	eq(legacy:GetAttribute("Speed"), 120, "which is Speed 120 at five times the walk speed")
 	eq(legacy:GetAttribute("WalkSpeed"), 24, "and the same walk speed they had before")
 
 	for _, player in { elite, pro, legacy } do
@@ -940,7 +929,7 @@ step("the rebirth shrine trades all your speed for a permanent multiplier", func
 	eq(bought.Ok, true, "rebirth bought: " .. tostring(bought.Message))
 	eq(spinner:GetAttribute("Rebirths"), 1, "the rebirth is counted")
 	eq(spinner:GetAttribute("SpeedPoints"), 0, "every speed point is spent")
-	eq(spinner:GetAttribute("Speed"), 4, "the Speed stat starts over")
+	eq(spinner:GetAttribute("Speed"), 80, "the Speed stat starts over")
 	eq(spinner:GetAttribute("WalkSpeed"), 16, "and you jog at the base speed again")
 	eq(spinner.leaderstats.Rebirths.Value, 1, "the leaderboard brags about the rebirth")
 	eq(spinner:GetAttribute("Income"), incomeBefore * 1.1, "coins per second pick up the x1.1")

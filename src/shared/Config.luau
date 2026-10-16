@@ -136,30 +136,34 @@ end
 --------------------------------------------------------------------------------
 -- Speed training
 --
--- The "Speed" stat (the HUD, the leaderboard and the treadmill all quote it) is
--- a quarter of the speed you actually move at:
+-- The "Speed" stat is the player-facing number: the HUD, leaderboard and
+-- treadmill all show it. It is deliberately five times the real movement rate:
 --
---     Speed 4  =  16 studs/s   (what you start with)
---     Speed 5  =  20 studs/s   (one speed point = four studs/s)
+--     Speed 80  =  16 studs/s   (what you start with)
+--     Speed 81  =  16.2 studs/s (one trained speed point = 0.2 studs/s)
 --
--- There is no ceiling: the longer you run, the faster you get.
+-- That keeps the stat satisfying to grow while the character's physical speed
+-- remains honest and easy to compare with defenders. There is no ceiling.
 --------------------------------------------------------------------------------
 Config.Speed = {
 	BaseWalkSpeed = 16, -- Roblox default walk speed
-	SpeedDivisor = 4, -- the speed you move at is the Speed stat times this
+	DisplayMultiplier = 5, -- displayed Speed is always this many times studs/s
 	-- Speed is uncapped; set a number here if you ever want a ceiling back.
 	MaxWalkSpeed = math.huge,
 }
 
--- The Speed stat for a number of trained speed points (it starts at BaseWalkSpeed / SpeedDivisor).
+-- The player-facing Speed for a number of trained speed points. SpeedPoints
+-- count display-speed gained above the base 80, so only complete points change
+-- the stat (and create a floating gain number on the client).
 function Config.speedStatForPoints(points: number): number
-	local base = math.floor(Config.Speed.BaseWalkSpeed / Config.Speed.SpeedDivisor)
+	local base = Config.Speed.BaseWalkSpeed * Config.Speed.DisplayMultiplier
 	return base + math.max(0, math.floor(points))
 end
 
--- The speed you move at: always exactly SpeedDivisor times the Speed stat.
+-- The real movement speed in studs/s: always exactly one fifth of the
+-- displayed Speed stat.
 function Config.walkSpeedForPoints(points: number): number
-	local walkSpeed = Config.speedStatForPoints(points) * Config.Speed.SpeedDivisor
+	local walkSpeed = Config.speedStatForPoints(points) / Config.Speed.DisplayMultiplier
 	return math.min(walkSpeed, Config.Speed.MaxWalkSpeed)
 end
 

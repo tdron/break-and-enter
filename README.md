@@ -152,8 +152,9 @@ Every garage has its own treadmill out front, to the left of the loading dock. A
 - **Walk onto the belt** and your character starts running by itself. Your movement keys switch off, so you can go AFK and keep getting faster.
 - Press **ESCAPE**, **Space**, or **A** on a gamepad to hop off beside it. Walk back on to run again.
 - A treadmill hands out **speed**: level 1 gives **+1 speed every 4 seconds**. Every upgrade **doubles the amount** and **halves the wait**, so each level trains you exactly **four times faster**: by level 8 you're getting 128 speed every 1/32 of a second, which is **4,096 a second**.
-- One speed point is **+1 Speed** on your HUD — and your Speed is **a quarter of the speed you actually move**. A fresh player is *Speed 4* at the usual 16 studs/s, and *Speed 4 ➜ 5* really is 16 ➜ 20 studs/s.
-- **There is no speed cap.** Keep running and you'll leave the whole street in the dust — even the museum's fleet only runs at 125,000,000, which is about Speed 31 million, so a maxed treadmill (4,096 speed per second) eventually gets you there. The T-Rex (100,000) is the first real wall: it's about Speed 25,000.
+- Every whole gain rises as a cyan **`+SPEED`** number directly above your runner — there is no persistent treadmill bar covering the bottom of the screen.
+- One speed point is **+1 displayed Speed** on your HUD and leaderboard. Displayed Speed is always **five times** your real movement rate: a fresh player is *Speed 80* at 16 studs/s, and *Speed 80 ➜ 81* really is 16 ➜ 16.2 studs/s.
+- **There is no speed cap.** Keep running and you'll leave the whole street in the dust — even the museum's fleet only runs at 125,000,000 studs/s, which is Speed 625 million. A maxed treadmill adds 4,096 displayed Speed per second (819.2 studs/s), so it eventually gets you there. The T-Rex (100,000 studs/s) is the first real wall: Speed 500,000.
 - You upgrade the treadmill itself, either at the market stall in the yard or by holding **E** at its console. Its trim gets flashier with every level, and only you can use or upgrade yours.
 - Prices climb the same way the treadmill does: every level costs **four times** the last one.
 
@@ -175,7 +176,7 @@ Beside the market hall stands the **♻️ rebirth shrine**. It trades every spe
 - It costs **1,000,000 speed points** for your first rebirth, and every one after that costs **×2.5 more** (2.5M, 6.25M, 15.6M, …) — the ladder never ends.
 - Each rebirth adds a permanent **+×0.1 to your production multiplier**, forever: **×1.1** after one, **×1.2** after two, **×2** after ten.
 - The multiplier applies to **warehouse income *and* treadmill training**, and it is saved with your progress.
-- It spends your trained speed to do it — you go back to **Speed 4** — so a rebirth is a decision about the long game, not a free upgrade. The +0.1 lands on the treadmill too, so the climb back is quicker than the last one was.
+- It spends your trained speed to do it — you go back to **Speed 80** — so a rebirth is a decision about the long game, not a free upgrade. The +0.1 lands on the treadmill too, so the climb back is quicker than the last one was.
 - Your **Rebirths** count is on the leaderboard with your cash, loot and speed.
 
 | Rebirths | 1 | 2 | 3 | 5 | 10 | 15 |

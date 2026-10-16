@@ -105,19 +105,19 @@ test("warehouse storage fits the 50 shelf slots", function()
 	check(storage.Values[#storage.Values] <= 50, "max storage exceeds the 50 slots in each warehouse")
 end)
 
-test("the Speed stat is a quarter of the speed you move at, with no ceiling", function()
-	eq(Config.Speed.SpeedDivisor, 4)
-	eq(Config.speedStatForPoints(0), 4, "a fresh player is Speed 4")
+test("the displayed Speed is five times real movement speed, with no ceiling", function()
+	eq(Config.Speed.DisplayMultiplier, 5)
+	eq(Config.speedStatForPoints(0), 80, "a fresh player is Speed 80")
 	eq(Config.walkSpeedForPoints(0), 16, "and walks at the usual 16 studs/s")
 	for points = 0, 20 do
 		local stat = Config.speedStatForPoints(points)
-		eq(stat, 4 + points, "one speed point is +1 Speed")
-		eq(Config.walkSpeedForPoints(points), stat * Config.Speed.SpeedDivisor, "walk speed is 4x the Speed stat")
+		eq(stat, 80 + points, "one speed point is +1 displayed Speed")
+		eq(stat, Config.walkSpeedForPoints(points) * Config.Speed.DisplayMultiplier, "displayed Speed is 5x studs/s")
 	end
-	eq(Config.walkSpeedForPoints(6.75), 40, "fractional points don't round the Speed stat up")
+	eq(Config.walkSpeedForPoints(6.75), 17.2, "fractional points don't round the display stat up")
 	-- No ceiling: the speed keeps climbing.
 	check(Config.walkSpeedForPoints(1000) > Config.walkSpeedForPoints(999), "speed must keep growing")
-	eq(Config.walkSpeedForPoints(1000), 4016)
+	eq(Config.walkSpeedForPoints(1000), 216)
 end)
 
 test("treadmill levels: the gain doubles and the wait halves, four times faster each level", function()

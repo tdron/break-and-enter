@@ -102,7 +102,7 @@ for name, value in {
 	WalkSpeed = 16,
 	SpeedPoints = 0,
 	SpeedProgress = 0,
-	Speed = 4,
+	Speed = 80,
 	Level_Bag = 1,
 	Level_Storage = 1,
 	Level_Treadmill = 1,
@@ -365,11 +365,7 @@ step("walking onto your treadmill makes you run by yourself", function()
 	eq(escape.Visible, true, "ESCAPE button shown")
 	check(findText(escape, "ESCAPE"), "escape label")
 	check(findText(escape, "SPACE"), "Space key hint")
-	local training = hud:FindFirstChild("Training", true)
-	eq(training.Visible, true, "training bar shown")
-	check(findText(training, "Speed 4 (16 studs/s)"), "training bar shows the Speed stat and the real studs/s")
-	check(findText(training, "+1 speed / 4s"), "training rate: the treadmill's own rate")
-	check(findText(training, "Lv 1"), "training bar shows the treadmill level")
+	check(not hud:FindFirstChild("Training", true), "the persistent training bar should be removed")
 	check(findText(hud, "go AFK"), "objective should say AFK is fine: " .. tostring(hud:FindFirstChild("Objective", true) and hud:FindFirstChild("Objective", true).Text))
 	eq(belt.MyTreadmillSign.Enabled, false, "sign hidden while you run")
 
@@ -380,22 +376,20 @@ step("walking onto your treadmill makes you run by yourself", function()
 	player:SetAttribute("Level_Treadmill", 4)
 	Mock.advance(0.1)
 	check(track.Speed > 1, "legs move faster on an upgraded treadmill")
-	check(findText(training, "Lv 4"), "training bar follows the treadmill level")
-	check(findText(training, "16 speed/s"), "level 4 rate: 8 speed every half second, said per second")
+	check(not hud:FindFirstChild("Training", true), "the treadmill level must not restore a bottom bar")
 
-	-- Two and a half speed points in: Speed 6, a quarter of the 26 studs/s you now move at.
-	player:SetAttribute("SpeedPoints", 2.5)
-	player:SetAttribute("Speed", 6)
-	player:SetAttribute("WalkSpeed", 26)
-	player:SetAttribute("SpeedProgress", 0.5)
+	-- A replicated training gain now floats over the runner instead of filling a
+	-- permanent bottom bar. Displayed Speed stays exactly 5x the real studs/s.
+	player:SetAttribute("SpeedPoints", 3)
+	player:SetAttribute("Speed", 83)
+	player:SetAttribute("WalkSpeed", 16.6)
 	Mock.advance(0.1)
-	check(findText(training, "Speed 6 (26 studs/s)"), "training bar follows your Speed stat")
+	local gain = root:FindFirstChild("TreadmillSpeedGain")
+	check(gain, "a speed gain should float above the character")
+	check(findText(gain, "+3 SPEED"), "floating number says how much speed was gained")
 	check(findText(hud, "👟"), "the stat panel has a speed row")
-
-	-- The bar fills up to the next whole speed point.
-	local barFill = training:FindFirstChild("Fill", true)
-	check(barFill, "training bar has a fill")
-	eq(barFill.Size.X.Scale, 0.5, "half a point in, the bar is half full")
+	check(findText(hud, "83"), "the stat panel follows the displayed Speed")
+	check(not hud:FindFirstChild("Training", true), "no bottom treadmill bar should return")
 end)
 
 step("Space hops you off the treadmill", function()
@@ -412,7 +406,7 @@ step("Space hops you off the treadmill", function()
 	eq(track.IsPlaying, false, "run animation stopped")
 	check(flatDistance(root.Position, myTreadmill.ExitPoint.Position) < 0.1, "stepped off beside the treadmill")
 	eq(hud:FindFirstChild("TreadmillEscape", true).Visible, false, "ESCAPE button hidden")
-	eq(hud:FindFirstChild("Training", true).Visible, false, "training bar hidden")
+	check(not hud:FindFirstChild("Training", true), "training bar stays removed")
 	eq(belt.MyTreadmillSign.Enabled, true, "sign back")
 	check(not Mock.pressKey(Enum.KeyCode.Space), "Space should jump normally again")
 end)
