@@ -62,8 +62,9 @@ local function setupSirens(map: Instance)
 			if siren:IsA("BasePart") then
 				local light = Instance.new("PointLight")
 				light.Color = SIREN_RED
-				light.Range = 18
-				light.Brightness = 4
+				-- Alarms remain noticeable without blowing out the semi-dim street lighting.
+				light.Range = 14
+				light.Brightness = 0.8
 				light.Enabled = false
 				light.Parent = siren
 				table.insert(entry.Sirens, siren)
