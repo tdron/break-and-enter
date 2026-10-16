@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+
+# Roblox Studio lock / backup files
+*.rbxl.lock
+*.rbxlx.lock
+*.rbxl.bak
+*.rbxlx.bak
+
+# Local tool downloads (luau-lsp, luau, rbx-dom database, ...)
+.tools/
+database.json
+
+# Editors / OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,41 @@
+{
+  "name": "StealAnItem",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": {
+        "$path": "src/shared"
+      },
+      "Remotes": {
+        "$className": "Folder",
+        "Notify": {
+          "$className": "RemoteEvent"
+        },
+        "Busted": {
+          "$className": "RemoteEvent"
+        },
+        "Purchase": {
+          "$className": "RemoteFunction"
+        },
+        "SpawnCar": {
+          "$className": "RemoteFunction"
+        },
+        "Treadmill": {
+          "$className": "RemoteFunction"
+        }
+      }
+    },
+    "ServerScriptService": {
+      "Server": {
+        "$path": "src/server"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "Client": {
+          "$path": "src/client"
+        }
+      }
+    }
+  }
+}

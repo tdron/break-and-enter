@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Steal an Item — New UI (preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#faf7f0; --white:#ffffff; --card-top:#f6f2e9;
+    --stroke:#d2cce2; --ink:#2e2a3e; --ink-soft:#78718c;
+    --gold:#ffcd46; --gold-dark:#eb9818; --green:#54e48c; --green-dark:#1ea85c;
+    --red:#ff4a4a; --red-dark:#c41e2c; --blue:#56aaff; --blue-dark:#266edc;
+    --orange:#ff9e38; --orange-dark:#e66c10; --purple:#b676ff; --purple-dark:#7e42eb;
+    --cyan:#58e2ff; --cyan-dark:#1c94c8;
+    --rare:#2474eb; --epic:#9e50e1; --legend:#d48e18; --common:#969bac;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; font-family:'Fredoka','Inter',sans-serif;}
+  body{background:#0a0c16; color:var(--ink); padding:28px; min-height:100vh;}
+  h1{font-size:28px; font-weight:600; letter-spacing:.5px; color:#fff;}
+  h1 .raccoon{font-size:30px;}
+  .subtitle{color:#9aa2c0; font-family:'Inter'; font-size:14px; margin:6px 0 24px;}
+  .screens{display:flex; flex-direction:column; gap:30px;}
+
+  .screen{
+    position:relative; width:1180px; height:660px; border-radius:22px; overflow:hidden;
+    border:2px solid #2a3050; flex-shrink:0;
+    background:
+      radial-gradient(1200px 500px at 78% 108%, rgba(70,90,160,.40), transparent 60%),
+      radial-gradient(900px 420px at 18% 112%, rgba(54,70,130,.35), transparent 60%),
+      linear-gradient(#0b0e22 0%, #141a3e 62%, #1a2148 100%);
+    box-shadow:0 24px 60px rgba(0,0,0,.55);
+  }
+  .screen-label{
+    position:absolute; top:14px; right:16px; font-family:'Inter'; font-size:11px; font-weight:700;
+    color:#dfe3f5; background:rgba(20,24,44,.8); border:1px solid #3a4266; padding:5px 10px; border-radius:99px; z-index:60;
+  }
+  /* fake world */
+  .moon{position:absolute; top:60px; left:52%; width:64px; height:64px; border-radius:50%;
+    background:radial-gradient(circle at 35% 35%, #fffbe8, #ffe9b0 70%); box-shadow:0 0 60px 22px rgba(255,240,190,.28);}
+  .house{position:absolute; bottom:70px; width:190px; height:150px; background:linear-gradient(#3a4266,#2c3352);
+    border-radius:8px; border:2px solid #1c2136;}
+  .house:before{content:""; position:absolute; top:-42px; left:-10px; width:0; height:0;
+    border-left:105px solid transparent; border-right:105px solid transparent; border-bottom:42px solid #4c5580;}
+  .house .door{position:absolute; bottom:0; left:74px; width:42px; height:66px; background:#222840; border-radius:6px 6px 0 0;}
+  .house .win{position:absolute; top:40px; width:34px; height:34px; background:#ffd971; border-radius:7px; box-shadow:0 0 18px rgba(255,217,113,.7);}
+  .road{position:absolute; bottom:0; width:100%; height:70px; background:linear-gradient(#262c48,#1d2240);}
+  .road:before{content:""; position:absolute; top:32px; left:0; width:100%; height:6px;
+    background:repeating-linear-gradient(90deg,#ffd36e 0 34px, transparent 34px 78px); opacity:.8;}
+
+  .frame{position:absolute;}
+  .shadowed{box-shadow:0 5px 14px rgba(84,76,110,.28);}
+
+  /* ---- HUD: cash pill ---- */
+  .hud-left{top:14px; left:14px; width:260px;}
+  .cash{
+    width:260px; height:76px; border-radius:18px; position:relative;
+    background:linear-gradient(var(--gold), var(--gold-dark));
+    border:2.5px solid rgba(255,255,255,.8);
+  }
+  .chip{
+    position:absolute; border-radius:33%; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(#ffffff,#e1e6f5); border:1.5px solid rgba(255,255,255,.45);
+  }
+  .cash .chip{width:48px; height:48px; left:12px; top:14px; font-size:26px;}
+  .cash .amount{position:absolute; left:72px; top:10px; font-size:33px; font-weight:600; color:#fff;
+    text-shadow:0 2px 0 rgba(120,70,0,.55);}
+  .cash .income{
+    position:absolute; right:10px; bottom:8px; background:rgba(255,255,255,.7); color:var(--green-dark);
+    font-family:'Inter'; font-weight:700; font-size:12.5px; padding:4px 8px; border-radius:12px;
+  }
+  .stats{
+    margin-top:8px; width:260px; height:120px; border-radius:16px;
+    background:linear-gradient(var(--white), var(--cream));
+    border:1.5px solid var(--stroke); padding:10px;
+  }
+  .stat{display:flex; align-items:center; gap:10px; height:32px; margin:4px 0;}
+  .stat .chip{position:static; width:28px; height:28px; font-size:16px; flex-shrink:0;}
+  .stat .name{flex:1; color:var(--ink); font-family:'Inter'; font-weight:600; font-size:12.5px;}
+  .stat .value{font-size:21px; font-weight:600; color:var(--ink);}
+  .chip.orange{background:linear-gradient(var(--orange),var(--orange-dark));}
+  .chip.blue{background:linear-gradient(var(--blue),var(--blue-dark));}
+  .chip.cyan{background:linear-gradient(var(--cyan),var(--cyan-dark));}
+  .chip.purple{background:linear-gradient(var(--purple),var(--purple-dark));}
+
+  /* ---- right rail ---- */
+  .rail{top:50%; right:14px; transform:translateY(-50%); display:flex; flex-direction:column; gap:10px;}
+  .rail button{
+    width:132px; height:58px; border-radius:16px; border:2.5px solid rgba(255,255,255,.75);
+    color:#fff; font-size:19px; font-weight:600; letter-spacing:.3px; cursor:pointer; position:relative;
+    transition:transform .12s ease;
+  }
+  .rail button:hover{transform:scale(1.07);}
+  .rail button:active{transform:scale(.92);}
+  .rail .shop{background:var(--orange);}
+  .rail .storage{background:var(--green);}
+  .rail .index{background:var(--purple);}
+  .rail .badge{
+    position:absolute; top:-8px; right:-6px; min-width:30px; height:30px; border-radius:15px;
+    background:var(--red); border:2px solid #fff;
+    display:flex; align-items:center; justify-content:center; font-size:16px; padding:0 4px;
+  }
+
+  /* ---- clock ---- */
+  .clock{
+    top:10px; left:50%; transform:translateX(-50%); width:330px; height:66px; border-radius:20px;
+    background:#e2e8ff; border:2px solid rgba(255,255,255,.85); text-align:center; padding-top:5px;
+  }
+  .clock .t{font-size:25px; font-weight:600; letter-spacing:.6px; color:var(--ink);}
+  .clock .h{font-family:'Inter'; font-size:11px; font-weight:700; color:var(--ink-soft); margin-top:1px;}
+  .clock .bar{position:absolute; left:14px; right:14px; bottom:8px; height:6px; border-radius:3px; background:rgba(94,90,122,.25);}
+  .clock .bar i{display:block; height:100%; width:62%; border-radius:3px; background:var(--cyan-dark);}
+
+  /* ---- alarm banner ---- */
+  .alarm{
+    top:86px; left:50%; transform:translateX(-50%); width:620px; height:70px; border-radius:18px;
+    border:3px solid rgba(255,255,255,.85); text-align:center; padding-top:3px;
+    background:var(--red);
+    animation:pulse .8s infinite alternate;
+  }
+  @keyframes pulse{from{filter:brightness(1)} to{filter:brightness(1.15)}}
+  .alarm .t{font-size:27px; font-weight:600; color:#fff; text-shadow:0 2px 0 rgba(80,0,0,.55); letter-spacing:.5px;}
+  .alarm .h{font-family:'Inter'; font-size:12.5px; font-weight:700; color:#ffe4e4;}
+
+  /* ---- objective pill ---- */
+  .objective{
+    bottom:14px; left:50%; transform:translateX(-50%); max-width:660px; height:42px; border-radius:21px;
+    background:rgba(255,255,255,.92); border:1.5px solid var(--stroke); display:flex; align-items:center;
+    padding:0 22px; font-family:'Inter'; font-weight:600; font-size:13.5px; white-space:nowrap; color:var(--ink);
+  }
+
+  /* ---- toast ---- */
+  .toast{
+    position:absolute; top:168px; left:50%; transform:translateX(-50%); width:420px; min-height:58px;
+    border-radius:14px; background:linear-gradient(var(--white),var(--cream));
+    border:2px solid rgba(158,80,225,.55); display:flex; align-items:center; padding:11px 14px;
+  }
+  .toast .accent{position:absolute; left:0; top:0; bottom:0; width:5px; border-radius:3px 0 0 3px;
+    background:linear-gradient(var(--purple),var(--purple-dark));}
+  .toast .text{font-family:'Inter'; font-weight:600; font-size:13px; margin-left:44px; color:var(--ink);}
+  .toast .chip{width:34px; height:34px; left:10px; position:absolute; font-size:18px;}
+
+  /* ---- training ---- */
+  .training{
+    bottom:66px; left:50%; transform:translateX(-50%); width:460px; height:62px; border-radius:14px;
+    background:var(--white); border:2px solid var(--cyan-dark);
+  }
+  .training .t{position:absolute; top:7px; left:14px; font-size:19px; font-weight:600; color:var(--cyan-dark);}
+  .training .r{position:absolute; top:9px; right:14px; font-family:'Inter'; font-size:12px; font-weight:700; color:var(--orange-dark);}
+  .training .bar{position:absolute; left:14px; right:14px; bottom:9px; height:16px; border-radius:8px;
+    background:rgba(94,90,122,.2);}
+  .training .bar i{display:block; height:100%; width:41%; border-radius:8px;
+    background:linear-gradient(var(--cyan),var(--cyan-dark));}
+
+  /* ---- window ---- */
+  .window{
+    top:50%; left:50%; transform:translate(-50%,-50%); width:680px; height:540px; border-radius:20px;
+    background:linear-gradient(var(--white), var(--cream)); border:2.5px solid var(--gold);
+    overflow:hidden; box-shadow:0 8px 20px rgba(84,76,110,.30), 0 30px 60px rgba(0,0,0,.35);
+  }
+  .titlebar{height:58px; position:relative;
+    background:linear-gradient(var(--gold), var(--gold-dark));}
+  .titlebar .chip{width:40px; height:40px; left:14px; top:9px; font-size:22px;}
+  .titlebar .name{position:absolute; left:70px; top:13px; font-size:27px; font-weight:600; color:#fff;
+    text-shadow:0 2px 0 rgba(120,70,0,.5); letter-spacing:.5px;}
+  .titlebar .cashchip{
+    position:absolute; right:62px; top:13px; width:220px; height:32px; border-radius:16px;
+    background:rgba(255,255,255,.75); color:var(--green-dark); font-size:19px; font-weight:600;
+    display:flex; align-items:center; justify-content:center; border:1.5px solid rgba(255,255,255,.5);
+  }
+  .close{
+    position:absolute; right:10px; top:8px; width:42px; height:42px; border-radius:21px;
+    background:var(--red); border:2px solid rgba(255,255,255,.65);
+    color:#fff; font-size:21px; font-weight:700; cursor:pointer; z-index:6;
+  }
+  .cards{padding:12px 16px; display:flex; flex-direction:column; gap:10px;}
+  .card{
+    height:96px; border-radius:14px; position:relative; display:flex; align-items:center;
+    background:linear-gradient(var(--white), var(--card-top)); border:1.5px solid var(--stroke);
+  }
+  .card .accent{position:absolute; left:8px; top:8px; bottom:8px; width:5px; border-radius:3px;
+    background:linear-gradient(var(--gold),var(--gold-dark));}
+  .card .chip{width:64px; height:64px; left:22px; font-size:34px; position:absolute;}
+  .card .body{position:absolute; left:100px; top:10px; right:170px;}
+  .card .body .t{font-size:23px; font-weight:600; color:var(--ink);}
+  .card .body .v{font-family:'Inter'; font-size:12px; font-weight:700; color:var(--ink-soft); margin-top:3px;}
+  .card .body .d{font-family:'Inter'; font-size:11px; font-weight:600; color:var(--ink-soft); margin-top:3px;}
+  .card .lvl{
+    position:absolute; right:164px; top:12px; background:#eee9dc; color:var(--gold-dark);
+    font-family:'Inter'; font-size:11.5px; font-weight:800; padding:4px 12px; border-radius:12px;
+  }
+  .card .buy{
+    position:absolute; right:12px; top:21px; width:140px; height:54px; border-radius:12px;
+    border:2px solid rgba(255,255,255,.65); color:#fff; font-size:20px; font-weight:600; cursor:pointer;
+    transition:transform .12s ease;
+  }
+  .buy.green{background:var(--green);}
+  .buy.maxxed{background:#a8acbe; cursor:default;}
+  .card .buy:hover{transform:scale(1.06);}
+  .tip{
+    position:absolute; left:16px; right:16px; bottom:12px; height:36px; border-radius:12px;
+    background:rgba(255,255,255,.65); border:1px solid var(--stroke); display:flex; align-items:center;
+    justify-content:center; font-family:'Inter'; font-size:11.5px; font-weight:600; color:var(--ink-soft);
+	label}>{ }
+
+  /* ---- busted ---- */
+  .busted{
+    position:absolute; inset:0; background:
+      linear-gradient(rgba(60,0,10,.55), rgba(170,0,20,.32) 40%, rgba(60,0,10,.55));
+  }
+  .busted:before,.busted:after{content:""; position:absolute; left:0; right:0; height:16%; background:rgba(120,0,14,.45);}
+  .busted:before{top:0} .busted:after{bottom:0}
+  .busted .big{position:absolute; top:37%; left:50%; transform:translate(-50%,-50%);
+    font-size:96px; font-weight:700; color:#fff; letter-spacing:2px;
+    text-shadow:0 0 0 #500, 0 6px 0 rgba(80,0,0,.9), 0 18px 40px rgba(0,0,0,.6);
+    animation:pop .45s ease both;}
+  @keyframes pop{from{transform:translate(-50%,-50%) scale(.5); opacity:0} to{transform:translate(-50%,-50%) scale(1); opacity:1}}
+  .busted .sub{position:absolute; top:56%; left:0; right:0; text-align:center; font-family:'Inter';
+    font-size:17px; font-weight:700; color:#ffe6e6; text-shadow:0 1px 0 rgba(80,0,0,.8);}
+
+  .callouts{display:flex; flex-wrap:wrap; gap:10px; margin-top:22px; max-width:1180px;}
+  .callout{font-family:'Inter'; font-size:12px; font-weight:600; color:#9aa2c0;
+    background:#141832; border:1px solid #2a3050;
+    padding:9px 14px; border-radius:99px;}
+  .callout b{color:#e8ebf8;}
+</style>
+</head>
+<body>
+  <h1><span class="raccoon">🦝</span> Steal an Item — UI redesign preview</h1>
+  <div class="subtitle">Approximation of the new in-game HUD — now in the light, clean <b>Steal an Egg</b> style (cream cards, ink text, candy accent buttons). True look: open <b>StealAnItem.rbxlx</b> in Roblox Studio and press Play.</div>
+
+  <div class="screens">
+    <!-- Screen 1: the HUD -->
+    <div class="screen">
+      <div class="screen-label">HUD — night heist</div>
+      <div class="moon"></div>
+      <div class="house" style="left:16%"><div class="door"></div><div class="win" style="left:18px"></div><div class="win" style="right:18px"></div></div>
+      <div class="house" style="right:16%"><div class="door"></div><div class="win" style="left:18px"></div><div class="win" style="right:18px"></div></div>
+      <div class="road"></div>
+
+      <div class="clock shadowed"><div class="t">🌙 NIGHT · 2:09</div><div class="h">Houses open · loot restocks at sunrise</div><div class="bar"><i></i></div></div>
+
+      <div class="frame hud-left">
+        <div class="cash shadowed">
+          <div class="chip">💰</div>
+          <div class="amount">$12,345</div>
+          <div class="income">+$42 / sec</div>
+        </div>
+        <div class="stats shadowed">
+          <div class="stat"><div class="chip orange">🎒</div><div class="name">Loot Bag</div><div class="value">2 / 2</div></div>
+          <div class="stat"><div class="chip blue">📦</div><div class="name">Warehouse</div><div class="value" style="color:var(--orange-dark)">8 / 10</div></div>
+          <div class="stat"><div class="chip cyan">👟</div><div class="name">Speed</div><div class="value">49</div></div>
+        </div>
+      </div>
+
+      <div class="rail">
+        <button class="shop">🛒 SHOP</button>
+        <button class="storage">📦 STORAGE</button>
+        <button class="index">📖 LOOT INDEX<span class="badge">3</span></button>
+      </div>
+
+      <div class="alarm shadowed"><div class="t">🚨 ALARM AT THE MAPLE COTTAGE! 🚨</div><div class="h">Get off the property before the Ginger Cat catches you!</div></div>
+
+      <div class="toast shadowed"><div class="accent"></div><div class="chip purple">🦝</div><div class="text">Stole a Toaster! Worth $25.</div></div>
+
+      <div class="training shadowed"><div class="t">🏃 Speed 49 (196 studs/s)</div><div class="r">Lv 2 · ⚡ +2 speed / 2s</div><div class="bar"><i></i></div></div>
+
+      <div class="objective">🚨 Alarm! Run back up the street — defenders chase you to the yard mouth.</div>
+    </div>
+
+    <!-- Screen 2: the shop window showing the light loot-index section style -->
+    <div class="screen" style="background:linear-gradient(#0b0e22,#10142e);">
+      <div class="screen-label">Windows — Upgrade Shop</div>
+      <div class="window">
+        <div class="titlebar">
+          <div class="chip">🛒</div>
+          <div class="name">UPGRADE SHOP</div>
+          <div class="cashchip">💰 $12,345</div>
+          <button class="close">X</button>
+        </div>
+        <div class="cards">
+          <div class="card">
+            <div class="accent"></div><div class="chip" style="background:linear-gradient(var(--gold),var(--gold-dark))">🎒</div>
+            <div class="body"><div class="t">Loot Bag</div><div class="v">2 items ➜ 3 items</div><div class="d">Carry more stolen items at once.</div></div>
+            <div class="lvl">LV 1 / 8</div>
+            <button class="buy green">$150</button>
+          </div>
+          <div class="card">
+            <div class="accent"></div><div class="chip" style="background:linear-gradient(var(--gold),var(--gold-dark))">📦</div>
+            <div class="body"><div class="t">Warehouse Space</div><div class="v">10 slots ➜ 15 slots</div><div class="d">More shelves = more items earning you cash.</div></div>
+            <div class="lvl">LV 1 / 6</div>
+            <button class="buy green">$600</button>
+          </div>
+          <div class="card">
+            <div class="accent"></div><div class="chip" style="background:linear-gradient(var(--gold),var(--gold-dark))">🏃</div>
+            <div class="body"><div class="t">Treadmill</div><div class="v">8 speed/s ➜ MAX!</div><div class="d">Your warehouse treadmill trains faster (AFK works!)</div></div>
+            <div class="lvl">LV 8 / 8</div>
+            <button class="buy maxxed">MAXED</button>
+          </div>
+        </div>
+        <div class="tip">💡 Stored items earn cash every second. Run on your warehouse treadmill (even AFK!) to outrun faster defenders.</div>
+      </div>
+    </div>
+
+    <!-- Screen 3: BUSTED -->
+    <div class="screen">
+      <div class="screen-label">Busted overlay</div>
+      <div class="moon"></div>
+      <div class="house" style="left:20%"><div class="door"></div><div class="win" style="left:18px"></div><div class="win" style="right:18px"></div></div>
+      <div class="road"></div>
+      <div class="busted">
+        <div class="big">BUSTED!</div>
+        <div class="sub">The Ginger Cat at the Maple Cottage caught you! You dropped 3 items worth $450.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callouts">
+    <div class="callout"><b>Steal an Egg</b> — light cream cards, ink text, candy accent buttons, white outlines</div>
+    <div class="callout"><b>Pet Simulator 99</b> — right-edge square button rail, icon chips, green CTAs</div>
+    <div class="callout"><b>Adopt Me!</b> — Fredoka headlines + big rounded corners</div>
+    <div class="callout"><b>99 Nights</b> — cinematic top-cycle pill + full-width red alarm</div>
+  </div>
+</body>
+</html>
