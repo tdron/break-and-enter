@@ -2,7 +2,7 @@
 
 …actually called **Steal an Item** 🦝
 
-A complete Roblox heist game. You spawn in a walled yard of garages with the market in the middle, then run down a canyon street of houses at night, pick the locks, grab the loot and outrun whatever the owner keeps inside — a cat, a puppy, a labrador, a guard dog, a home owner with a rolling pin, an off-duty officer, a wizard, a T-Rex, a squad of security bots, and a security car; the Grand Mansion at the end of the road is the town's **museum**, with a whole fleet of them parked on the drive. Stash everything in your warehouse, where it earns you cash every second — or walk up to a shelf and **take an item back off it**, or sell it on the spot at the **💰 SELL POINT** stall in the yard. Spend the money on a bigger loot bag, more warehouse space and a better treadmill. Your treadmill sits outside your warehouse and trains you even while you're AFK, until you're fast enough to outrun the fastest defenders. Every house has its own loot, **Epic and Legendary items glow in their rarity's colour**, and the **📖 Loot Index** shows how many of the 48 items you've collected.
+A complete Roblox heist game. You spawn in a walled yard of garages with the market in the middle, then run down a canyon street of houses at night, pick the locks, grab the loot and outrun whatever the owner keeps inside — a cat, a puppy, a labrador, a guard dog, a home owner with a rolling pin, an off-duty officer, a wizard, a T-Rex, a squad of security bots, and a security car; the Grand Mansion at the end of the road is the town's **museum**, with a whole fleet of them parked on the drive. Stash everything in your warehouse, where it earns you cash every second — or walk up to a shelf and **take an item back off it**, or sell it on the spot at the **💰 SELL POINT** stall in the yard. Spend the money on a bigger loot bag, more warehouse space and a better treadmill. Your treadmill sits outside your warehouse and trains you even while you're AFK, until you're fast enough to outrun the fastest defenders — and when speed alone stops being enough, the **♻️ rebirth shrine** beside the market hall trades everything you have trained for a permanent boost to what your warehouse earns. Every house has its own loot, **Epic and Legendary items glow in their rarity's colour**, and the **📖 Loot Index** shows how many of the 48 items you've collected.
 
 ![Overview of the town](docs/preview-overview.png)
 
@@ -28,6 +28,7 @@ Everything is inside that one file: the town, all the scripts and the UI. Nothin
 | 6 | Step on the **green DEPOSIT pad** in your warehouse to shelve the loot you're carrying. |
 | 7 | Items on your shelves **earn cash every second**. Hold **E** on a shelf to open your **📦 STORAGE**, where you can **take an item back into your bag** or sell it for cash. |
 | 8 | In a hurry? Sell your whole bag at the **💰 SELL POINT** stall in the middle of the yard. Buy upgrades at the **🛒 UPGRADE SHOP** stall opposite. Walk onto **your treadmill** outside your garage to get faster (AFK works). |
+| 9 | Trained a mountain of speed? Spend it at the **♻️ SHRINE** beside the market hall for a permanent multiplier on everything your warehouse earns ([Rebirth](#-rebirth-at-the-shrine)). |
 
 **Controls:** WASD / arrow keys to walk and run. **E** to interact, **Space** to jump or hop off the treadmill. Mobile and gamepad use the standard Roblox controls.
 
@@ -66,6 +67,8 @@ Every house — the museum included — puts **five items out** at a time. House
 **The speed rule.** Inside a property *everyone* — you and them — moves at the standard Roblox speed. It is only out on the street that the numbers above apply, so a chase is a straight footrace: you keep whatever the treadmill has earned you, and they get their listed speed. (They are also quicker off the mark than you are, which is why houses 5+ are a treadmill problem, not a sneak problem.)
 
 **They chase you home.** A defender no longer gives up at its own gate: it follows you out of the house, along the street and into the canyon mouth. The chase only ends when you reach the **yard** (past the canyon mouth), when the daytime locks the houses up, or when someone catches you. The alarm banner at the top of the screen tells you who is coming and how fast they are.
+
+**They are physical.** A defender is a body, not a ghost: walls, shut doors, the furniture in the room and the other defenders all stop it, and it walks through the doorways rather than at the walls between them. If an opening is too small for it — the T-Rex is about 5.6 studs wide, the security cars 5.3 — it takes the roomiest way past instead of grinding in the door. Anything with legs also *walks* with a deliberately choppy stop-motion gait — six poses a second, faster or slower with the speed the body is really making — so one that is pinned against a wall stops stepping instead of moonwalking on the spot. The drones, the tracked bots and the cars hover or roll, so they are left out of it.
 
 The two hardest houses and the museum have **blinking laser tripwires**: time your run, or jump the low beams.
 
@@ -164,6 +167,21 @@ Every garage has its own treadmill out front, to the left of the loading dock. A
 ![A warehouse treadmill](docs/preview-treadmill.png)
 
 > Roblox itself disconnects anyone who gives no input for about 20 minutes. That's a platform rule a game can't turn off, but progress is saved when they leave.
+
+### ♻️ Rebirth (at the shrine)
+
+Beside the market hall stands the **♻️ rebirth shrine**. It trades every speed point you have trained for a permanent boost to production.
+
+- It costs **1,000,000 speed points** for your first rebirth, and every one after that costs **×2.5 more** (2.5M, 6.25M, 15.6M, …) — the ladder never ends.
+- Each rebirth adds a permanent **+×0.1 to your production multiplier**, forever: **×1.1** after one, **×1.2** after two, **×2** after ten.
+- The multiplier applies to **warehouse income *and* treadmill training**, and it is saved with your progress.
+- It spends your trained speed to do it — you go back to **Speed 4** — so a rebirth is a decision about the long game, not a free upgrade. The +0.1 lands on the treadmill too, so the climb back is quicker than the last one was.
+- Your **Rebirths** count is on the leaderboard with your cash, loot and speed.
+
+| Rebirths | 1 | 2 | 3 | 5 | 10 | 15 |
+|---|---|---|---|---|---|---|
+| Production multiplier | ×1.1 | ×1.2 | ×1.3 | ×1.5 | ×2 | ×2.5 |
+| Cost (speed points) | 1M | 2.5M | 6.25M | 39.06M | 3.81B | 372.53B |
 
 ![Mansion interior](docs/preview-cutaway.png)
 

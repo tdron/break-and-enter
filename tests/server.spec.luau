@@ -183,6 +183,10 @@ end)
 
 local cottage = Map.Houses.House1 -- Maple Cottage, guarded by a ginger cat
 
+-- Every house stands on the same 0.5-stud foundation, so the floor inside one is always at this
+-- height: it is where a thief - and the guard that comes after them - walks.
+local HOUSE_FLOOR = 0.7
+
 step("pick the front door lock", function()
 	local door = cottage.Doors:GetChildren()[1]
 	local panel = door.Panel
@@ -200,7 +204,10 @@ end)
 local function stealFrom(house, player, rootPart)
 	local item = house.Loot:GetChildren()[1]
 	check(item, "no loot left in " .. house.Name)
-	rootPart.CFrame = CFrame.new(item.Root.Position + Vector3.new(0, 2, 0))
+	-- Stand beside it on the floor, which is where a thief is when the alarm goes off. (The item
+	-- itself sits on a table, and a guard with a body cannot walk into a table any more.)
+	local spot = item.Root.Position
+	rootPart.CFrame = CFrame.new(spot.X + 2, HOUSE_FLOOR + 3, spot.Z)
 	item.Root.StealPrompt.Triggered:Fire(player)
 	return item
 end
@@ -272,8 +279,12 @@ step("they chase you out of the house and all the way back down the street", fun
 	local realSpeed = thief:GetAttribute("WalkSpeed")
 	check(realSpeed > 1000, "training should have made you quick, got " .. tostring(realSpeed))
 
+	-- Let anything from the last step get home first, so "its post" is where the cat sleeps.
+	Mock.advance(30)
 	local cat = cottage:FindFirstChild("Guard")
 	local post = cat.Root.AlignPosition.Position
+	check((cat.Root.Position - post).Magnitude < 8, "the cat should be asleep at its post, at " .. tostring(cat.Root.Position))
+
 	stealFrom(cottage, thief, root)
 	Mock.advance(0.2)
 	eq(thief:GetAttribute("InHouse"), true, "the thief is in the house")
@@ -295,15 +306,52 @@ step("they chase you out of the house and all the way back down the street", fun
 	check(not Houses.isOnProperty(Vector3.new(0, 3, -12)), "the street is outside the properties")
 	check(Houses.isOnProperty(post), "a defender's post is on the property")
 
-	-- Run west at your real speed: the cat comes after you the whole way down the street.
-	local tracked = true
-	for _, x in { 10, -50, -110, -170 } do
-		root.CFrame = CFrame.new(x, 3, -12)
-		Mock.advance(0.6)
-		if math.abs(cat.Root.AlignPosition.Position.X - x) > 24 then
-			tracked = false
+	-- The cat has a body and a house to get out of: it has to walk out of the room it sleeps in,
+	-- down the hall and through the front door - the same door you walked out of - before it can
+	-- come after you at all. You keep running the whole time, so it never quite catches you.
+	-- You wait on the street, a long way off, while it finds its way out of the house; then the
+	-- two of you play cat and mouse down the street, you keeping one step ahead of it.
+	root.CFrame = CFrame.new(-40, 3, -12)
+	local outside = nil
+	for _ = 1, 40 do
+		Mock.advance(0.5)
+		local p = cat.Root.Position
+		check(p.Y < 8, "the cat left the ground: " .. tostring(p))
+		if p.Z > -26 then
+			outside = p
+			break
 		end
 	end
+	check(outside, "the cat should have come out of the house and through the gate by now, at " .. tostring(cat.Root.Position))
+
+	local onStreet = false
+	local chasedTo = nil
+	local legs = {}
+	for _, part in cat:GetDescendants() do
+		if part:IsA("Motor6D") and string.sub(part.Name, 1, 3) == "Leg" then
+			table.insert(legs, part)
+		end
+	end
+	check(#legs >= 2, "the cat should have legs to walk on, found " .. #legs)
+	local stepped = false
+	for hop = 1, 12 do
+		local before = cat.Root.Position.X
+		local poseBefore = legs[1].C0._r[5]
+		root.CFrame = CFrame.new(-40 - hop * 8, 3, -12)
+		Mock.advance(1)
+		stepped = stepped or legs[1].C0._r[5] ~= poseBefore
+		local p = cat.Root.Position
+		check(p.X < before - 1, string.format("the cat should have closed on you at hop %d: %.1f -> %.1f", hop, before, p.X))
+		eq(thief:GetAttribute("AlarmHouse"), "Maple Cottage", "still coming for you, hop " .. hop)
+		local onProperty = Houses.isOnProperty(p)
+		onStreet = onStreet or not onProperty
+		local expected = if onProperty then Config.Alarm.InsideSpeed else Config.Guards.TuxedoCat.Speed
+		eq(cat.Root.AlignPosition.MaxVelocity, expected, "the cat moves at the speed its ground allows")
+		chasedTo = p.X
+	end
+	check(stepped, "the cat's legs should have moved while it was running after you")
+	check(onStreet, "the cat should have been out on the street at some point, not just round the yards")
+	check(chasedTo < -60, "the cat should have been well down the street by now, at " .. tostring(chasedTo))
 
 	-- Through the canyon mouth and into the yard: the chase is over.
 	root.CFrame = CFrame.new(-230, 3, -12)
@@ -315,16 +363,88 @@ step("they chase you out of the house and all the way back down the street", fun
 	PlayerData.replicate(thief)
 	PlayerData.applyWalkSpeed(thief)
 	Mock.advance(0.2)
+
 	eq(thief:GetAttribute("SpeedPoints"), 0, "and no trained speed on the books")
 	eq(humanoid.WalkSpeed, 16, "back to the standard walking speed")
-	check(tracked, "the cat should have kept coming for you: " .. tostring(cat.Root.AlignPosition.Position))
 	eq(thief:GetAttribute("Carried"), 1, "you keep the loot once you are back in the yard")
 	eq(thief:GetAttribute("AlarmHouse"), "", "banner cleared in the yard")
 	check(sawMessage(thief, mark, "escaped"), "no escape message")
-	check(cat.Root.AlignPosition.Position.X > Config.Alarm.SafeX - 2, "the chase stops at the mouth")
-	Mock.advance(6)
+
+	-- It gives up (a few seconds after you are out of reach) and walks home, rather than blinking
+	-- back through the walls it walked round to get to you.
+	Mock.advance(Config.Alarm.CalmDownTime + 1)
 	eq(cottage:GetAttribute("AlarmActive"), false, "the alarm resets once you are safe")
+	local turnedAt = cat.Root.Position.X
+	Mock.advance(4)
+	check(cat.Root.Position.X > turnedAt + 1, "the cat should have turned for home, at " .. tostring(cat.Root.Position))
+	check(chasedTo < turnedAt + 1, "the cat was down the street at " .. tostring(chasedTo))
+	local closest = cat.Root.Position.X
+	for _ = 1, 8 do
+		Mock.advance(5)
+		closest = math.min(closest, cat.Root.Position.X)
+	end
+	check(closest > -212, "the cat should stop at the canyon mouth, not follow you into the yard: " .. closest)
 	check((cat.Root.AlignPosition.Position - post).Magnitude < 10, "the cat should be back at its post, at " .. tostring(cat.Root.AlignPosition.Position))
+	check((cat.Root.Position - post).Magnitude < 8, "and asleep in it, at " .. tostring(cat.Root.Position))
+end)
+
+step("legs step in stops, and only on things that have legs", function()
+	local WalkCycle = require(SharedFolder.WalkCycle)
+	local function limb(phase)
+		local part = Instance.new("Part")
+		local joint = Instance.new("Motor6D")
+		joint.Name = "Leg1"
+		joint.Parent = part
+		return { Joint = joint, Base = CFrame.new(0, 2, 0), Phase = phase }
+	end
+
+	-- Standing still strikes nothing at all, however many frames go by.
+	local still = WalkCycle.new({ limb(0) })
+	for _ = 1, 60 do
+		WalkCycle.update(still, 1 / 60, 0)
+	end
+	eq(still.Poses, 0, "a defender that is not moving does not step")
+	eq(still.Moving, false, "and knows it is standing still")
+
+	-- A second of running: a pose every 1 / FramesPerSecond, not one every frame. This is the
+	-- whole point of the walk - it is meant to look like stop-motion.
+	local front, back = limb(0), limb(0.5)
+	local walk = WalkCycle.new({ front, back })
+	for _ = 1, 60 do
+		WalkCycle.update(walk, 1 / 60, 16)
+	end
+	local wanted = Config.Walk.FramesPerSecond
+	check(walk.Poses >= wanted - 1 and walk.Poses <= wanted + 1,
+		string.format("%d poses in a second of walking, wanted about %d", walk.Poses, wanted))
+	check(walk.Poses <= 12, "the gait must stay in stops, not smooth out into a pose a frame")
+	check(math.abs(front.Joint.C0._r[6] - back.Joint.C0._r[6]) > 0.05, "the legs should step alternately")
+
+	-- A hitch (or a teleport) never unloads a burst of poses when it catches up.
+	local stalled = WalkCycle.new({ limb(0) })
+	WalkCycle.update(stalled, 10, 16)
+	check(stalled.Poses <= Config.Walk.MaxCatchUp, "a long stall caught up in " .. stalled.Poses .. " poses")
+
+	-- Nothing to step with: a drone that hovers or a car that rolls is given no cycle to drive.
+	local rolling = WalkCycle.new({})
+	WalkCycle.update(rolling, 1, 16)
+	eq(rolling.Poses, 0, "no limbs, no poses")
+
+	-- And in the world: the cat has legs, the security car does not.
+	local function legCount(guard)
+		local found = 0
+		for _, part in guard:GetDescendants() do
+			if part:IsA("Motor6D") and string.sub(part.Name, 1, 3) == "Leg" then
+				found += 1
+			end
+		end
+		return found
+	end
+	local cat = cottage:FindFirstChild("Guard")
+	check(legCount(cat) >= 2, "the cat should be built with legs")
+	local car = Map.Houses.House10:FindFirstChild("Guard")
+	if car then
+		eq(legCount(car), 0, "the security car has no legs to step with")
+	end
 end)
 
 step("deposit loot on the warehouse pad for passive income", function()
@@ -683,6 +803,7 @@ step("daytime: houses lock up, everyone is shown out and all loot restocks", fun
 	eq(thief:GetAttribute("Carried"), carried, "you keep what you carried out")
 	-- Locked up
 	eq(door.Panel.LockpickPrompt.Enabled, false, "lockpicking is off during the day")
+	eq(door.OpenAngle.Value, 0, "and the door is shut for the day")
 	door.Panel.LockpickPrompt.Triggered:Fire(thief)
 	check(sawMessage(thief, mark, "owners are home"), "picking a lock in daylight should be refused")
 	for _, house in Map.Houses:GetChildren() do

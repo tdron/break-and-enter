@@ -12,9 +12,18 @@
 	  * animals: origin = the ground under the middle of the body, front = -Z
 	  * drones: origin = the middle of the drone (they hover)
 	Eyes are kept separate so the server can make them glow red during an alarm.
+
+	Defenders are physical: the root is a real collider (a box around the body, so a T-Rex is
+	not forever snagged on its tail and a car not on its nose) and it is what the world pushes
+	back against, so nothing walks through a wall any more. Everything else is welded decoration.
+
+	The kinds that walk get their legs pinned at build time (Limbs): each one is a Motor6D
+	swinging a leg around its own hip, which WalkCycle then poses in stops. Hoverers (drones),
+	tracked robots and cars are given no limbs at all.
 ]]
 
 local Config = require(script.Parent.Config)
+local WalkCycle = require(script.Parent.WalkCycle)
 
 export type PartSpec = {
 	Shape: Enum.PartType,
@@ -36,8 +45,9 @@ export type Look = {
 
 export type GuardModel = {
 	Model: Model,
-	Root: BasePart, -- invisible physics body (AlignPosition/AlignOrientation go here)
+	Root: BasePart, -- the physics body (AlignPosition/AlignOrientation go here; it collides)
 	Eyes: { BasePart },
+	Limbs: { WalkCycle.Limb }, -- the pinned legs, empty for anything that hovers or rolls
 	Light: PointLight?, -- drones carry a red searchlight
 	Status: TextLabel, -- "💤" / "❗" bubble above the guard
 	RootHeight: number, -- how far the root's centre sits above the guard's origin
@@ -683,9 +693,9 @@ local function statusBubble(root: BasePart, height: number): TextLabel
 	return label
 end
 
-local function weldAll(model: Model, root: BasePart)
+local function weldAll(model: Model, root: BasePart, pinned: { [BasePart]: boolean })
 	for _, part in model:GetChildren() do
-		if part:IsA("BasePart") and part ~= root then
+		if part:IsA("BasePart") and part ~= root and not pinned[part] then
 			local weld = Instance.new("WeldConstraint")
 			weld.Part0 = root
 			weld.Part1 = part
@@ -694,11 +704,142 @@ local function weldAll(model: Model, root: BasePart)
 	end
 end
 
+local function weldTo(part0: BasePart, part1: BasePart)
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = part0
+	weld.Part1 = part1
+	weld.Parent = part1
+end
+
+--------------------------------------------------------------------------------
+-- Physics body and legs
+--------------------------------------------------------------------------------
+-- The box a defender bumps into the world with: as wide and as tall as it looks, but *round* in
+-- plan (the same box whichever way it is facing). Height is never capped - the box is centred on
+-- the model, so shortening it would lift the defender off the floor.
+--
+-- Round in plan matters: a body that is 3 studs long and 1 wide sweeps its length through a wall
+-- every time it turns on the spot next to one, and a defender pinned inside a wall cannot be
+-- trusted to walk anywhere. Round, turning on the spot changes nothing, so a defender can always
+-- turn wherever it can stand - which is what lets it line itself up with a doorway.
+local COLLIDER_CAP = V(4.0, math.huge, 4.0)
+local COLLIDER_CAPS: { [string]: Vector3 } = {
+	Cat = V(1.1, math.huge, 1.1),
+	Dog = V(2.8, math.huge, 2.8),
+	Human = V(2.4, math.huge, 2.4),
+	Wizard = V(2.6, math.huge, 2.6),
+	Beast = V(3.6, math.huge, 3.6), -- the tail is 13 studs long; the body it walks with is not
+	Robot = V(2.6, math.huge, 2.6),
+	Vehicle = V(4.0, math.huge, 4.0),
+	Drone = V(2.4, math.huge, 2.4),
+}
+
+local function colliderSize(bounds: Vector3, kind: string): Vector3
+	local cap = COLLIDER_CAPS[kind] or COLLIDER_CAP
+	local width = math.clamp(bounds.X, 0.4, cap.X)
+	return V(width, bounds.Y, math.clamp(width, 0.4, cap.Z))
+end
+
+-- Only the kinds that walk are given legs. A drone hovers, the security bots run on tracks and
+-- the cars on wheels: animating any of those would look plain wrong, so they keep rigid parts.
+local WALKING = { Cat = true, Dog = true, Human = true, Wizard = true, Beast = true }
+local GROUND_MARGIN = 0.09 -- how close to the floor a part has to sit to count as a foot
+-- One paw or foot per stride, opposite legs half a stride apart (so a four-legged trot is
+-- front-left/back-right together, which is what a real dog does).
+local TROT_PHASES = { 0, 0.5, 0.5, 0 }
+
+type LimbCluster = {
+	X: number,
+	Z: number,
+	Top: number,
+	Index: number, -- the part the joint drives: the leg itself, not the paw
+	Members: { number },
+}
+
+-- Finds the limbs by looking for the parts that stand on the floor and grouping them into feet.
+-- Returns nothing when the parts under the body are not legs (they are one blob, like the
+-- wizard's robe, or there is only one of them) - those defenders just keep sliding.
+local function findLimbs(home: CFrame, root: BasePart, look: Look, visual: { BasePart }, size: Vector3, kind: string): { WalkCycle.Limb }
+	local limbs: { WalkCycle.Limb } = {}
+	if not WALKING[kind] then
+		return limbs
+	end
+	local ground = math.huge
+	for _, spec in look.Parts do
+		ground = math.min(ground, spec.Position.Y - spec.Size.Y / 2)
+	end
+	local radius = math.clamp(size.X * 0.22, 0.32, 0.9)
+	local clusters: { LimbCluster } = {}
+	for index, spec in look.Parts do
+		if spec.Position.Y - spec.Size.Y / 2 <= ground + GROUND_MARGIN then
+			local cluster: LimbCluster? = nil
+			local closest = radius
+			for _, other in clusters do
+				local gap = (Vector3.new(other.X, 0, other.Z) - Vector3.new(spec.Position.X, 0, spec.Position.Z)).Magnitude
+				if gap <= closest then
+					cluster, closest = other, gap
+				end
+			end
+			if cluster then
+				local count = #cluster.Members
+				cluster.X = (cluster.X * count + spec.Position.X) / (count + 1)
+				cluster.Z = (cluster.Z * count + spec.Position.Z) / (count + 1)
+				table.insert(cluster.Members, index)
+				if spec.Position.Y + spec.Size.Y / 2 > cluster.Top then
+					cluster.Top = spec.Position.Y + spec.Size.Y / 2
+					cluster.Index = index
+				end
+			else
+				table.insert(clusters, {
+					X = spec.Position.X,
+					Z = spec.Position.Z,
+					Top = spec.Position.Y + spec.Size.Y / 2,
+					Index = index,
+					Members = { index },
+				})
+			end
+		end
+	end
+	if #clusters < 2 then
+		return limbs
+	end
+	table.sort(clusters, function(a, b)
+		if a.Z ~= b.Z then
+			return a.Z < b.Z -- front legs (-Z) first
+		end
+		return a.X < b.X
+	end)
+	for order, cluster in clusters do
+		local part = visual[cluster.Index]
+		if part then
+			-- The pivot: the hip the leg swings around, turning with the guard.
+			local pivot = home * CFrame.new(Vector3.new(cluster.X, cluster.Top, cluster.Z))
+			local joint = Instance.new("Motor6D")
+			joint.Name = "Leg" .. order
+			joint.Part0 = root
+			joint.Part1 = part
+			joint.C0 = root.CFrame:Inverse() * pivot
+			joint.C1 = part.CFrame:Inverse() * pivot
+			joint.Parent = part
+			local phase = TROT_PHASES[order] or ((order - 1) % 2) * 0.5
+			table.insert(limbs, { Joint = joint, Base = joint.C0, Phase = phase })
+			for _, member in cluster.Members do
+				local other = visual[member]
+				if other and other ~= part then
+					weldTo(part, other)
+				end
+			end
+		end
+	end
+	return limbs
+end
+
 local function buildDrone(home: CFrame): GuardModel
 	local model = Instance.new("Model")
 	model.Name = "Guard"
 	local body = newPart(model, "Body", BALL, V(2.2, 2.2, 2.2), home, C(46, 48, 56), M.Metal)
 	body.Massless = false
+	body.CanCollide = true -- the rotors are decoration, but the drone itself is solid
 	local eye = newPart(model, "Eye", BALL, V(0.95, 0.95, 0.95), home * CFrame.new(0, 0, -0.75), C(70, 200, 255), M.Neon)
 	newPart(model, "Ring", CYLINDER, V(0.25, 3.7, 3.7), home * CFrame.new(0, 0.35, 0) * CFrame.Angles(0, 0, math.rad(90)), C(28, 28, 32), M.Metal)
 	for _, offset in { V(1.3, 0.75, 1.3), V(-1.3, 0.75, 1.3), V(1.3, 0.75, -1.3), V(-1.3, 0.75, -1.3) } do
@@ -713,12 +854,13 @@ local function buildDrone(home: CFrame): GuardModel
 	light.Enabled = false
 	light.Parent = eye
 
-	weldAll(model, body)
+	weldAll(model, body, {})
 	model.PrimaryPart = body
 	return {
 		Model = model,
 		Root = body,
 		Eyes = { eye },
+		Limbs = {}, -- it hovers; there is nothing to step with
 		Light = light,
 		Status = statusBubble(body, 2.4),
 		RootHeight = 0,
@@ -755,12 +897,15 @@ function Guards.build(guardId: string, home: CFrame): GuardModel
 	local size = maxCorner - minCorner
 	local center = (maxCorner + minCorner) / 2
 
-	local root = newPart(model, "Root", BLOCK, V(math.max(size.X, 0.5), math.max(size.Y, 0.5), math.max(size.Z, 0.5)), home * CFrame.new(center), C(255, 255, 255), M.SmoothPlastic)
+	-- The body it is allowed to be stopped by: a box over the visible parts, on the floor.
+	local root = newPart(model, "Root", BLOCK, colliderSize(size, info.Kind), home * CFrame.new(center), C(255, 255, 255), M.SmoothPlastic)
 	root.Transparency = 1
+	root.CanCollide = true
 	root.Massless = false
 
+	local visual: { BasePart } = {}
 	for index, spec in look.Parts do
-		newPart(model, "Piece" .. index, spec.Shape, spec.Size, home * CFrame.new(spec.Position) * rotation(spec.Rotation), spec.Color, spec.Material or M.SmoothPlastic)
+		visual[index] = newPart(model, "Piece" .. index, spec.Shape, spec.Size, home * CFrame.new(spec.Position) * rotation(spec.Rotation), spec.Color, spec.Material or M.SmoothPlastic)
 	end
 	local eyes: { BasePart } = {}
 	for _, position in look.Eyes do
@@ -768,12 +913,21 @@ function Guards.build(guardId: string, home: CFrame): GuardModel
 		table.insert(eyes, eye)
 	end
 
-	weldAll(model, root)
+	local limbs = findLimbs(home, root, look, visual, size, info.Kind)
+	local pinned: { [BasePart]: boolean } = {}
+	for _, limb in limbs do
+		local part = limb.Joint.Part1
+		if part then
+			pinned[part] = true
+		end
+	end
+	weldAll(model, root, pinned)
 	model.PrimaryPart = root
 	return {
 		Model = model,
 		Root = root,
 		Eyes = eyes,
+		Limbs = limbs,
 		Light = nil,
 		Status = statusBubble(root, size.Y / 2 + 1.4),
 		RootHeight = center.Y,

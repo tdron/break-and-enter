@@ -551,6 +551,8 @@ local InstanceMethods = {}
 local InstanceMeta = {}
 Mock.alignPositions = setmetatable({}, { __mode = "k" })
 Mock.movers = setmetatable({}, { __mode = "k" })
+-- Bumped whenever something is parented somewhere: the solid-geometry grid below rebuilds on it.
+Mock.treeVersion = 0
 
 local function classChain(className)
 	local chain = {}
@@ -734,6 +736,7 @@ InstanceMeta.__newindex = function(instance, key, value)
 			fireUnparented(instance, old)
 		end
 		rawset(instance, "_parent", value)
+		Mock.treeVersion += 1
 		if value then
 			table.insert(rawget(value, "_children"), instance)
 			fireParented(instance, value)
@@ -1149,19 +1152,349 @@ function InstanceMethods:GetDataStore(name)
 	return store
 end
 
--- Workspace queries: the ground is the "Grass" part at y = 0 everywhere.
-function InstanceMethods:Raycast(origin, direction)
-	local map = InstanceMethods.FindFirstChild(services.Workspace, "Map")
-	local ground = map and InstanceMethods.FindFirstChild(map, "Ground")
-	local grass = ground and InstanceMethods.FindFirstChild(ground, "Grass")
-	if grass and direction.Y < 0 and origin.Y >= 0 and origin.Y + direction.Y <= 0 then
-		return { Instance = grass, Position = vec(origin.X, 0, origin.Z), Normal = vec(0, 1, 0) }
+--------------------------------------------------------------------------------
+-- Solid geometry: what a part can bump into, and what a ray hits
+--------------------------------------------------------------------------------
+-- Roblox does all of this in C++; the mock does it by hand, so parts are bucketed into a coarse
+-- XZ grid (rebuilt only when something is parented somewhere new) and every test is an AABB.
+-- Parts driven by an AlignPosition/LinearVelocity (the guards themselves, mostly) are left out:
+-- a mover must not block itself, and in here it does not block anything else either.
+local GRID = 16
+local cells = nil
+local gridBuiltAt = -1
+local seen = setmetatable({}, { __mode = "k" })
+local stamp = 0
+
+local function worldAABB(cframe, size)
+	local half = size / 2
+	local right, up, look = cframe.RightVector, cframe.UpVector, cframe.LookVector
+	local ex = math.abs(right.X) * half.X + math.abs(up.X) * half.Y + math.abs(look.X) * half.Z
+	local ey = math.abs(right.Y) * half.X + math.abs(up.Y) * half.Y + math.abs(look.Y) * half.Z
+	local ez = math.abs(right.Z) * half.X + math.abs(up.Z) * half.Y + math.abs(look.Z) * half.Z
+	local p = cframe.Position
+	return p.X - ex, p.Y - ey, p.Z - ez, p.X + ex, p.Y + ey, p.Z + ez
+end
+
+-- Cell 0 is where anything the size of the world (the ground, the canyon) is kept; every query
+-- looks in there as well, so a ray never misses the floor it is standing on.
+local function cellKeys(x0, z0, x1, z1)
+	local keys = {}
+	local ix0, ix1 = math.floor(x0 / GRID), math.floor(x1 / GRID)
+	local iz0, iz1 = math.floor(z0 / GRID), math.floor(z1 / GRID)
+	if (ix1 - ix0 + 1) * (iz1 - iz0 + 1) > 2048 then
+		return { 0 }
 	end
-	return nil
+	for ix = ix0, ix1 do
+		for iz = iz0, iz1 do
+			table.insert(keys, ix * 65536 + iz)
+		end
+	end
+	return keys
 end
-function InstanceMethods:GetPartBoundsInBox()
-	return {}
+
+local function buildGrid()
+	local buckets = {}
+	local moving: { [any]: boolean } = {}
+	for align in Mock.alignPositions do
+		local attachment = rawget(align, "_props").Attachment0
+		if attachment and attachment.Parent then
+			moving[attachment.Parent] = true
+		end
+	end
+	for mover in Mock.movers do
+		local attachment = rawget(mover, "_props").Attachment0
+		if attachment and attachment.Parent then
+			moving[attachment.Parent] = true
+		end
+	end
+	local function add(instance)
+		local props = rawget(instance, "_props")
+		if moving[instance] or not props.Size or not props.CFrame or (props.CanCollide == false and props.CanQuery == false) then
+			return
+		end
+		local x0, _, z0, x1, _, z1 = worldAABB(props.CFrame, props.Size)
+		for _, key in cellKeys(x0, z0, x1, z1) do
+			local bucket = buckets[key]
+			if not bucket then
+				bucket = {}
+				buckets[key] = bucket
+			end
+			table.insert(bucket, instance)
+		end
+	end
+	local stack = { services.Workspace }
+	while #stack > 0 do
+		local node = table.remove(stack)
+		for _, child in rawget(node, "_children") do
+			if isA(child, "BasePart") then
+				add(child)
+			end
+			table.insert(stack, child)
+		end
+	end
+	cells = buckets
+	gridBuiltAt = Mock.treeVersion
 end
+
+-- Everything whose AABB touches the box, in the order the grid happens to hold it.
+local function candidates(x0, y0, z0, x1, y1, z1, out)
+	if not cells or gridBuiltAt ~= Mock.treeVersion then
+		buildGrid()
+	end
+	stamp += 1
+	local keys = cellKeys(x0, z0, x1, z1)
+	table.insert(keys, 0)
+	for _, key in keys do
+		local bucket = cells[key]
+		if bucket then
+			for _, part in bucket do
+				if seen[part] ~= stamp then
+					seen[part] = stamp
+					local props = rawget(part, "_props")
+					local px0, py0, pz0, px1, py1, pz1 = worldAABB(props.CFrame, props.Size)
+					if px0 <= x1 and px1 >= x0 and py0 <= y1 and py1 >= y0 and pz0 <= z1 and pz1 >= z0 then
+						table.insert(out, part)
+					end
+				end
+			end
+		end
+	end
+	return out
+end
+
+-- The contact between two boxes, if there is one: a separating axis test over the fifteen axes
+-- that could tell them apart, returning the normal (pointing at the first box) and how deep the
+-- boxes are inside each other along it. Touching exactly is not a contact.
+local function contact(cfA, sizeA, cfB, sizeB)
+	local axesA = { cfA.RightVector, cfA.UpVector, cfA.LookVector }
+	local axesB = { cfB.RightVector, cfB.UpVector, cfB.LookVector }
+	local halfA, halfB = sizeA / 2, sizeB / 2
+	local difference = cfB.Position - cfA.Position
+	local axes = {}
+	for index = 1, 3 do
+		axes[index] = axesA[index]
+		axes[index + 3] = axesB[index]
+	end
+	for i = 1, 3 do
+		for j = 1, 3 do
+			local cross = axesA[i]:Cross(axesB[j])
+			if cross.Magnitude > 1e-4 then
+				table.insert(axes, cross.Unit)
+			end
+		end
+	end
+	local closest, depth = nil, math.huge
+	for _, axis in axes do
+		local reachA = math.abs(axis:Dot(axesA[1])) * halfA.X
+			+ math.abs(axis:Dot(axesA[2])) * halfA.Y
+			+ math.abs(axis:Dot(axesA[3])) * halfA.Z
+		local reachB = math.abs(axis:Dot(axesB[1])) * halfB.X
+			+ math.abs(axis:Dot(axesB[2])) * halfB.Y
+			+ math.abs(axis:Dot(axesB[3])) * halfB.Z
+		local separation = math.abs(axis:Dot(difference))
+		if separation > reachA + reachB - 1e-3 then
+			return nil -- this axis tells them apart: no contact
+		end
+		local overlap = reachA + reachB - separation
+		if overlap < depth then
+			depth = overlap
+			closest = if axis:Dot(difference) < 0 then axis else -axis
+		end
+	end
+	return closest, depth
+end
+
+local function boxesOverlap(cfA, sizeA, cfB, sizeB): boolean
+	return contact(cfA, sizeA, cfB, sizeB) ~= nil
+end
+
+-- The first thing in the way of a box moving from one cframe to another, with how deep it
+-- already was. Parts the box is only grazing are welcome to stay that way; it is going *deeper*
+-- into them that counts as being blocked.
+local function firstBlocker(cframe, size, move, allowed: { [any]: number })
+	local probe = cframe + move
+	local box = { worldAABB(probe, size) }
+	local blocker, normal, depth = nil, nil, 0
+	for _, part in candidates(box[1], box[2], box[3], box[4], box[5], box[6], {}) do
+		local props = rawget(part, "_props")
+		if props.CanCollide ~= false then
+			local contactNormal, penetration = contact(probe, size, props.CFrame, props.Size)
+			if contactNormal and penetration > (allowed[part] or 0) + 1e-3 then
+				if not blocker or penetration > depth then
+					blocker, normal, depth = part, contactNormal, penetration
+				end
+			end
+		end
+	end
+	return blocker, normal
+end
+
+-- Sweeping a box along a direction (a "blockcast"). Along a straight path two convex boxes either
+-- miss each other or intersect over one stretch of it, so a bisection finds where the stretch
+-- starts - which is how far the body can walk before it touches something.
+local function sweepHit(cframe, size, unit, length, part)
+	local props = rawget(part, "_props")
+	local other, otherSize = props.CFrame, props.Size
+	if boxesOverlap(cframe, size, other, otherSize) then
+		return 0 -- already against it
+	end
+	-- The sweep runs in crude steps first and then bisects: two boxes in a straight-line sweep
+	-- meet over a stretch of the path, and a box that passes right through a wall - in one end
+	-- and out of the other - is not still inside it at the far end.
+	local steps = math.max(1, math.ceil(length / 1.5))
+	local clear, hit = 0, nil
+	for index = 1, steps do
+		local distance = length * index / steps
+		if boxesOverlap(cframe + unit * distance, size, other, otherSize) then
+			hit = distance
+			break
+		end
+		clear = distance
+	end
+	if not hit then
+		return nil
+	end
+	for _ = 1, 6 do
+		local middle = (clear + hit) / 2
+		if boxesOverlap(cframe + unit * middle, size, other, otherSize) then
+			hit = middle
+		else
+			clear = middle
+		end
+	end
+	return hit
+end
+
+-- Ray against one part: exact (a slab test in the part's own frame). Returns how far along it hits.
+local function hitPart(origin, direction, length, part)
+	local props = rawget(part, "_props")
+	local cframe = props.CFrame
+	local half = props.Size / 2
+	local right, up, look = cframe.RightVector, cframe.UpVector, cframe.LookVector
+	local offset = origin - cframe.Position
+	local entry, axis, sign = 0, 0, 1
+	local exit = length
+	for index = 1, 3 do
+		local axisVector = (index == 1 and right) or (index == 2 and up) or look
+		local originOn = offset:Dot(axisVector)
+		local directionOn = direction:Dot(axisVector)
+		local halfOn = (index == 1 and half.X) or (index == 2 and half.Y) or half.Z
+		if math.abs(directionOn) < 1e-6 then
+			if math.abs(originOn) > halfOn then
+				return nil
+			end
+		else
+			local t1, t2 = (-halfOn - originOn) / directionOn, (halfOn - originOn) / directionOn
+			if math.min(t1, t2) > entry then
+				entry, axis, sign = math.min(t1, t2), index, (if t1 < t2 then -1 else 1)
+			end
+			exit = math.min(exit, math.max(t1, t2))
+			if entry > exit then
+				return nil
+			end
+		end
+	end
+	if entry > length then
+		return nil
+	end
+	if axis == 0 then
+		return nil -- started inside it, so it is not in the way (as in Roblox)
+	end
+	local normal = (axis == 1 and right) or (axis == 2 and up) or look
+	return entry, normal * sign
+end
+
+local function inFilter(instance, params)
+	if not params then
+		return false
+	end
+	local list = params.FilterDescendantsInstances
+	if type(list) ~= "table" then
+		return false
+	end
+	local include = params.FilterType == Enum.RaycastFilterType.Include
+	for _, filtered in list do
+		if instance == filtered or InstanceMethods.IsDescendantOf(instance, filtered) then
+			return not include
+		end
+	end
+	return include
+end
+
+function InstanceMethods:Raycast(origin, direction, params)
+	local length = direction.Magnitude
+	if length < 1e-6 then
+		return nil
+	end
+	local unit = direction / length
+	local x0 = math.min(origin.X, origin.X + unit.X * length)
+	local x1 = math.max(origin.X, origin.X + unit.X * length)
+	local y0 = math.min(origin.Y, origin.Y + unit.Y * length)
+	local y1 = math.max(origin.Y, origin.Y + unit.Y * length)
+	local z0 = math.min(origin.Z, origin.Z + unit.Z * length)
+	local z1 = math.max(origin.Z, origin.Z + unit.Z * length)
+	local near, best, bestNormal = length, nil, nil
+	for _, part in candidates(x0, y0, z0, x1, y1, z1, {}) do
+		if rawget(part, "_props").CanQuery ~= false and not inFilter(part, params) then
+			local distance, normal = hitPart(origin, unit, length, part)
+			if distance and distance < near then
+				near, best, bestNormal = distance, part, normal
+			end
+		end
+	end
+	if not best then
+		return nil
+	end
+	return { Instance = best, Position = origin + unit * near, Normal = bestNormal, Distance = near }
+end
+
+function InstanceMethods:Blockcast(cframe, size, direction, params)
+	local length = direction.Magnitude
+	if length < 1e-6 then
+		return nil
+	end
+	local unit = direction / length
+	local start = { worldAABB(cframe, size) }
+	local finish = { worldAABB(cframe + unit * length, size) }
+	local x0 = math.min(start[1], finish[1])
+	local y0 = math.min(start[2], finish[2])
+	local z0 = math.min(start[3], finish[3])
+	local x1 = math.max(start[4], finish[4])
+	local y1 = math.max(start[5], finish[5])
+	local z1 = math.max(start[6], finish[6])
+	local near, best = length, nil
+	for _, part in candidates(x0, y0, z0, x1, y1, z1, {}) do
+		if rawget(part, "_props").CanQuery ~= false and not inFilter(part, params) then
+			local distance = sweepHit(cframe, size, unit, length, part)
+			if distance and distance < near then
+				near, best = distance, part
+			end
+		end
+	end
+	if not best then
+		return nil
+	end
+	local props = rawget(best, "_props")
+	local normal = select(1, contact(cframe + unit * near, size, props.CFrame, props.Size))
+	return {
+		Instance = best,
+		Position = cframe.Position + unit * near,
+		Normal = normal or cframe.UpVector,
+		Distance = near,
+	}
+end
+
+function InstanceMethods:GetPartBoundsInBox(cframe, size, params)
+	local x0, y0, z0, x1, y1, z1 = worldAABB(cframe, size)
+	local found = {}
+	for _, part in candidates(x0, y0, z0, x1, y1, z1, {}) do
+		if rawget(part, "_props").CanQuery ~= false and not inFilter(part, params) then
+			table.insert(found, part)
+		end
+	end
+	return found
+end
+
 function InstanceMethods:GetServerTimeNow()
 	return 1700000000 + now
 end
@@ -1195,7 +1528,85 @@ local function physicsStep(dt)
 			local distance = offset.Magnitude
 			local stepDistance = math.min(distance, align.MaxVelocity * dt)
 			if distance > 1e-6 then
-				part.CFrame = part.CFrame + offset.Unit * stepDistance
+				local props = rawget(part, "_props")
+				local size = props.Size
+				-- How deep it is already inside things (the floor it stands on, a table it is
+				-- leaning on): those are allowed to stay that deep, but no deeper.
+				local allowed: { [any]: number } = {}
+				local box = { worldAABB(props.CFrame, size) }
+				for _, other in candidates(box[1], box[2], box[3], box[4], box[5], box[6], {}) do
+					local otherProps = rawget(other, "_props")
+					if otherProps.CanCollide ~= false then
+						local _, penetration = contact(props.CFrame, size, otherProps.CFrame, otherProps.Size)
+						if penetration then
+							allowed[other] = penetration
+						end
+					end
+				end
+				-- Then walk it there, sliding along whatever is in the way, and stopping dead
+				-- rather than pushing through. Long moves are chopped up so nothing is tunnelled.
+				local remaining = offset.Unit * stepDistance
+				-- An AlignPosition pulls; it does not press a body into the ground. Something
+				-- with its feet down stays at that height and is pulled along the floor, so a
+				-- downward part of the aim is dropped rather than fought over. Anything with
+				-- nothing under it still settles towards the aim as before.
+				if remaining.Y < 0 and firstBlocker(props.CFrame, size, Vector3.new(0, remaining.Y, 0), allowed) then
+					remaining = Vector3.new(remaining.X, 0, remaining.Z)
+				end
+				local startCF = props.CFrame
+				local chunks = math.max(1, math.ceil(stepDistance / 4))
+				for _ = 1, chunks do
+					remaining = remaining / chunks
+					for _ = 1, 4 do
+						if remaining.Magnitude < 1e-4 then
+							break
+						end
+						local blocker, normal = firstBlocker(props.CFrame, size, remaining, allowed)
+						-- Walking along the floor it is standing on, not into it: something under
+						-- the feet that the body would sink through (a step it is half on, a kerb
+						-- it is straddling) is not a wall, and a step that aims part-way down to
+						-- where the floor is has that part dropped and is tried again flat.
+						if blocker and normal and normal.Y > 0.7 and remaining.Y < 0 then
+							local flat = Vector3.new(remaining.X, 0, remaining.Z)
+							local flatBlocker, flatNormal = firstBlocker(props.CFrame, size, flat, allowed)
+							remaining = flat
+							blocker, normal = flatBlocker, flatNormal
+						end
+						if not blocker or not normal then
+							props.CFrame = props.CFrame + remaining
+							break
+						end
+						-- A character walks up a step rather than into it: the porch lip, the kerb,
+						-- the one-stud rise onto the house floor. Roblox does this with the
+						-- humanoid's own step logic; here it is the same idea in miniature - if
+						-- what it has walked into is low enough to stand on, stand on it.
+						local blockerProps = rawget(blocker, "_props")
+						local blockerTop = blockerProps.CFrame.Position.Y + blockerProps.Size.Y * 0.5
+						local feet = props.CFrame.Position.Y - size.Y * 0.5
+						if blockerTop > feet - 0.05 and blockerTop - feet <= 2.0 then
+							local lifted = blockerTop + size.Y * 0.5 + 0.01
+							local up = Vector3.new(0, lifted - props.CFrame.Position.Y, 0)
+							if not firstBlocker(props.CFrame, size, up, allowed) then
+								props.CFrame = props.CFrame + up
+								-- The lift put it on top of the step: from there the rest of
+								-- this move is along that surface, not down through it.
+								remaining = Vector3.new(remaining.X, 0, remaining.Z)
+								continue
+							end
+						end
+						local into = remaining:Dot(normal)
+						local sideways = remaining - normal * into
+						if into < -1e-4 and sideways.Magnitude > 1e-4 then
+							local attempt = sideways * 0.8
+							if not firstBlocker(props.CFrame, size, attempt, allowed) then
+								props.CFrame = props.CFrame + attempt
+							end
+							remaining = sideways * 0.2
+						else
+							remaining = remaining * 0.4
+						end
+					end
+				end
 			end
 		end
 	end

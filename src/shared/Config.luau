@@ -367,10 +367,29 @@ Config.Alarm = {
 	LaneHalfWidth = 22, -- how far off the middle of the road a chase is willing to go (studs)
 	SafeX = -200, -- once you are west of this (the canyon mouth) the chase is over
 	HouseFrontInset = 18, -- the front wall sits this far inside the property (the map sets it per house)
+	-- Defenders are physical now: they are stopped by walls like everyone else. They look this far
+	-- ahead for one, pull their target in to it and slide along it towards wherever they are going.
+	WallLookahead = 5, -- studs of warning a strolling defender gets (plus what speed buys it)
+	WallLookaheadPerSpeed = 0.1, -- ...this much more per stud/s of speed
+	WallLookaheadMax = 60, -- ...but never more than this
 }
 
 Config.Doors = {
 	StayOpenTime = 25, -- seconds a picked door stays open (it never closes on someone)
+}
+
+-- How defenders that walk (cats, dogs, people, the T-Rex) move their legs. Everything that
+-- hovers or rolls (drones, security bots, cars) is left alone: no paws, no wheels.
+-- The defenders' walk. It is meant to look cheesy: a hand-made stop-motion cycle rather than a
+-- smooth one, so a new pose is struck only FramesPerSecond times a second and held in between.
+Config.Walk = {
+	FramesPerSecond = 6, -- poses a second (a real walk animation would get one every frame)
+	Swing = 26, -- degrees the legs swing forward/back at the extremes of a stride
+	Stride = 5, -- studs of travel that make one whole stride (two footfalls)
+	MinRate = 0.45, -- strides per second at a crawl
+	MaxRate = 1.25, -- strides per second however fast the defender is going
+	MoveThreshold = 0.5, -- slower than this (studs/s along the ground) counts as standing still
+	MaxCatchUp = 3, -- most poses one frame may strike after a hitch
 }
 
 Config.Lasers = {
