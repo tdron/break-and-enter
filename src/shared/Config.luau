@@ -136,30 +136,30 @@ end
 --------------------------------------------------------------------------------
 -- Speed training
 --
--- The "Speed" stat (the HUD, the leaderboard and the treadmill all quote it) is
--- a quarter of the speed you actually move at:
---
---     Speed 4  =  16 studs/s   (what you start with)
---     Speed 5  =  20 studs/s   (one speed point = four studs/s)
---
--- There is no ceiling: the longer you run, the faster you get.
+-- The "Speed" stat is the player-facing number: the HUD, leaderboard and
+-- treadmill all show it. It deliberately grows five times faster than the
+-- physical movement value, which stays an implementation detail rather than a
+-- second player-facing stat. There is no ceiling.
 --------------------------------------------------------------------------------
 Config.Speed = {
-	BaseWalkSpeed = 16, -- Roblox default walk speed
-	SpeedDivisor = 4, -- the speed you move at is the Speed stat times this
+	BaseWalkSpeed = 16, -- Roblox default walk speed (server movement only)
+	DisplayMultiplier = 5, -- displayed Speed grows at this multiple of movement
 	-- Speed is uncapped; set a number here if you ever want a ceiling back.
 	MaxWalkSpeed = math.huge,
 }
 
--- The Speed stat for a number of trained speed points (it starts at BaseWalkSpeed / SpeedDivisor).
+-- The player-facing Speed for a number of trained speed points. SpeedPoints
+-- count display-speed gained above the base 80, so only complete points change
+-- the stat (and create a floating gain number on the client).
 function Config.speedStatForPoints(points: number): number
-	local base = math.floor(Config.Speed.BaseWalkSpeed / Config.Speed.SpeedDivisor)
+	local base = Config.Speed.BaseWalkSpeed * Config.Speed.DisplayMultiplier
 	return base + math.max(0, math.floor(points))
 end
 
--- The speed you move at: always exactly SpeedDivisor times the Speed stat.
+-- The real movement speed in studs/s: always exactly one fifth of the
+-- displayed Speed stat.
 function Config.walkSpeedForPoints(points: number): number
-	local walkSpeed = Config.speedStatForPoints(points) * Config.Speed.SpeedDivisor
+	local walkSpeed = Config.speedStatForPoints(points) / Config.Speed.DisplayMultiplier
 	return math.min(walkSpeed, Config.Speed.MaxWalkSpeed)
 end
 
@@ -358,6 +358,15 @@ Config.Alarm = {
 	CatchRadius = 3.75, -- studs (measured along the ground) between a guard and you to get BUSTED
 	CalmDownTime = 4, -- seconds with nobody in the chase area before the alarm resets
 	BustImmunity = 4, -- seconds you can't be caught again after getting busted
+	-- A bust knocks a thief down rather than resetting them at their warehouse. An indoor bust
+	-- starts at the front door and lands in the middle of the road; an outdoor bust goes away
+	-- from the defender that made the catch.
+	BustRagdollTime = 2.4,
+	BustLaunchUpward = 52,
+	BustIndoorLaunchSpeed = 78,
+	BustRoadLaunchSpeed = 48,
+	BustRoadMiddleOffset = 24, -- studs past a lot's front edge (+Z faces the road centre)
+	BustDoorSlamDelay = 0.35,
 	DroneAimHeight = 1.5, -- drones aim this far above your HumanoidRootPart
 	DroneDockHeight = 5, -- how high drones hover above their charging dock
 	GuardReturnSpeed = 16, -- how fast guards walk/fly back to bed once the alarm calms down
@@ -404,7 +413,7 @@ Config.Lasers = {
 -- are home: all houses lock up, nothing can be stolen and every house restocks
 -- its loot. That's the only time loot comes back!
 Config.DayNight = {
-	NightLength = 210, -- seconds (3½ minutes of stealing)
+	NightLength = 300, -- seconds (5 minutes of stealing)
 	DayLength = 30, -- seconds (houses closed, loot restocks)
 	FadeTime = 5, -- seconds the sky takes to change
 	Night = {
@@ -470,6 +479,7 @@ Config.Sounds = {
 	Click = "rbxasset://sounds/volume_slider.ogg",
 	Error = "rbxasset://sounds/action_jump_land.mp3",
 	Busted = "rbxasset://sounds/ouch.ogg",
+	DoorSlam = "rbxasset://sounds/action_jump_land.mp3",
 	AlarmBeep = "rbxasset://sounds/volume_slider.ogg",
 	LevelUp = "rbxasset://sounds/action_jump.mp3",
 }

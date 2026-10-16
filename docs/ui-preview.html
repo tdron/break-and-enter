@@ -141,17 +141,13 @@
   .toast .text{font-family:'Inter'; font-weight:600; font-size:13px; margin-left:44px; color:var(--ink);}
   .toast .chip{width:34px; height:34px; left:10px; position:absolute; font-size:18px;}
 
-  /* ---- training ---- */
-  .training{
-    bottom:66px; left:50%; transform:translateX(-50%); width:460px; height:62px; border-radius:14px;
-    background:var(--white); border:2px solid var(--cyan-dark);
+  /* ---- treadmill gain feedback ---- */
+  .speed-gain{
+    position:absolute; left:53%; bottom:180px; color:var(--cyan); font-size:34px; font-weight:700;
+    text-shadow:0 3px 0 var(--cyan-dark), 0 6px 14px rgba(0,0,0,.42);
+    animation:speed-float .85s ease-out infinite alternate;
   }
-  .training .t{position:absolute; top:7px; left:14px; font-size:19px; font-weight:600; color:var(--cyan-dark);}
-  .training .r{position:absolute; top:9px; right:14px; font-family:'Inter'; font-size:12px; font-weight:700; color:var(--orange-dark);}
-  .training .bar{position:absolute; left:14px; right:14px; bottom:9px; height:16px; border-radius:8px;
-    background:rgba(94,90,122,.2);}
-  .training .bar i{display:block; height:100%; width:41%; border-radius:8px;
-    background:linear-gradient(var(--cyan),var(--cyan-dark));}
+  @keyframes speed-float{from{transform:translateY(10px); opacity:.2} to{transform:translateY(-36px); opacity:1}}
 
   /* ---- window ---- */
   .window{
@@ -250,7 +246,7 @@
         <div class="stats shadowed">
           <div class="stat"><div class="chip orange">🎒</div><div class="name">Loot Bag</div><div class="value">2 / 2</div></div>
           <div class="stat"><div class="chip blue">📦</div><div class="name">Warehouse</div><div class="value" style="color:var(--orange-dark)">8 / 10</div></div>
-          <div class="stat"><div class="chip cyan">👟</div><div class="name">Speed</div><div class="value">49</div></div>
+          <div class="stat"><div class="chip cyan">👟</div><div class="name">Speed</div><div class="value">245</div></div>
         </div>
       </div>
 
@@ -264,7 +260,7 @@
 
       <div class="toast shadowed"><div class="accent"></div><div class="chip purple">🦝</div><div class="text">Stole a Toaster! Worth $25.</div></div>
 
-      <div class="training shadowed"><div class="t">🏃 Speed 49 (196 studs/s)</div><div class="r">Lv 2 · ⚡ +2 speed / 2s</div><div class="bar"><i></i></div></div>
+      <div class="speed-gain">⚡ +8 SPEED</div>
 
       <div class="objective">🚨 Alarm! Run back up the street — defenders chase you to the yard mouth.</div>
     </div>
@@ -311,7 +307,7 @@
       <div class="road"></div>
       <div class="busted">
         <div class="big">BUSTED!</div>
-        <div class="sub">The Ginger Cat at the Maple Cottage caught you! You dropped 3 items worth $450.</div>
+        <div class="sub">The Ginger Cat at the Maple Cottage threw you through the front door! It recovered 3 items worth $450 and is returning them to their loot spots.</div>
       </div>
     </div>
   </div>

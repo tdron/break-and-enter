@@ -7,12 +7,15 @@
 
 	Important numbers are mirrored onto Player attributes so the client UI can
 	react to them without any extra remotes:
-	  Cash, Income, Carried, CarriedList, BagCapacity,
-	  StoredCount, StorageCapacity, Speed, SpeedPoints, SpeedProgress,
-	  Rebirths (production multiplier is x1 + x0.5 per rebirth: see Config.Rebirth),
-	  WalkSpeed (the real speed; WalkSpeed is held at Config.Alarm.InsideSpeed
-	  while InHouse is true), InHouse, Level_<UpgradeId>, Discovered
-	  (comma-separated item ids for the Loot Index)
+  Cash, Income, Carried, CarriedList, BagCapacity,
+  StoredCount, StorageCapacity, Speed, SpeedPoints, SpeedProgress,
+  Rebirths (production multiplier is x1 + x0.5 per rebirth: see Config.Rebirth),
+  InHouse, Level_<UpgradeId>, Discovered (comma-separated item ids for the Loot
+  Index).
+
+  The physical Humanoid.WalkSpeed is server-controlled and deliberately is not
+  replicated as a Player attribute: the player-facing Speed stat is the only
+  speed number shown to players.
 
 	Saving uses DataStoreService. When the place is unpublished or Studio API
 	access is off, the game still works but progress is session-only.
@@ -27,7 +30,7 @@ local Items = require(ReplicatedStorage.Shared.Items)
 export type Profile = {
 	Cash: number,
 	Levels: { [string]: number },
-	SpeedPoints: number, -- trained speed; the Speed stat is its whole part (see Config.Speed)
+	SpeedPoints: number, -- trained display-speed; whole points raise the 5x Speed stat
 	Rebirths: number, -- completed rebirths; drives the production multiplier (see Config.Rebirth)
 	Stored: { string },
 	TotalStolen: number,
@@ -142,10 +145,18 @@ local function sanitize(raw: any): Profile
 			end
 		end
 	end
-	-- Speed used to be stored as whole levels (+1 walk speed each) plus leftover XP;
-	-- turn that back into the same speed. (New saves store SpeedPoints directly.)
+	-- Version 1 stored points under the old 1 point = 4 studs/s rule. Version 2
+	-- counts display-speed points instead, where Speed is always 5x studs/s.
+	-- Convert old saves so players keep exactly the same physical movement speed.
+	local version = math.floor(readNumber(raw.Version, 0, 0, 1e9))
 	local legacyLevel = readNumber(raw.SpeedLevel, 0, 0, 1e9)
-	profile.SpeedPoints = readNumber(raw.SpeedPoints, legacyLevel / Config.Speed.SpeedDivisor, 0, 1e15)
+	local savedPoints = readNumber(raw.SpeedPoints, -1, -1, 1e15)
+	if savedPoints >= 0 then
+		profile.SpeedPoints = if version >= 2 then savedPoints else savedPoints * 20
+	else
+		-- Very old saves used one SpeedLevel per extra stud/s.
+		profile.SpeedPoints = legacyLevel * Config.Speed.DisplayMultiplier
+	end
 	profile.Rebirths = math.floor(readNumber(raw.Rebirths, 0, 0, 1e12)) -- rebirths never cap out
 	profile.Stored = readItemList(raw.Stored, Config.getUpgradeValue("Storage", profile.Levels.Storage))
 	-- The getaway car (and its trunk) is gone. Anything an old save still had in the trunk is
@@ -228,8 +239,8 @@ function PlayerData.getSpeedPoints(player: Player): number
 	return if session then session.Profile.SpeedPoints else 0
 end
 
--- The Speed stat the HUD, the leaderboard and the treadmill quote (a quarter of
--- the speed the player moves at).
+-- The player-facing Speed stat shown by the HUD, leaderboard and treadmill.
+-- It is always five times the real movement speed in studs/s.
 function PlayerData.getSpeedStat(player: Player): number
 	return Config.speedStatForPoints(PlayerData.getSpeedPoints(player))
 end
@@ -271,7 +282,9 @@ function PlayerData.replicate(player: Player)
 	player:SetAttribute("SpeedPoints", profile.SpeedPoints)
 	player:SetAttribute("SpeedProgress", profile.SpeedPoints - math.floor(profile.SpeedPoints))
 	player:SetAttribute("Speed", Config.speedStatForPoints(profile.SpeedPoints))
-	player:SetAttribute("WalkSpeed", PlayerData.getWalkSpeed(player))
+	-- Remove the old replicated physical-speed attribute for players joining a
+	-- server that was updated in place.
+	player:SetAttribute("WalkSpeed", nil)
 	player:SetAttribute("Rebirths", profile.Rebirths)
 	for _, upgrade in Config.Upgrades do
 		player:SetAttribute("Level_" .. upgrade.Id, profile.Levels[upgrade.Id])
@@ -361,7 +374,9 @@ end
 
 function PlayerData.applyWalkSpeed(player: Player)
 	local walkSpeed = PlayerData.getWalkSpeed(player)
-	player:SetAttribute("WalkSpeed", walkSpeed)
+	-- This is intentionally assigned only to the Humanoid. Replicating it as a
+	-- Player attribute exposed the true studs-per-second value next to the
+	-- player-facing (5×) Speed stat.
 	local character = player.Character
 	local humanoid = if character then character:FindFirstChildOfClass("Humanoid") else nil
 	if humanoid then
@@ -371,7 +386,9 @@ function PlayerData.applyWalkSpeed(player: Player)
 	local session = sessions[player]
 	local stats = if session then session.Leaderstats else nil
 	if stats then
-		stats.Speed.Value = walkSpeed
+		-- Keep the leaderboard aligned with the HUD's player-facing Speed value,
+		-- not the smaller physical studs-per-second value.
+		stats.Speed.Value = PlayerData.getSpeedStat(player)
 	end
 end
 
@@ -485,7 +502,7 @@ function PlayerData.save(player: Player): boolean
 	end
 	local profile = session.Profile
 	local payload = {
-		Version = 1,
+		Version = 2,
 		SavedAt = os.time(),
 		Cash = profile.Cash,
 		Levels = table.clone(profile.Levels),

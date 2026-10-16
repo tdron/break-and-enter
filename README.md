@@ -23,7 +23,7 @@ Everything is inside that one file: the town, all the scripts and the UI. Nothin
 | 1 | You spawn in **the yard**: a parking lot ringed by six garages. One of them is yours (your name is over the door), and you always respawn inside it. |
 | 2 | Run (or sprint) east down the street. Walk up to a front door and **hold E to pick the lock** (only at night!). |
 | 3 | Walk up to loot and **hold E to steal** it. Your bag fills up and a loot sack appears on your back. |
-| 4 | **Stealing trips the alarm!** After a short warning, the house's defenders wake up and come after you — out of the front door, through the yard and all the way back down the street. Inside the house everyone moves at the same speed; past the gate they run at their listed speed. Reach the **canyon mouth at the yard** and you're safe. If one catches you, you're **BUSTED** and lose everything you're carrying. |
+| 4 | **Stealing trips the alarm!** After a short warning, the house's defenders wake up and come after you — out of the front door, through the yard and all the way back down the street. Inside the house everyone moves at the same speed; past the gate they run at their listed speed. Reach the **canyon mouth at the yard** and you're safe. If one catches you indoors, you ragdoll through the front door into the road and it slams shut. A road catch ragdolls you where you stand while the defender carries your loot home; every recovered item returns to its exact original loot spot. |
 | 5 | Sprint home with the loot. The further down the street you rob, the faster they are — train on your treadmill before you take on the T-Rex. |
 | 6 | Step on the **green DEPOSIT pad** in your warehouse to shelve the loot you're carrying. |
 | 7 | Items on your shelves **earn cash every second**. Hold **E** on a shelf to open your **📦 STORAGE**, where you can **take an item back into your bag** or sell it for cash. |
@@ -66,7 +66,7 @@ Every house — the museum included — puts **five items out** at a time. House
 
 **The speed rule.** Inside a property *everyone* — you and them — moves at the standard Roblox speed. It is only out on the street that the numbers above apply, so a chase is a straight footrace: you keep whatever the treadmill has earned you, and they get their listed speed. (They are also quicker off the mark than you are, which is why houses 5+ are a treadmill problem, not a sneak problem.)
 
-**They chase you home.** A defender no longer gives up at its own gate: it follows you out of the house, along the street and into the canyon mouth. The chase only ends when you reach the **yard** (past the canyon mouth), when the daytime locks the houses up, or when someone catches you. The alarm banner at the top of the screen tells you who is coming and how fast they are.
+**They chase you home.** A defender no longer gives up at its own gate: it follows you out of the house, along the street and into the canyon mouth. The chase only ends when you reach the **yard** (past the canyon mouth), when the daytime locks the houses up, or when someone catches you. The alarm banner at the top of the screen tells you who is coming.
 
 **They are physical.** A defender is a body, not a ghost: walls, shut doors, the furniture in the room and the other defenders all stop it, and it walks through the doorways rather than at the walls between them. If an opening is too small for it — the T-Rex is about 5.6 studs wide, the security cars 5.3 — it takes the roomiest way past instead of grinding in the door. Anything with legs also *walks* with a deliberately choppy stop-motion gait — six poses a second, faster or slower with the speed the body is really making — so one that is pinned against a wall stops stepping instead of moonwalking on the spot. The drones, the tracked bots and the cars hover or roll, so they are left out of it.
 
@@ -101,10 +101,10 @@ Every house has **its own loot** (four to six different items: two Commons, a Ra
 
 ### 🌙 Night and ☀️ Daytime
 
-Heists happen at night. Every **4 minutes** the clock at the top of the screen runs through:
+Heists happen at night. Every **5½ minutes** the clock at the top of the screen runs through:
 
-- **🌙 Night, 3½ minutes.** Every house is open for business.
-- **☀️ Daytime, 30 seconds.** The owners come home. Every house locks up, alarms stop, lasers switch off, and anyone still on a property is shown out to the pavement (you keep whatever you're carrying). Then **every house restocks all of its loot**.
+- **🌙 Night, 5 minutes.** Every house is open for business.
+- **☀️ Daytime, 30 seconds.** The owners come home. Every house locks up, alarms stop, lasers switch off, and anyone still on a property is shown out to the pavement. If they find you **inside the house**, you lose everything in your bag; getting out into the garden before sunrise lets you keep it. Then **every house restocks all of its loot**.
 
 Daytime is the only time loot comes back, so a house you've emptied stays empty until the next sunrise. Use the daytime to unload, upgrade or train.
 
@@ -152,8 +152,9 @@ Every garage has its own treadmill out front, to the left of the loading dock. A
 - **Walk onto the belt** and your character starts running by itself. Your movement keys switch off, so you can go AFK and keep getting faster.
 - Press **ESCAPE**, **Space**, or **A** on a gamepad to hop off beside it. Walk back on to run again.
 - A treadmill hands out **speed**: level 1 gives **+1 speed every 4 seconds**. Every upgrade **doubles the amount** and **halves the wait**, so each level trains you exactly **four times faster**: by level 8 you're getting 128 speed every 1/32 of a second, which is **4,096 a second**.
-- One speed point is **+1 Speed** on your HUD — and your Speed is **a quarter of the speed you actually move**. A fresh player is *Speed 4* at the usual 16 studs/s, and *Speed 4 ➜ 5* really is 16 ➜ 20 studs/s.
-- **There is no speed cap.** Keep running and you'll leave the whole street in the dust — even the museum's fleet only runs at 125,000,000, which is about Speed 31 million, so a maxed treadmill (4,096 speed per second) eventually gets you there. The T-Rex (100,000) is the first real wall: it's about Speed 25,000.
+- Every whole gain rises as a cyan **`+SPEED`** number directly above your runner — there is no persistent treadmill bar covering the bottom of the screen.
+- One speed point is **+1 displayed Speed** on your HUD and leaderboard. Your displayed stat starts at **Speed 80**; raw movement measurements stay hidden so the number you train is the only speed number you need.
+- **There is no speed cap.** Keep running and you'll eventually leave the whole street in the dust. A maxed treadmill adds 4,096 displayed Speed per second, so even the toughest homes become escapable.
 - You upgrade the treadmill itself, either at the market stall in the yard or by holding **E** at its console. Its trim gets flashier with every level, and only you can use or upgrade yours.
 - Prices climb the same way the treadmill does: every level costs **four times** the last one.
 
@@ -175,7 +176,7 @@ Beside the market hall stands the **♻️ rebirth shrine**. It trades every spe
 - It costs **1,000,000 speed points** for your first rebirth, and every one after that costs **×2.5 more** (2.5M, 6.25M, 15.6M, …) — the ladder never ends.
 - Each rebirth adds a permanent **+×0.1 to your production multiplier**, forever: **×1.1** after one, **×1.2** after two, **×2** after ten.
 - The multiplier applies to **warehouse income *and* treadmill training**, and it is saved with your progress.
-- It spends your trained speed to do it — you go back to **Speed 4** — so a rebirth is a decision about the long game, not a free upgrade. The +0.1 lands on the treadmill too, so the climb back is quicker than the last one was.
+- It spends your trained speed to do it — you go back to **Speed 80** — so a rebirth is a decision about the long game, not a free upgrade. The +0.1 lands on the treadmill too, so the climb back is quicker than the last one was.
 - Your **Rebirths** count is on the leaderboard with your cash, loot and speed.
 
 | Rebirths | 1 | 2 | 3 | 5 | 10 | 15 |
@@ -231,7 +232,7 @@ src/
     Inventory.luau           carried loot and the loot sack on your back
     Plots.luau               personal warehouses, shelves, deposit pad, storage window back end
     Market.luau              the 💰 SELL POINT: list what you're carrying, sell one or all
-    DayNight.luau            the 4-minute clock: 3½ min night, 30 s daytime (houses close + restock)
+    DayNight.luau            the 5½-minute clock: 5 min night, 30 s daytime (houses close + restock)
     Houses.luau              doors, per-house loot, alarms, chases (speeds, lanes, catching), lasers
     Treadmills.luau          personal treadmills: AFK speed training, console upgrades
     Economy.luau             income ticks + upgrade purchases

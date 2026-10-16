@@ -3,8 +3,8 @@
 	BustedScreen
 	------------
 	The big red "BUSTED!" flash when a house guard (cat, dog or drone) catches
-	you — a full-screen red vignette and a scale-popping headline, the same
-	dramatic knockout treatment competitive games give their combat banners.
+	you — a full-screen red vignette and a scale-popping headline while the
+	server ragdolls the thief and returns recovered loot to its source spot.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -92,7 +92,7 @@ function BustedScreen.init(screen: ScreenGui)
 	overlay = frame
 end
 
-function BustedScreen.show(lostCount: number, lostValue: number, houseName: string, catcher: string?)
+function BustedScreen.show(lostCount: number, lostValue: number, houseName: string, catcher: string?, outcome: string?)
 	local frame, titleLabel, subtitleLabel = overlay, title, subtitle
 	if not frame or not titleLabel or not subtitleLabel then
 		return
@@ -101,16 +101,20 @@ function BustedScreen.show(lostCount: number, lostValue: number, houseName: stri
 	local myId = showId
 
 	local who = catcher or "A guard"
+	local location = if outcome == "door" then "threw you through the front door" elseif outcome == "road" then "caught you on the road" else "caught you"
+	local recovery = if outcome == "door" then "and returned them to their original loot spots." else "and is returning them to their original loot spots."
 	subtitleLabel.Text = if lostCount > 0
 		then string.format(
-			"%s at the %s caught you! You dropped %d item%s worth %s.",
+			"%s at the %s %s! It recovered %d item%s worth %s %s",
 			who,
 			houseName,
+			location,
 			lostCount,
 			if lostCount == 1 then "" else "s",
-			Format.money(lostValue)
+			Format.money(lostValue),
+			recovery
 		)
-		else string.format("%s at the %s caught you! Good thing your bag was empty.", who, houseName)
+		else string.format("%s at the %s %s! Good thing your bag was empty.", who, houseName, location)
 
 	frame.Visible = true
 	frame.BackgroundTransparency = 0.25

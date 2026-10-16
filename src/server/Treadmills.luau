@@ -6,9 +6,9 @@
 	character starts running by itself: there are no keys to hold, so you can
 	go AFK and keep getting faster. ESCAPE (or Space) hops you off.
 
-	Training hands out "speed" (see Config.Speed): every point is +4 studs/s of
-	walk speed, which is how you outrun the faster security drones in the fancier
-	houses. It never stops paying off - there is no speed cap - but you upgrade
+Training hands out player-facing "speed" (see Config.Speed): the displayed
+Speed number is always five times the real walk speed in studs/s. It never
+stops paying off - there is no speed cap - but you upgrade
 	the treadmill itself (in the shop, or the prompt on its console) to train
 	faster: every level doubles the speed gained and halves the wait between
 	gains, so each level is four times as fast as the last.
@@ -57,8 +57,6 @@ type Treadmill = {
 type Trainer = {
 	Treadmill: Treadmill,
 	AwayTime: number, -- seconds spent too far from the belt
-	PendingPoints: number, -- speed gained since the last "Speed up!" toast
-	LastToast: number,
 }
 
 local TICK = 0.25
@@ -66,7 +64,6 @@ local TICK = 0.25
 -- server sees the character a little behind where the player's own screen has it.
 local START_DISTANCE = 20
 local AWAY_GRACE = 2 -- seconds you may spend off the belt before training stops
-local TOAST_INTERVAL = 8 -- at most one "Speed up!" toast this often
 
 local Treadmills = {}
 
@@ -151,25 +148,6 @@ local function refreshDisplay(treadmill: Treadmill)
 	end
 end
 
-local function sendSpeedToast(player: Player, trainer: Trainer)
-	local gained = trainer.PendingPoints
-	if gained <= 0 then
-		return
-	end
-	trainer.PendingPoints = 0
-	trainer.LastToast = os.clock()
-	Notify.send(
-		player,
-		string.format(
-			"⚡ Speed up! +%d — Speed %s (%s studs/s)",
-			gained,
-			Format.commas(PlayerData.getSpeedStat(player)),
-			Format.commas(PlayerData.getWalkSpeed(player))
-		),
-		"level"
-	)
-end
-
 local function setTrainer(player: Player, trainer: Trainer?)
 	if trainer then
 		trainers[player] = trainer
@@ -202,17 +180,16 @@ function Treadmills.start(player: Player): (boolean, string)
 	if distance > START_DISTANCE then
 		return false, "Walk onto your treadmill to train!"
 	end
-	setTrainer(player, { Treadmill = treadmill, AwayTime = 0, PendingPoints = 0, LastToast = 0 })
+	setTrainer(player, { Treadmill = treadmill, AwayTime = 0 })
 	return true, ""
 end
 
--- Stops training (no-op if the player isn't training). `reason` is shown as a toast.
+-- Stops training (no-op if the player isn't training).
 function Treadmills.stop(player: Player, reason: string?)
 	local trainer = trainers[player]
 	if not trainer then
 		return
 	end
-	sendSpeedToast(player, trainer)
 	setTrainer(player, nil)
 	if reason and player.Parent then
 		Notify.send(player, reason, "info")
@@ -246,13 +223,10 @@ local function train(player: Player, trainer: Trainer, dt: number)
 	-- The treadmill's level sets how fast it trains: "amount every interval",
 	-- doubling the amount and halving the interval with every level.
 	local level = PlayerData.getUpgradeLevel(player, "Treadmill")
-	local gained = PlayerData.addSpeed(player, Config.treadmillRate(level) * dt)
-	if gained > 0 then
-		trainer.PendingPoints += gained
-	end
-	if trainer.PendingPoints > 0 and os.clock() - trainer.LastToast >= TOAST_INTERVAL then
-		sendSpeedToast(player, trainer)
-	end
+	-- PlayerData replicates the displayed Speed whenever a whole point lands.
+	-- The local treadmill controller turns that delta into a floating +Speed
+	-- number over the runner, rather than filling a persistent HUD bar.
+	PlayerData.addSpeed(player, Config.treadmillRate(level) * dt)
 end
 
 local function loop()

@@ -98,6 +98,21 @@ local function spawnCharacter(player, position: Vector3)
 	torso.Size = Vector3.new(2, 1.6, 1)
 	torso.CFrame = CFrame.new(position + Vector3.new(0, 0.6, 0))
 	torso.Parent = character
+	-- A tiny articulated limb makes the integration catch test exercise the real Motor6D ->
+	-- BallSocket ragdoll conversion, not just Humanoid.PlatformStand.
+	local arm = Mock.newInstance("Part")
+	arm.Name = "LeftArm"
+	arm.Size = Vector3.new(0.5, 1.4, 0.5)
+	arm.CFrame = CFrame.new(position + Vector3.new(-1.2, 0.5, 0))
+	arm.Parent = character
+	local shoulder = Mock.newInstance("Motor6D")
+	shoulder.Name = "LeftShoulder"
+	shoulder.Part0 = torso
+	shoulder.Part1 = arm
+	shoulder.C0 = CFrame.new()
+	shoulder.C1 = CFrame.new()
+	shoulder.Enabled = true
+	shoulder.Parent = torso
 	character.PrimaryPart = root
 	character.Parent = workspace
 	player.Character = character
@@ -157,7 +172,7 @@ step("server boots without errors or warnings", function()
 	eq(kinds.Vehicle, 5, "a security car in Aspen House and four parked outside the museum")
 	eq(workspace:GetAttribute("Daytime"), false, "the game starts at night")
 	local left = workspace:GetAttribute("PhaseEndsAt") - workspace:GetServerTimeNow()
-	check(math.abs(left - Config.DayNight.NightLength) < 1, "night should last 3½ minutes, got " .. left)
+	check(math.abs(left - Config.DayNight.NightLength) < 1, "night should last 5 minutes, got " .. left)
 end)
 
 local thief = newPlayer(101, "Thief")
@@ -171,7 +186,7 @@ step("player gets a warehouse, data and a spawn", function()
 	eq(thief:GetAttribute("Cash"), 0, "Cash")
 	eq(thief:GetAttribute("BagCapacity"), 2, "BagCapacity")
 	eq(thief:GetAttribute("StorageCapacity"), 10, "StorageCapacity")
-	eq(thief:GetAttribute("WalkSpeed"), 16, "WalkSpeed")
+	eq(thief:GetAttribute("WalkSpeed"), nil, "true walk speed is not replicated")
 	eq(humanoid.WalkSpeed, 16, "humanoid walk speed")
 	check(thief:FindFirstChild("leaderstats"), "leaderstats missing")
 	eq(thief.RespawnLocation, plot.Spawn, "RespawnLocation")
@@ -186,6 +201,19 @@ local cottage = Map.Houses.House1 -- Maple Cottage, guarded by a ginger cat
 -- Every house stands on the same 0.5-stud foundation, so the floor inside one is always at this
 -- height: it is where a thief - and the guard that comes after them - walks.
 local HOUSE_FLOOR = 0.7
+local firstStolenItemId: string? = nil
+local firstStolenSpot: Vector3? = nil
+
+local function itemAt(house, itemId: string, position: Vector3)
+	for _, item in house.Loot:GetChildren() do
+		local rootPart = item:FindFirstChild("Root")
+		if item:GetAttribute("ItemId") == itemId and rootPart and rootPart:IsA("BasePart")
+			and (rootPart.Position - position).Magnitude < 0.05 then
+			return item
+		end
+	end
+	return nil
+end
 
 step("pick the front door lock", function()
 	local door = cottage.Doors:GetChildren()[1]
@@ -214,20 +242,23 @@ end
 
 step("steal an item and trip the alarm", function()
 	local mark = #Mock.remoteLog
-	local item = stealFrom(cottage, thief, root)
+	local item = cottage.Loot:GetChildren()[1]
+	firstStolenItemId = item:GetAttribute("ItemId")
+	firstStolenSpot = item.Root.Position
+	stealFrom(cottage, thief, root)
 	Mock.advance(0.1)
 	eq(thief:GetAttribute("Carried"), 1, "Carried")
 	eq(item.Parent, nil, "stolen item removed")
 	eq(cottage:GetAttribute("AlarmActive"), true, "alarm")
 	eq(thief:GetAttribute("AlarmHouse"), "Maple Cottage", "AlarmHouse banner")
 	eq(thief:GetAttribute("AlarmGuard"), "the Tuxedo Cat", "the banner names the guard")
-	eq(thief:GetAttribute("AlarmSpeed"), Config.Guards.TuxedoCat.Speed, "the banner knows how fast it is")
+	eq(thief:GetAttribute("AlarmSpeed"), nil, "the guard's true speed is not replicated")
 	eq(thief:GetAttribute("InHouse"), true, "the thief is inside a house")
 	eq(humanoid.WalkSpeed, Config.Alarm.InsideSpeed, "where everyone moves at the standard Roblox speed")
 	check(character:FindFirstChild("LootSack"), "loot sack not shown")
 	check(sawMessage(thief, mark, "Stole"), "no steal message")
 	check(sawMessage(thief, mark, "Tuxedo Cat woke up"), "the alarm message should name the cat")
-	check(sawMessage(thief, mark, "through the gate it runs at 10 studs/s"), "the alarm warns about the gate")
+	check(sawMessage(thief, mark, "before it reaches full speed"), "the alarm warns about the gate without revealing studs/s")
 	eq(#cottage.Loot:GetChildren(), 4, "loot left")
 	-- First time stealing this item: it's unlocked in the Loot Index
 	local itemId = item:GetAttribute("ItemId")
@@ -237,8 +268,9 @@ step("steal an item and trip the alarm", function()
 	eq(cat.Root.Status.Icon.Text, "❗", "the cat wakes up")
 end)
 
-step("standing still gets you busted by the cat", function()
+step("an indoor catch ragdolls you through the door and restores the exact loot spot", function()
 	local mark = #Mock.remoteLog
+	local sounds = Mock.soundsPlayed
 	local busted = nil
 	local cat = cottage:FindFirstChild("Guard")
 	local start = cat.Root.Position
@@ -258,10 +290,24 @@ step("standing still gets you busted by the cat", function()
 	check(busted, "the cat never caught the thief")
 	eq(busted.args[3], "Maple Cottage", "busted at")
 	eq(busted.args[4], "The Tuxedo Cat", "busted by")
-	eq(thief:GetAttribute("Carried"), 0, "carried loot lost")
+	eq(busted.args[5], "door", "indoor catch outcome")
+	eq(thief:GetAttribute("Carried"), 0, "bag emptied by the catcher")
 	eq(character:FindFirstChild("LootSack"), nil, "sack removed")
+	check(humanoid.PlatformStand, "the indoor bust should ragdoll the thief")
+	check(character:GetAttribute("Ragdolled"), "the character advertises its ragdoll state")
+	check(character:FindFirstChild("BustRagdollJoint", true), "the ragdoll should replace body motors with ball sockets")
+	check(firstStolenItemId and firstStolenSpot, "the theft origin was not recorded")
+	check(itemAt(cottage, firstStolenItemId :: string, firstStolenSpot :: Vector3), "stolen item did not return to its original marker")
+	eq(#cottage.Loot:GetChildren(), 5, "the caught item is returned immediately inside")
 	Mock.advance(0.5)
-	check((root.Position - plot.Spawn.Position).Magnitude < 10, "not teleported home after bust")
+	-- The launch starts at the actual front door, never at the warehouse spawn.
+	check((root.Position - cottage.Route.Door.Position).Magnitude < 6, "not placed at the front door for ejection")
+	check((root.Position - plot.Spawn.Position).Magnitude > 20, "the old warehouse teleport must be gone")
+	check(root.AssemblyLinearVelocity.Z > 0, "House1's indoor launch should head toward the road")
+	local door = cottage.Doors:GetChildren()[1]
+	eq(door.OpenAngle.Value, 0, "the front door slams shut after the ejection")
+	check(door.Panel:FindFirstChild("SlamSound"), "the slammed door needs a replicated sound")
+	check(Mock.soundsPlayed > sounds, "the slam should play a sound")
 	eq(thief:GetAttribute("AlarmHouse"), "", "banner cleared")
 end)
 
@@ -270,14 +316,79 @@ step("alarm calms down once the property is empty", function()
 	eq(cottage:GetAttribute("AlarmActive"), false, "alarm should reset")
 end)
 
+step("a road catch sends the guard home carrying loot before it restores the source spot", function()
+	-- Let the first catcher settle fully at its post before beginning a second theft.
+	Mock.advance(20)
+	local Houses = moduleOf("Houses")
+	local cat = cottage:FindFirstChild("Guard")
+	local home = cat.Root.AlignPosition.Position
+	check((cat.Root.Position - home).Magnitude < 8, "the cat did not return home before the road catch")
+
+	local item = cottage.Loot:GetChildren()[1]
+	local itemId = item:GetAttribute("ItemId")
+	local origin = item.Root.Position
+	stealFrom(cottage, thief, root)
+	local mark = #Mock.remoteLog
+	-- Get well down the road while the cat finds its way through the building, so it cannot make a
+	-- second indoor catch before crossing the gate.
+	local street = cottage.Route.Street.Position + Vector3.new(0, 3, 0)
+	root.CFrame = CFrame.new(street + Vector3.new(-70, 0, 0))
+	local reachedRoad = false
+	for _ = 1, 120 do
+		Mock.advance(0.5)
+		if not Houses.isOnProperty(cat.Root.Position) then
+			reachedRoad = true
+			break
+		end
+	end
+	check(reachedRoad, "the cat never reached the road to make an outdoor catch")
+	root.CFrame = CFrame.new(street)
+
+	local busted = nil
+	for _ = 1, 160 do
+		Mock.advance(0.25)
+		for index = mark + 1, #Mock.remoteLog do
+			if Mock.remoteLog[index].remote == "Busted" then
+				busted = Mock.remoteLog[index]
+			end
+		end
+		if busted then
+			break
+		end
+	end
+	check(busted, "the cat never caught the thief on the road")
+	eq(busted.args[5], "road", "road catch outcome")
+	eq(thief:GetAttribute("Carried"), 0, "the road catcher took the bag")
+	check(humanoid.PlatformStand, "the road catch should ragdoll the thief")
+	check(character:GetAttribute("Ragdolled"), "road catch sets the ragdoll state")
+	check(cat:FindFirstChild("RecoveredLoot", true), "the catcher should visibly carry the recovered loot")
+	check(not itemAt(cottage, itemId, origin), "the item should travel home with the catcher before restoring")
+
+	local beforeReturn = (cat.Root.Position - home).Magnitude
+	Mock.advance(4)
+	check((cat.Root.Position - home).Magnitude < beforeReturn, "the catcher should retreat toward its own house")
+
+	local restored = false
+	for _ = 1, 80 do
+		Mock.advance(1)
+		if itemAt(cottage, itemId, origin) and not cat:FindFirstChild("RecoveredLoot", true) then
+			restored = true
+			break
+		end
+	end
+	check(restored, "the road catch did not return the exact stolen item to its original spot")
+	check((root.Position - plot.Spawn.Position).Magnitude > 20, "a road bust must not teleport to the warehouse")
+end)
+
 step("they chase you out of the house and all the way back down the street", function()
 	local mark = #Mock.remoteLog
 	local PlayerData = moduleOf("PlayerData")
 	-- Train a pile of speed first: inside a house it must not matter one bit.
-	PlayerData.addSpeed(thief, 400)
+	PlayerData.addSpeed(thief, 5000)
 	Mock.advance(0.2)
-	local realSpeed = thief:GetAttribute("WalkSpeed")
+	local realSpeed = humanoid.WalkSpeed
 	check(realSpeed > 1000, "training should have made you quick, got " .. tostring(realSpeed))
+	eq(thief:GetAttribute("WalkSpeed"), nil, "training must not expose true walk speed")
 
 	-- Let anything from the last step get home first, so "its post" is where the cat sleeps.
 	Mock.advance(30)
@@ -502,16 +613,6 @@ step("buy upgrades in the shop", function()
 	eq(treadmill.AccentBar.Color, Config.treadmillColor(2), "trim colour follows the level")
 end)
 
-local function speedToasts(player, since: number): number
-	local count = 0
-	for _, message in notificationsFor(player, since) do
-		if string.find(message, "Speed up", 1, true) then
-			count += 1
-		end
-	end
-	return count
-end
-
 step("AFK training on your own treadmill", function()
 	local mark = #Mock.remoteLog
 	local treadmill = plot.Treadmill
@@ -522,7 +623,7 @@ step("AFK training on your own treadmill", function()
 	eq(treadmill:GetAttribute("OwnerUserId"), 101, "treadmill knows its owner")
 	eq(treadmill:GetAttribute("Running"), false, "belt idle")
 	eq(thief:GetAttribute("SpeedPoints"), 0, "no speed trained yet")
-	eq(thief:GetAttribute("Speed"), 4, "Speed starts at a quarter of the 16 studs/s you walk at")
+	eq(thief:GetAttribute("Speed"), 80, "Speed starts at five times the 16 studs/s you walk at")
 	eq(humanoid.WalkSpeed, 16, "walking at the Roblox default")
 
 	-- You have to actually be on it.
@@ -543,14 +644,14 @@ step("AFK training on your own treadmill", function()
 	Mock.advance(0.3)
 	check(string.find(console.Text, "+1 speed / 4s", 1, true), "console shows the level 1 rate: " .. console.Text)
 
-	-- Level 1 hands out one speed every 4 seconds: +1 Speed, which is +4 studs/s.
+	-- Level 1 hands out one displayed speed every 4 seconds. The displayed
+	-- value is always exactly five times the physical studs/s value.
 	Mock.advance(5)
-	eq(thief:GetAttribute("Speed"), 5, "one speed after the first 4 seconds")
-	eq(humanoid.WalkSpeed, 20, "and you really do move 4 studs/s faster")
-	check(sawMessage(thief, mark, "Speed up"), "no speed-up message")
+	eq(thief:GetAttribute("Speed"), 81, "one displayed speed after the first 4 seconds")
+	eq(humanoid.WalkSpeed, 16.2, "Speed 81 means 16.2 studs/s")
 	Mock.advance(8)
-	eq(thief:GetAttribute("Speed"), 7, "a speed point every 4 seconds (3 of them in 12 seconds)")
-	eq(humanoid.WalkSpeed, 28, "walk speed is 4x the Speed stat")
+	eq(thief:GetAttribute("Speed"), 83, "a displayed speed point every 4 seconds (3 in 12 seconds)")
+	eq(humanoid.WalkSpeed, 16.6, "displayed Speed stays 5x the walk speed")
 	eq(thief:GetAttribute("Training"), true, "still training")
 
 	-- Level 2 doubles the gain and halves the wait: four times the speed per second.
@@ -564,13 +665,12 @@ step("AFK training on your own treadmill", function()
 	check(thief:GetAttribute("Speed") >= before + 4, "level 2 should train 4x faster than level 1")
 	check(thief:GetAttribute("Speed") <= before + 6, "level 2 shouldn't be faster than that")
 
-	-- A maxed treadmill pours speed on; the toasts get batched.
+	-- A maxed treadmill pours speed on. The client converts each replicated
+	-- increase into its own floating number instead of server toast batching.
 	session.Profile.Levels.Treadmill = #Config.UpgradesById.Treadmill.Values
-	local burstMark = #Mock.remoteLog
 	before = thief:GetAttribute("Speed")
 	Mock.advance(3)
 	check(thief:GetAttribute("Speed") >= before + 8000, "a maxed treadmill should pour on the speed")
-	check(speedToasts(thief, burstMark) <= 2, "speed toasts should be batched, got " .. speedToasts(thief, burstMark))
 	eq(thief:GetAttribute("SpeedMaxed"), nil, "there is no speed cap")
 	session.Profile.Levels.Treadmill = 2
 	Mock.advance(0.3)
@@ -780,14 +880,18 @@ step("stolen loot doesn't come back until daytime", function()
 	eq(workspace:GetAttribute("Daytime"), false, "still night")
 end)
 
-step("daytime: houses lock up, everyone is shown out and all loot restocks", function()
-	-- Wait inside Maple Cottage with the front door open.
+step("daytime: indoor thieves lose their bags, everyone is shown out and loot restocks", function()
+	-- Bring bag loot inside Maple Cottage with the front door open.
 	local door = cottage.Doors:GetChildren()[1]
 	if door.Panel.LockpickPrompt.Enabled then
 		door.Panel.LockpickPrompt.Triggered:Fire(thief)
 	end
+	-- Add bag loot directly so this daylight rule is isolated from the guard catch loop.
+	local Inventory = moduleOf("Inventory")
+	check(Inventory.addCarried(thief, "Toaster"), "the indoor thief needs loot to lose at sunrise")
 	root.CFrame = CFrame.new(cottage.Zone.Position.X, 3.7, cottage.Zone.Position.Z)
 	local carried = thief:GetAttribute("Carried")
+	check(carried > 0, "the indoor thief needs loot to lose at sunrise")
 	local mark = #Mock.remoteLog
 	local left = workspace:GetAttribute("PhaseEndsAt") - workspace:GetServerTimeNow()
 	Mock.advance(left + 0.5, 0.25)
@@ -799,8 +903,9 @@ step("daytime: houses lock up, everyone is shown out and all loot restocks", fun
 	local zone = cottage.Zone
 	local relative = zone.CFrame:PointToObjectSpace(root.Position)
 	check(math.abs(relative.Z) > zone.Size.Z / 2, "the thief should be outside the property, at " .. tostring(root.Position))
-	check(sawMessage(thief, mark, "owners came home"), "no eviction message")
-	eq(thief:GetAttribute("Carried"), carried, "you keep what you carried out")
+	check(sawMessage(thief, mark, "owners came home and caught you inside"), "no indoor-loss message")
+	eq(thief:GetAttribute("Carried"), 0, "an indoor thief loses every carried item at sunrise")
+	eq(character:FindFirstChild("LootSack"), nil, "the lost bag is removed at sunrise")
 	-- Locked up
 	eq(door.Panel.LockpickPrompt.Enabled, false, "lockpicking is off during the day")
 	eq(door.OpenAngle.Value, 0, "and the door is shut for the day")
@@ -819,7 +924,7 @@ step("daytime: houses lock up, everyone is shown out and all loot restocks", fun
 	end
 	local item = cottage.Loot:GetChildren()[1]
 	item.Root.StealPrompt.Triggered:Fire(thief)
-	eq(thief:GetAttribute("Carried"), carried, "the server refuses daytime steals too")
+	eq(thief:GetAttribute("Carried"), 0, "the server refuses daytime steals too")
 
 	-- Night falls again: everything reopens
 	mark = #Mock.remoteLog
@@ -858,7 +963,7 @@ step("progress saves on leave and loads on rejoin", function()
 	eq(plot.Treadmill.Console.UpgradeTreadmillPrompt.Enabled, false, "no upgrades on an empty treadmill")
 
 	local returning = newPlayer(101, "Thief")
-	spawnCharacter(returning, Vector3.new(0, 5, 0))
+	local _, returningHumanoid = spawnCharacter(returning, Vector3.new(0, 5, 0))
 	Mock.advance(1)
 	eq(returning:GetAttribute("PlotIndex"), 1, "gets a free plot again")
 	eq(returning:GetAttribute("StoredCount"), #stored, "stored items restored")
@@ -866,8 +971,9 @@ step("progress saves on leave and loads on rejoin", function()
 	check(returning:GetAttribute("Cash") >= cash, "cash restored")
 	eq(#plot.Display:GetChildren(), #stored, "shelves rebuilt")
 	check(returning:GetAttribute("SpeedPoints") >= 1, "trained speed restored")
-	check(returning:GetAttribute("Speed") >= 5, "Speed stat restored")
-	eq(returning:GetAttribute("WalkSpeed"), 4 * returning:GetAttribute("Speed"), "walk speed is 4x the Speed stat")
+	check(returning:GetAttribute("Speed") >= 80, "Speed stat restored")
+	eq(returning:GetAttribute("WalkSpeed"), nil, "rejoined players do not receive true walk speed")
+	eq(returning:GetAttribute("Speed"), 5 * returningHumanoid.WalkSpeed, "displayed Speed remains 5x walk speed server-side")
 	eq(returning:GetAttribute("Level_Treadmill"), 3, "treadmill level restored")
 	local discovered = string.split(returning:GetAttribute("Discovered"), ",")
 	eq(#discovered, #saved.Discovered, "Loot Index restored")
@@ -888,13 +994,14 @@ step("old saves with gym treadmill unlocks become treadmill levels", function()
 	eq(elite:GetAttribute("Discovered"), "Toaster,Laptop", "items you already own count as discovered")
 	eq(pro:GetAttribute("Level_Treadmill"), 3, "pro unlock -> treadmill level 3")
 
-	-- Speed used to be saved as whole levels worth +1 walk speed each: an old save
-	-- with 8 levels must come back at exactly the same walk speed (16 + 8 = 24).
+	-- Old saves still convert to the same server-side movement rate, but that raw
+	-- value is no longer published as a Player attribute.
 	local legacy = newPlayer(505, "LegacyRunner")
 	Mock.advance(0.5)
-	eq(legacy:GetAttribute("SpeedPoints"), 2, "8 old speed levels -> 2 speed points")
-	eq(legacy:GetAttribute("Speed"), 6, "which is Speed 6 at a quarter of the speed")
-	eq(legacy:GetAttribute("WalkSpeed"), 24, "and the same walk speed they had before")
+	eq(legacy:GetAttribute("SpeedPoints"), 40, "8 old speed levels -> 40 display-speed points")
+	eq(legacy:GetAttribute("Speed"), 120, "which is Speed 120")
+	eq(legacy:GetAttribute("WalkSpeed"), nil, "legacy players do not receive true walk speed")
+	eq(moduleOf("PlayerData").getWalkSpeed(legacy), 24, "legacy movement rate stays intact server-side")
 
 	for _, player in { elite, pro, legacy } do
 		player.Parent = nil
@@ -913,7 +1020,7 @@ step("the rebirth shrine trades all your speed for a permanent multiplier", func
 
 	-- A fresh arrival with a toaster on the shelves (so there's an income to multiply).
 	local spinner = newPlayer(606, "Rebirther")
-	spawnCharacter(spinner, Vector3.new(0, 5, 0))
+	local _, spinnerHumanoid = spawnCharacter(spinner, Vector3.new(0, 5, 0))
 	Mock.advance(1)
 	moduleOf("Plots").deposit(spinner, { "Toaster" })
 	Mock.advance(0.5)
@@ -940,8 +1047,9 @@ step("the rebirth shrine trades all your speed for a permanent multiplier", func
 	eq(bought.Ok, true, "rebirth bought: " .. tostring(bought.Message))
 	eq(spinner:GetAttribute("Rebirths"), 1, "the rebirth is counted")
 	eq(spinner:GetAttribute("SpeedPoints"), 0, "every speed point is spent")
-	eq(spinner:GetAttribute("Speed"), 4, "the Speed stat starts over")
-	eq(spinner:GetAttribute("WalkSpeed"), 16, "and you jog at the base speed again")
+	eq(spinner:GetAttribute("Speed"), 80, "the Speed stat starts over")
+	eq(spinner:GetAttribute("WalkSpeed"), nil, "rebirth does not expose true walk speed")
+	eq(spinnerHumanoid.WalkSpeed, 16, "and you jog at the base speed again")
 	eq(spinner.leaderstats.Rebirths.Value, 1, "the leaderboard brags about the rebirth")
 	eq(spinner:GetAttribute("Income"), incomeBefore * 1.1, "coins per second pick up the x1.1")
 

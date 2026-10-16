@@ -22,6 +22,7 @@ local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Format = require(ReplicatedStorage.Shared.Format)
 local Notifications = require(script.Parent.Notifications)
 local UI = require(script.Parent.UI)
 
@@ -66,6 +67,12 @@ local escapeFrame: Frame? = nil
 local keyCap: TextLabel? = nil
 local escapeLabel: TextLabel? = nil
 local signGui: BillboardGui? = nil
+
+-- Each whole displayed-speed point the server replicates becomes one short-lived
+-- floating number over the runner. Keeping the last value locally makes this
+-- work without a presentation-only RemoteEvent.
+local lastDisplayedSpeed: number? = nil
+local gainNumberCount = 0
 
 --------------------------------------------------------------------------------
 -- Helpers
@@ -325,6 +332,70 @@ local function attachSign()
 	updateEscapeButton()
 end
 
+-- Shows the amount from a single replicated speed gain directly above the
+-- character. BillboardGui keeps the feedback tied to the runner in both third
+-- person and mobile camera views instead of taking up persistent HUD space.
+local function showSpeedGain(amount: number)
+	if amount <= 0 then
+		return
+	end
+	local character = player.Character
+	local root = if character then character:FindFirstChild("HumanoidRootPart") else nil
+	if not (root and root:IsA("BasePart")) then
+		return
+	end
+
+	gainNumberCount += 1
+	local lane = (gainNumberCount % 3) - 1
+	local startOffset = Vector3.new(lane * 0.6, 3.6, 0)
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "TreadmillSpeedGain"
+	gui.Adornee = root
+	gui.Size = UDim2.fromOffset(190, 54)
+	gui.StudsOffsetWorldSpace = startOffset
+	gui.AlwaysOnTop = true
+	gui.LightInfluence = 0
+	gui.MaxDistance = 150
+	gui.Parent = root
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Amount"
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Theme.TitleFont
+	label.Text = "⚡ +" .. Format.commas(amount) .. " SPEED"
+	label.TextColor3 = Theme.Cyan
+	label.TextSize = 28
+	label.TextStrokeColor3 = Theme.CyanDark
+	label.TextStrokeTransparency = 0.15
+	label.Parent = gui
+
+	UI.tween(gui, 0.85, { StudsOffsetWorldSpace = startOffset + Vector3.new(0, 3.25, 0) }, Enum.EasingStyle.Quad)
+	task.delay(0.62, function()
+		if label.Parent then
+			UI.tween(label, 0.2, { TextTransparency = 1, TextStrokeTransparency = 1 })
+		end
+	end)
+	task.delay(0.88, function()
+		if gui.Parent then
+			gui:Destroy()
+		end
+	end)
+end
+
+local function onDisplayedSpeedChanged()
+	local speed = player:GetAttribute("Speed")
+	if type(speed) ~= "number" then
+		return
+	end
+	local previous = lastDisplayedSpeed
+	lastDisplayedSpeed = speed
+	-- Ignore the initial replication and non-treadmill changes such as rebirthing.
+	if previous and speed > previous and player:GetAttribute("Training") == true then
+		showSpeedGain(speed - previous)
+	end
+end
+
 --------------------------------------------------------------------------------
 -- Getting on and off
 --------------------------------------------------------------------------------
@@ -516,6 +587,9 @@ end
 
 function TreadmillController.init(screen: ScreenGui)
 	createEscapeButton(screen)
+	local speed = player:GetAttribute("Speed")
+	lastDisplayedSpeed = if type(speed) == "number" then speed else nil
+	player:GetAttributeChangedSignal("Speed"):Connect(onDisplayedSpeedChanged)
 	player:GetAttributeChangedSignal("PlotIndex"):Connect(attachSign)
 	task.spawn(attachSign)
 

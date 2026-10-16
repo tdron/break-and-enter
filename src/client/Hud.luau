@@ -11,7 +11,7 @@
 	  * A cinematic night/daytime clock (top centre) with a phase progress bar
 	  * A pulsing full-width alarm banner while a house's guards chase you
 	  * A pill objective hint telling new players what to do next
-	  * The treadmill training bar (while you run on your treadmill)
+	  * Floating treadmill gain numbers above the runner (owned by TreadmillController)
 ]]
 
 local Players = game:GetService("Players")
@@ -365,69 +365,6 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		UI.scaled(),
 	})
 
-	----------------------------------------------------------------------------
-	-- Training bar (neon cyan while on the treadmill)
-	----------------------------------------------------------------------------
-	local trainingPanel: Frame = UI.new("Frame", {
-		Name = "Training",
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -66),
-		Size = UDim2.fromOffset(460, 62),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		BackgroundTransparency = 0.06,
-		Visible = false,
-		ZIndex = 2,
-		Parent = screen,
-	}, {
-		UI.shadow(14, 5),
-		UI.corner(14),
-		UI.stroke(Theme.CyanDark, 2, 0.1),
-		UI.gloss(),
-		UI.scaled(),
-	})
-	local trainingTitle: TextLabel = UI.new("TextLabel", {
-		Name = "Title",
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(14, 6),
-		Size = UDim2.new(1, -210, 0, 26),
-		Font = Theme.TitleFont,
-		Text = "",
-		TextColor3 = Theme.CyanDark,
-		TextSize = 20,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 3,
-		Parent = trainingPanel,
-	})
-	local trainingRate: TextLabel = UI.new("TextLabel", {
-		Name = "Rate",
-		AnchorPoint = Vector2.new(1, 0),
-		BackgroundTransparency = 1,
-		Position = UDim2.new(1, -14, 0, 6),
-		Size = UDim2.fromOffset(190, 26),
-		Font = Theme.BoldFont,
-		Text = "",
-		TextColor3 = Theme.OrangeDark,
-		TextSize = 17,
-		TextXAlignment = Enum.TextXAlignment.Right,
-		ZIndex = 3,
-		Parent = trainingPanel,
-	})
-	local barBack: Frame = UI.new("Frame", {
-		Name = "Bar",
-		BackgroundColor3 = Color3.fromRGB(94, 90, 122),
-		BackgroundTransparency = 0.8,
-		Position = UDim2.fromOffset(14, 38),
-		Size = UDim2.new(1, -28, 0, 16),
-		ZIndex = 3,
-		Parent = trainingPanel,
-	}, { UI.corner(8) })
-	local barFill: Frame = UI.new("Frame", {
-		Name = "Fill",
-		BackgroundColor3 = Theme.Cyan,
-		Size = UDim2.fromScale(0, 1),
-		ZIndex = 4,
-		Parent = barBack,
-	}, { UI.corner(8), UI.gradient(Theme.Cyan, Theme.CyanDark) })
 
 	----------------------------------------------------------------------------
 	-- Updating
@@ -443,7 +380,8 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		local stored, storage = getNumber("StoredCount", 0), getNumber("StorageCapacity", 10)
 		storageValue.Text = string.format("%d / %d", stored, storage)
 		storageValue.TextColor3 = if stored >= storage then Theme.Orange else Theme.Text
-		speedValue.Text = Config.speedStatForPoints(getNumber("SpeedPoints", 0))
+		-- Speed is the player-facing stat; raw Humanoid studs-per-second is never shown here.
+		speedValue.Text = Format.commas(getNumber("Speed", Config.speedStatForPoints(getNumber("SpeedPoints", 0))))
 	end
 
 	local function updateObjective()
@@ -479,20 +417,7 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		end
 	end
 
-	local function updateTraining()
-		local training = player:GetAttribute("Training") == true
-		trainingPanel.Visible = training
-		if training then
-			local treadmillLevel = getNumber("Level_Treadmill", 1)
-			local speed = Config.speedStatForPoints(getNumber("SpeedPoints", 0))
-			trainingRate.Text = string.format("Lv %d · ⚡ %s", treadmillLevel, Config.treadmillText(treadmillLevel))
-			trainingTitle.Text = string.format("🏃 Speed %d (%s studs/s)", speed, Format.short(getNumber("WalkSpeed", 16)))
-			-- The bar fills up to the next whole speed point.
-			UI.tween(barFill, 0.2, { Size = UDim2.fromScale(math.clamp(getNumber("SpeedProgress", 0), 0, 1), 1) })
-		end
-	end
-
-	for _, name in { "Income", "Carried", "BagCapacity", "StoredCount", "StorageCapacity", "WalkSpeed" } do
+	for _, name in { "Income", "Carried", "BagCapacity", "StoredCount", "StorageCapacity", "Speed" } do
 		player:GetAttributeChangedSignal(name):Connect(function()
 			updateStats()
 			updateObjective()
@@ -530,9 +455,6 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 		updateObjective()
 	end)
 	player:GetAttributeChangedSignal("Training"):Connect(updateObjective)
-	for _, name in { "Training", "SpeedPoints", "SpeedProgress", "Level_Treadmill" } do
-		player:GetAttributeChangedSignal(name):Connect(updateTraining)
-	end
 	player:GetAttributeChangedSignal("Cash"):Connect(function()
 		targetCash = getNumber("Cash", 0)
 	end)
@@ -540,7 +462,6 @@ function Hud.init(screen: ScreenGui, callbacks: Callbacks): Elements
 	updateStats()
 	updateObjective()
 	updateAlarm()
-	updateTraining()
 	updateClock(true)
 
 	local pulse = 0
