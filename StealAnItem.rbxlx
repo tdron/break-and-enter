@@ -277742,12 +277742,12 @@ end
 -- Rebirth
 -- Trade every speed point you have trained for a permanent production
 -- multiplier (treadmill training AND warehouse income). The first rebirth
--- costs a million speed and every one after costs x1.75 more, so the ladder
+-- costs a million speed and every one after costs x2.5 more, so the ladder
 -- never ends; each rebirth adds a flat x0.1 to the multiplier, forever.
 --------------------------------------------------------------------------------
 Config.Rebirth = {
 	BaseCost = 1_000_000, -- speed points for your first rebirth
-	CostGrowth = 1.75, -- every rebirth after costs this many times more (no cap)
+	CostGrowth = 2.5, -- every rebirth after costs this many times more (no cap)
 	BonusStep = 0.1, -- the multiplier grows by this per rebirth: x1, x1.1, x1.2, ...
 	PromptDistance = 10,
 }
@@ -282708,7 +282708,7 @@ return Plots
 
 	* The shrine beside the market hall (OpenRebirthPrompt) opens the client
 	  window - the prompt itself is only a doorbell.
-	* A rebirth costs Config.rebirthCost(count) speed points (1M, 1.75M, 3.06M, ...)
+	* A rebirth costs Config.rebirthCost(count) speed points (1M, 2.5M, 6.25M, ...)
 	  raises Profile.Rebirths by one, and sets your speed back to zero. The
 	  multiplier itself is applied inside PlayerData (the treadmill's addSpeed
 	  and the recalculateIncome totals), so this module only owns the trade.
@@ -285132,7 +285132,7 @@ function Rebirth.init(screen: ScreenGui)
 		Position = UDim2.fromOffset(16, 72),
 		Size = UDim2.new(1, -32, 0, 22),
 		Font = Theme.BodyFont,
-		Text = "Each rebirth costs 1.75x the speed of the last — and there is no limit.",
+		Text = "Each rebirth costs 2.5x the speed of the last — and there is no limit.",
 		TextColor3 = Theme.SubText,
 		TextSize = 14,
 		TextXAlignment = Enum.TextXAlignment.Left,

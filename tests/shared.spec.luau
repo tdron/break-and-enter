@@ -437,11 +437,11 @@ test("item models fit on shelves and furniture", function()
 	end
 end)
 
-test("rebirths cost speed, each x1.75 more than the last", function()
+test("rebirths cost speed, each x2.5 more than the last", function()
 	eq(Config.rebirthCost(0), 1000000, "the first rebirth costs a million speed")
-	eq(Config.rebirthCost(1), 1750000, "then x1.75")
-	eq(Config.rebirthCost(2), 3062500)
-	eq(Config.rebirthCost(3), 5359375)
+	eq(Config.rebirthCost(1), 2500000, "then x2.5")
+	eq(Config.rebirthCost(2), 6250000)
+	eq(Config.rebirthCost(3), 15625000)
 	local last = 0
 	for count = 0, 16 do
 		local cost = Config.rebirthCost(count)

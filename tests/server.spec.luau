@@ -828,9 +828,9 @@ step("the rebirth shrine trades all your speed for a permanent multiplier", func
 	PlayerData.addSpeed(spinner, 100)
 	check(math.abs(spinner:GetAttribute("SpeedPoints") - 110) < 0.01, "treadmill gains are multiplied too")
 
-	-- And the next rebirth costs x1.75 more.
+	-- And the next rebirth costs x2.5 more.
 	local nextState = Remotes.Rebirth.OnServerInvoke(spinner, "State")
-	eq(nextState.Cost, 1750000, "the second rebirth costs 1.75M")
+	eq(nextState.Cost, 2500000, "the second rebirth costs 2.5M")
 	check(math.abs(nextState.NextMultiplier - 1.2) < 1e-9, "x1.2 is the next step")
 	Mock.advance(0.5)
 end)

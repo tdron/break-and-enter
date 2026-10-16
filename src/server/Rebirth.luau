@@ -7,7 +7,7 @@
 
 	* The shrine beside the market hall (OpenRebirthPrompt) opens the client
 	  window - the prompt itself is only a doorbell.
-	* A rebirth costs Config.rebirthCost(count) speed points (1M, 1.75M, 3.06M, ...)
+	* A rebirth costs Config.rebirthCost(count) speed points (1M, 2.5M, 6.25M, ...)
 	  raises Profile.Rebirths by one, and sets your speed back to zero. The
 	  multiplier itself is applied inside PlayerData (the treadmill's addSpeed
 	  and the recalculateIncome totals), so this module only owns the trade.
