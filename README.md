@@ -66,7 +66,7 @@ Every house — the museum included — puts **five items out** at a time. House
 
 **The speed rule.** Inside a property *everyone* — you and them — moves at the standard Roblox speed. It is only out on the street that the numbers above apply, so a chase is a straight footrace: you keep whatever the treadmill has earned you, and they get their listed speed. (They are also quicker off the mark than you are, which is why houses 5+ are a treadmill problem, not a sneak problem.)
 
-**They chase you home.** A defender no longer gives up at its own gate: it follows you out of the house, along the street and into the canyon mouth. The chase only ends when you reach the **yard** (past the canyon mouth), when the daytime locks the houses up, or when someone catches you. The alarm banner at the top of the screen tells you who is coming and how fast they are.
+**They chase you home.** A defender no longer gives up at its own gate: it follows you out of the house, along the street and into the canyon mouth. The chase only ends when you reach the **yard** (past the canyon mouth), when the daytime locks the houses up, or when someone catches you. The alarm banner at the top of the screen tells you who is coming.
 
 **They are physical.** A defender is a body, not a ghost: walls, shut doors, the furniture in the room and the other defenders all stop it, and it walks through the doorways rather than at the walls between them. If an opening is too small for it — the T-Rex is about 5.6 studs wide, the security cars 5.3 — it takes the roomiest way past instead of grinding in the door. Anything with legs also *walks* with a deliberately choppy stop-motion gait — six poses a second, faster or slower with the speed the body is really making — so one that is pinned against a wall stops stepping instead of moonwalking on the spot. The drones, the tracked bots and the cars hover or roll, so they are left out of it.
 
@@ -104,7 +104,7 @@ Every house has **its own loot** (four to six different items: two Commons, a Ra
 Heists happen at night. Every **5½ minutes** the clock at the top of the screen runs through:
 
 - **🌙 Night, 5 minutes.** Every house is open for business.
-- **☀️ Daytime, 30 seconds.** The owners come home. Every house locks up, alarms stop, lasers switch off, and anyone still on a property is shown out to the pavement (you keep whatever you're carrying). Then **every house restocks all of its loot**.
+- **☀️ Daytime, 30 seconds.** The owners come home. Every house locks up, alarms stop, lasers switch off, and anyone still on a property is shown out to the pavement. If they find you **inside the house**, you lose everything in your bag; getting out into the garden before sunrise lets you keep it. Then **every house restocks all of its loot**.
 
 Daytime is the only time loot comes back, so a house you've emptied stays empty until the next sunrise. Use the daytime to unload, upgrade or train.
 

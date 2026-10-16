@@ -29,8 +29,9 @@
 	    WalkCycle / Config.Walk) driven by how fast the body is really moving, so a defender
 	    pinned against a wall stops stepping instead of moonwalking on the spot. Hoverers
 	    (drones), rollers (the museum's fleet) and the tracked security bots get nothing.
-	  * DAYTIME (see DayNight): houses lock up, anyone inside is shown the door
-	    and every house restocks. That's the only time loot comes back.
+	  * DAYTIME (see DayNight): houses lock up, anyone inside loses their carried
+	    loot and is shown the door, then every house restocks. That's the only
+	    time loot comes back.
 
 	Map layout expected (built by tools/map_builder.py):
 	  Workspace.Map.Houses.<HouseId>  (Model named after its Config.Houses id; attributes Tier & DisplayName)
@@ -1705,14 +1706,29 @@ end
 
 local function showEveryoneOut()
 	for _, thief in getThieves() do
-		local seated = thief.Humanoid.SeatPart ~= nil
 		for _, house in houses do
-			if not seated and isInZone(house, thief.Root.Position) then
+			if isInZone(house, thief.Root.Position) then
+				-- Dawn is forgiving only once you are out of the building. Anyone the owners find
+				-- inside loses the whole bag before being shown out; the normal daytime restock then
+				-- refills the now-empty source spots.
+				local caughtInside = insideHouse(house, thief.Root.Position)
+				local lost = if caughtInside then Inventory.takeCarried(thief.Player) else {}
 				local character = thief.Player.Character
 				if character then
+					unseat(thief.Humanoid)
 					character:PivotTo(exitCFrame(house))
 				end
-				Notify.send(thief.Player, "☀️ The owners came home! You slipped out just in time (and kept your loot).", "warning")
+				if caughtInside and #lost > 0 then
+					Notify.send(
+						thief.Player,
+						string.format("☀️ The owners came home and caught you inside! You lost %d item%s.", #lost, if #lost == 1 then "" else "s"),
+						"warning"
+					)
+				elseif caughtInside then
+					Notify.send(thief.Player, "☀️ The owners came home and threw you out! Your bag was empty.", "warning")
+				else
+					Notify.send(thief.Player, "☀️ The owners came home! You slipped out just in time (and kept your loot).", "warning")
+				end
 				break
 			end
 		end

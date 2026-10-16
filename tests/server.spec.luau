@@ -880,14 +880,18 @@ step("stolen loot doesn't come back until daytime", function()
 	eq(workspace:GetAttribute("Daytime"), false, "still night")
 end)
 
-step("daytime: houses lock up, everyone is shown out and all loot restocks", function()
-	-- Wait inside Maple Cottage with the front door open.
+step("daytime: indoor thieves lose their bags, everyone is shown out and loot restocks", function()
+	-- Bring bag loot inside Maple Cottage with the front door open.
 	local door = cottage.Doors:GetChildren()[1]
 	if door.Panel.LockpickPrompt.Enabled then
 		door.Panel.LockpickPrompt.Triggered:Fire(thief)
 	end
+	-- Add bag loot directly so this daylight rule is isolated from the guard catch loop.
+	local Inventory = moduleOf("Inventory")
+	check(Inventory.addCarried(thief, "Toaster"), "the indoor thief needs loot to lose at sunrise")
 	root.CFrame = CFrame.new(cottage.Zone.Position.X, 3.7, cottage.Zone.Position.Z)
 	local carried = thief:GetAttribute("Carried")
+	check(carried > 0, "the indoor thief needs loot to lose at sunrise")
 	local mark = #Mock.remoteLog
 	local left = workspace:GetAttribute("PhaseEndsAt") - workspace:GetServerTimeNow()
 	Mock.advance(left + 0.5, 0.25)
@@ -899,8 +903,9 @@ step("daytime: houses lock up, everyone is shown out and all loot restocks", fun
 	local zone = cottage.Zone
 	local relative = zone.CFrame:PointToObjectSpace(root.Position)
 	check(math.abs(relative.Z) > zone.Size.Z / 2, "the thief should be outside the property, at " .. tostring(root.Position))
-	check(sawMessage(thief, mark, "owners came home"), "no eviction message")
-	eq(thief:GetAttribute("Carried"), carried, "you keep what you carried out")
+	check(sawMessage(thief, mark, "owners came home and caught you inside"), "no indoor-loss message")
+	eq(thief:GetAttribute("Carried"), 0, "an indoor thief loses every carried item at sunrise")
+	eq(character:FindFirstChild("LootSack"), nil, "the lost bag is removed at sunrise")
 	-- Locked up
 	eq(door.Panel.LockpickPrompt.Enabled, false, "lockpicking is off during the day")
 	eq(door.OpenAngle.Value, 0, "and the door is shut for the day")
@@ -919,7 +924,7 @@ step("daytime: houses lock up, everyone is shown out and all loot restocks", fun
 	end
 	local item = cottage.Loot:GetChildren()[1]
 	item.Root.StealPrompt.Triggered:Fire(thief)
-	eq(thief:GetAttribute("Carried"), carried, "the server refuses daytime steals too")
+	eq(thief:GetAttribute("Carried"), 0, "the server refuses daytime steals too")
 
 	-- Night falls again: everything reopens
 	mark = #Mock.remoteLog
