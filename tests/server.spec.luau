@@ -157,7 +157,7 @@ step("server boots without errors or warnings", function()
 	eq(kinds.Vehicle, 5, "a security car in Aspen House and four parked outside the museum")
 	eq(workspace:GetAttribute("Daytime"), false, "the game starts at night")
 	local left = workspace:GetAttribute("PhaseEndsAt") - workspace:GetServerTimeNow()
-	check(math.abs(left - Config.DayNight.NightLength) < 1, "night should last 3½ minutes, got " .. left)
+	check(math.abs(left - Config.DayNight.NightLength) < 1, "night should last 5 minutes, got " .. left)
 end)
 
 local thief = newPlayer(101, "Thief")

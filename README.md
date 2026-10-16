@@ -101,9 +101,9 @@ Every house has **its own loot** (four to six different items: two Commons, a Ra
 
 ### 🌙 Night and ☀️ Daytime
 
-Heists happen at night. Every **4 minutes** the clock at the top of the screen runs through:
+Heists happen at night. Every **5½ minutes** the clock at the top of the screen runs through:
 
-- **🌙 Night, 3½ minutes.** Every house is open for business.
+- **🌙 Night, 5 minutes.** Every house is open for business.
 - **☀️ Daytime, 30 seconds.** The owners come home. Every house locks up, alarms stop, lasers switch off, and anyone still on a property is shown out to the pavement (you keep whatever you're carrying). Then **every house restocks all of its loot**.
 
 Daytime is the only time loot comes back, so a house you've emptied stays empty until the next sunrise. Use the daytime to unload, upgrade or train.
@@ -232,7 +232,7 @@ src/
     Inventory.luau           carried loot and the loot sack on your back
     Plots.luau               personal warehouses, shelves, deposit pad, storage window back end
     Market.luau              the 💰 SELL POINT: list what you're carrying, sell one or all
-    DayNight.luau            the 4-minute clock: 3½ min night, 30 s daytime (houses close + restock)
+    DayNight.luau            the 5½-minute clock: 5 min night, 30 s daytime (houses close + restock)
     Houses.luau              doors, per-house loot, alarms, chases (speeds, lanes, catching), lasers
     Treadmills.luau          personal treadmills: AFK speed training, console upgrades
     Economy.luau             income ticks + upgrade purchases

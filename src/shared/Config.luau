@@ -408,7 +408,7 @@ Config.Lasers = {
 -- are home: all houses lock up, nothing can be stolen and every house restocks
 -- its loot. That's the only time loot comes back!
 Config.DayNight = {
-	NightLength = 210, -- seconds (3½ minutes of stealing)
+	NightLength = 300, -- seconds (5 minutes of stealing)
 	DayLength = 30, -- seconds (houses closed, loot restocks)
 	FadeTime = 5, -- seconds the sky takes to change
 	Night = {

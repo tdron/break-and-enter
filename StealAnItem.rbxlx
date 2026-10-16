@@ -283333,7 +283333,7 @@ Config.Lasers = {
 -- are home: all houses lock up, nothing can be stolen and every house restocks
 -- its loot. That's the only time loot comes back!
 Config.DayNight = {
-	NightLength = 210, -- seconds (3½ minutes of stealing)
+	NightLength = 300, -- seconds (5 minutes of stealing)
 	DayLength = 30, -- seconds (houses closed, loot restocks)
 	FadeTime = 5, -- seconds the sky takes to change
 	Night = {
@@ -285707,7 +285707,7 @@ return WalkCycle
 	  PlayerData  saving/loading + attributes the UI reads
 	  Inventory   the loot you're carrying
 	  Plots       personal warehouses (storage = passive income)
-	  DayNight    the 4-minute heist clock (night = steal, daytime = houses closed + restock)
+	  DayNight    the 5½-minute heist clock (night = steal, daytime = houses closed + restock)
 	  Houses      lockpicking, loot, alarms, chases, guard defenders, lasers
 	  Treadmills  each warehouse's personal (AFK-able, upgradable) treadmill
 	  Economy     income ticks + the upgrade shop
@@ -285806,10 +285806,10 @@ end
 	DayNight
 	--------
 	Runs the heist clock (every number is in Config.DayNight):
-	  * NIGHT (3½ min): every house is open for business.
+	  * NIGHT (5 min): every house is open for business.
 	  * DAYTIME (30 s): the owners are home. Houses lock up, alarms end, anyone
 	    still inside is shown the door, and EVERY house restocks its loot.
-	    This is the only time loot comes back, once per 4-minute cycle.
+	    This is the only time loot comes back, once per 5½-minute cycle.
 
 	Clients read the phase from Workspace attributes to fade the sky and show a
 	countdown:

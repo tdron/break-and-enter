@@ -79,7 +79,7 @@ Mock.setRaw(camera, "ViewportSize", Vector2.new(1280, 720))
 camera.Parent = workspace
 workspace.CurrentCamera = camera
 
--- Lighting as saved in the place file, and the heist clock the server publishes (night, 3:30 left)
+-- Lighting as saved in the place file, and the heist clock the server publishes (night, 5:00 left)
 local Lighting = Mock.service("Lighting")
 local Config = require(SharedFolder.Config)
 Lighting.ClockTime = 14.2
@@ -89,7 +89,7 @@ Lighting.Ambient = Color3.fromRGB(92, 92, 104)
 Lighting.OutdoorAmbient = Color3.fromRGB(138, 138, 150)
 Lighting.FogColor = Color3.fromRGB(192, 192, 192)
 workspace:SetAttribute("Daytime", false)
-workspace:SetAttribute("PhaseEndsAt", workspace:GetServerTimeNow() + 210)
+workspace:SetAttribute("PhaseEndsAt", workspace:GetServerTimeNow() + Config.DayNight.NightLength)
 
 -- Attributes the server would replicate
 for name, value in {
@@ -533,7 +533,7 @@ step("the clock counts down the night and the sky fades to daytime", function()
 	eq(Lighting.Brightness, Config.DayNight.Day.Brightness, "daytime brightness")
 
 	-- Halfway through the sunset the sun is going down in the west (clock past 18:00), not rewinding.
-	workspace:SetAttribute("PhaseEndsAt", workspace:GetServerTimeNow() + 210)
+	workspace:SetAttribute("PhaseEndsAt", workspace:GetServerTimeNow() + Config.DayNight.NightLength)
 	workspace:SetAttribute("Daytime", false)
 	Mock.advance(Config.DayNight.FadeTime / 2)
 	check(Lighting.ClockTime > 16, "the clock should move forward into the evening, got " .. Lighting.ClockTime)

@@ -3,10 +3,10 @@
 	DayNight
 	--------
 	Runs the heist clock (every number is in Config.DayNight):
-	  * NIGHT (3½ min): every house is open for business.
+	  * NIGHT (5 min): every house is open for business.
 	  * DAYTIME (30 s): the owners are home. Houses lock up, alarms end, anyone
 	    still inside is shown the door, and EVERY house restocks its loot.
-	    This is the only time loot comes back, once per 4-minute cycle.
+	    This is the only time loot comes back, once per 5½-minute cycle.
 
 	Clients read the phase from Workspace attributes to fade the sky and show a
 	countdown:

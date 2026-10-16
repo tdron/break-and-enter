@@ -7,7 +7,7 @@
 	  PlayerData  saving/loading + attributes the UI reads
 	  Inventory   the loot you're carrying
 	  Plots       personal warehouses (storage = passive income)
-	  DayNight    the 4-minute heist clock (night = steal, daytime = houses closed + restock)
+	  DayNight    the 5½-minute heist clock (night = steal, daytime = houses closed + restock)
 	  Houses      lockpicking, loot, alarms, chases, guard defenders, lasers
 	  Treadmills  each warehouse's personal (AFK-able, upgradable) treadmill
 	  Economy     income ticks + the upgrade shop
