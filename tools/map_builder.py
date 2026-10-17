@@ -2181,7 +2181,13 @@ def build_boundary(map_folder: Inst, decor: Inst):
     w = MAP_X1 - MAP_X0
     mid = (MAP_X0 + MAP_X1) / 2
     for z in (-MAP_Z, MAP_Z):
-        part(walls, "InvisibleWall", (w, 120, 2), CF(mid, 60, z), (255, 255, 255), transparency=1, shadow=False)
+        # tile it too: Roblox clamps anything past 2,048 studs and would leave the fence open
+        x = MAP_X0
+        while x < MAP_X1:
+            nxt = min(x + 2048.0, MAP_X1)
+            part(walls, "InvisibleWall", (nxt - x, 120, 2), CF((x + nxt) / 2, 60, z),
+                 (255, 255, 255), transparency=1, shadow=False)
+            x = nxt
     for x in (MAP_X0, MAP_X1):
         part(walls, "InvisibleWall", (2, 120, MAP_Z * 2), CF(x, 60, 0), (255, 255, 255), transparency=1, shadow=False)
     # Tree lines along the north and south edges
@@ -2792,15 +2798,37 @@ def build_city_house(folder: Inst, ch: dict):
 
 # --- streets, filling and skyline -------------------------------------------
 
+# Roblox clamps any part dimension above 2,048 studs at load time: with the map's streets now
+# over ten kilometres long, a road that is one Studio part would vanish away from its middle on
+# load. Everything laid out this long is therefore likewise tiled from one end to the other.
+MAX_PART_SPAN = 2048.0
+
+
+def _span_chunks(x0: float, x1: float) -> list[tuple[float, float]]:
+    chunks = []
+    edge = x0
+    while edge < x1:
+        nxt = min(edge + MAX_PART_SPAN, x1)
+        chunks.append((edge, nxt))
+        edge = nxt
+    return chunks
+
 
 def _asphalt(ground: Inst, name: str, x0: float, x1: float, z0: float, z1: float, top: float,
              color=ASPHALT):
-    part(ground, name, (x1 - x0, 0.2, z1 - z0), CF((x0 + x1) / 2, top - 0.1, (z0 + z1) / 2), color, "Asphalt")
+    for a, b in _span_chunks(x0, x1):
+        part(ground, name, (b - a, 0.2, z1 - z0), CF((a + b) / 2, top - 0.1, (z0 + z1) / 2), color, "Asphalt")
 
 
 def _walkway(ground: Inst, x0: float, x1: float, z0: float, z1: float, top: float = 0.3):
-    part(ground, "Sidewalk", (x1 - x0, 0.3, z1 - z0), CF((x0 + x1) / 2, top - 0.15, (z0 + z1) / 2),
-         SIDEWALK, "Concrete")
+    for a, b in _span_chunks(x0, x1):
+        part(ground, "Sidewalk", (b - a, 0.3, z1 - z0), CF((a + b) / 2, top - 0.15, (z0 + z1) / 2),
+             SIDEWALK, "Concrete")
+
+
+def _kerb(ground: Inst, x0: float, x1: float, z: float):
+    for a, b in _span_chunks(x0, x1):
+        part(ground, "Curb", (b - a, 0.34, 0.6), CF((a + b) / 2, 0.17, z), (206, 200, 186), "Concrete")
 
 
 def build_city_roads(ground: Inst, decor: Inst, city: dict, entrances: list[tuple[float, float]]):
@@ -2813,10 +2841,8 @@ def build_city_roads(ground: Inst, decor: Inst, city: dict, entrances: list[tupl
     _asphalt(ground, "MainStreet", ROAD_X0, ROAD_X1, -16, 16, 0.20)
     for z in (-20, 20):
         _walkway(ground, WALK_X0, ROAD_X1, z - 4, z + 4, 0.30)
-    part(ground, "Curb", (ROAD_X1 - WALK_X0, 0.34, 0.6), CF((WALK_X0 + ROAD_X1) / 2, 0.17, -23.7),
-         (206, 200, 186), "Concrete")
-    part(ground, "Curb", (ROAD_X1 - WALK_X0, 0.34, 0.6), CF((WALK_X0 + ROAD_X1) / 2, 0.17, 23.7),
-         (206, 200, 186), "Concrete")
+    _kerb(ground, WALK_X0, ROAD_X1, -23.7)
+    _kerb(ground, WALK_X0, ROAD_X1, 23.7)
     for az in AVENUE_ZS:
         _asphalt(ground, "Avenue", AVENUE_X0, AVENUE_X1, az - 16, az + 16, 0.17)
         _walkway(ground, AVENUE_X0, AVENUE_X1, az - 24, az - 16, 0.27)

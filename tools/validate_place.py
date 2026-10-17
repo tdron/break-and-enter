@@ -172,6 +172,14 @@ def check_structure(roots: list[Item], check: Checker) -> None:
             for name, prop in item.props.items():
                 if prop.tag == "Ref" and (prop.text or "null") != "null" and prop.text not in referents:
                     check.error(f"{item.path()}.{name} points at missing referent {prop.text}")
+            # Roblox clamps any part dimension past 2,048 studs on load: with streets this long a
+            # single un-tiled road part would silently shrink back onto its middle, leaving the
+            # player staring at grass. Keep the builder honest - nothing may be that long.
+            if item.cls in ("Part", "WedgePart", "SpawnLocation") and (size := item.props.get("size")) is not None:
+                for axis in ("X", "Y", "Z"):
+                    dim = size.find(axis)
+                    check.expect(dim is not None and dim.text is not None and float(dim.text) <= 2048.0,
+                                 f"{item.path()} is wider than the 2,048-stud part limit on {axis}")
 
     services = {r.cls: r for r in roots}
     for service in ("Workspace", "ReplicatedStorage", "ServerScriptService", "StarterPlayer", "Lighting"):
