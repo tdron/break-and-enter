@@ -3369,9 +3369,15 @@ def tower_plot(parent: Inst, rng: random.Random, x: float, z: float, yaw: float,
     m = model(parent, "TowerPlot", frame)
     floors = {"oldtown": rng.randint(5, 8), "midtown": rng.randint(8, 13),
               "downtown": rng.randint(11, 18)}[zone]
+    towers = [(0.0, floors)]
+    if zone == "downtown" and d > 130:
+        # deep blocks take a slab pair stepping back: a back tower behind the front one
+        towers = [(0.0, floors), (d * 0.34, rng.randint(9, 16))]
+    for tz_off, tfloors in towers:
+        face_lz = -d / 2 + 16 + tz_off
+        wx, wz = _yaw_point(x, z, yaw, 0, face_lz)
+        facade(parent, rng, wx, wz, yaw, min(w * 0.55, 40.0), tfloors, "tower")
     face_lz = -d / 2 + 16
-    wx, wz = _yaw_point(x, z, yaw, 0, face_lz)
-    facade(parent, rng, wx, wz, yaw, min(w * 0.55, 40.0), floors, "tower")
     part(m, "Forecourt", (w * 0.8, 0.2, 12.0), frame * CF(0, 0.1, face_lz - 7), (186, 176, 160),
          "Pavement", collide=False, shadow=False)
     planter(m, frame * CF(-w * 0.3, 0, face_lz - 6), rng)
@@ -3380,6 +3386,53 @@ def tower_plot(parent: Inst, rng: random.Random, x: float, z: float, yaw: float,
     if rng.random() < 0.6:
         pedestrian(m, frame * CF(rng.uniform(-6, 6), 0, face_lz - 4.6) * CF.deg(0, rng.uniform(0, 360), 0),
                    rng)
+    return m
+
+
+def courtyard_court(parent: Inst, rng: random.Random, x: float, z: float, yaw: float, w: float,
+                    d: float):
+    """The perimeter-block filler: two rows of wide, shallow flats built wall-to-wall, facing
+    each other across a paved court with washing lines and dustbins — the rectangle-in-depth
+    that makes the middle of every block built-up rather than lawn."""
+    frame = CF(x, 0, z) * CF.deg(0, yaw, 0)
+    m = model(parent, "Courtyard", frame)
+    part(m, "Court", (w * 0.96, 0.16, d * 0.9), frame * CF(0, 0.08, 0), (150, 144, 134),
+         "Pavement", collide=False, shadow=False)
+    n = max(2, int(w // 26))
+    step = w / n
+    for side in (-1, 1):
+        # each row hugs one end of the plot, its fronts facing the shared court
+        row_z = side * (d / 2 - 10)
+        row_yaw = 180 if side < 0 else 0
+        ryaw = yaw + row_yaw
+        floors = 3 if (w * d) < 7000 else rng.randint(3, 5)
+        for i in range(n):
+            lx = -w / 2 + (i + 0.5) * step
+            wx, wz = _yaw_point(x, z, yaw, lx, row_z)
+            facade(parent, rng, wx, wz, ryaw, step - 1.6, floors)
+    # Court life: a couple of bins and a dustbin corral, a washing line or two.
+    for i in range(rng.randint(1, 2)):
+        lx = rng.uniform(-w / 2 + 6, w / 2 - 6)
+        lz = rng.uniform(-d * 0.22, d * 0.22)
+        part(m, "Bin", (1.3, 1.8, 1.3), frame * CF(lx, 0.9, lz), (70, 74, 78), "Metal",
+             shape="Cylinder")
+    dx, dzc = _yaw_point(x, z, yaw, -w / 3, 0)
+    dump = model(m, "Skip", frame * CF(-w / 2 + 4.4, 0, 0))
+    part(dump, "Body", (5.0, 2.2, 2.6), frame * CF(-w / 2 + 4.4, 1.1, 0), (52, 96, 64), "Metal")
+    part(dump, "Lid", (5.2, 0.3, 2.8), frame * CF(-w / 2 + 4.4, 2.35, 0) * CF.deg(-8, 0, 0),
+         (60, 108, 72), "Metal", collide=False)
+    for c in range(rng.randint(1, 2)):
+        lx = rng.uniform(-w / 4, w / 4)
+        lz = rng.uniform(-d * 0.16, d * 0.16)
+        for sx in (-3.0, 3.0):
+            part(m, "LinePost", (0.18, 4.4, 0.18), frame * CF(lx + sx, 2.2, lz), (70, 74, 78),
+                 "Metal", collide=False)
+        part(m, "Line", (6.0, 0.05, 0.05), frame * CF(lx, 4.3, lz), (200, 200, 200), collide=False)
+        for cloth in range(3):
+            part(m, "Washing", (1.1, 1.5, 0.08), frame * CF(lx - 2 + cloth * 2, 3.5, lz),
+                 rng.choice(SHIRT_COLORS), "Fabric", collide=False)
+    if rng.random() < 0.5:
+        pedestrian(m, frame * CF(rng.uniform(-6, 6), 0, 0) * CF.deg(0, rng.uniform(0, 360), 0), rng)
     return m
 
 
@@ -3393,9 +3446,10 @@ def build_city_blocks(folder: Inst, city: dict, named_xs: list[float]):
     houses = city["houses"]
     bounds = [city["corridor_end"] + 60] + jxs + [AVENUE_X1 - 20]
     bands = ((-279.0, -64.0), (64.0, 279.0), (-603.0, -382.0), (382.0, 603.0))
-    w_ranges = {"park": (30, 64), "plaza": (34, 66), "carpark": (36, 60), "terrace": (44, 74),
-                "playground": (36, 54), "tower": (52, 90)}
-    min_w = {"park": 26, "plaza": 30, "carpark": 34, "terrace": 42, "playground": 36, "tower": 50}
+    w_ranges = {"park": (30, 64), "plaza": (34, 66), "carpark": (36, 64), "terrace": (44, 74),
+                "playground": (36, 54), "tower": (52, 90), "courtyard": (54, 98)}
+    min_w = {"park": 26, "plaza": 30, "carpark": 34, "terrace": 42, "playground": 36, "tower": 50,
+             "courtyard": 52}
 
     def clear_of_lots(tx: float, tz: float, half: float) -> bool:
         for ch in houses:
@@ -3410,14 +3464,14 @@ def build_city_blocks(folder: Inst, city: dict, named_xs: list[float]):
     def pick(zone: str) -> str:
         r = rng.random()
         if zone == "oldtown":
-            table = ((0.30, "park"), (0.56, "terrace"), (0.70, "playground"), (0.84, "plaza"),
-                     (0.92, "carpark"), (1.01, "tower"))
+            table = ((0.18, "park"), (0.40, "terrace"), (0.62, "courtyard"), (0.72, "playground"),
+                     (0.84, "plaza"), (0.92, "carpark"), (1.01, "tower"))
         elif zone == "midtown":
-            table = ((0.22, "plaza"), (0.42, "carpark"), (0.60, "tower"), (0.74, "park"),
-                     (0.86, "terrace"), (1.01, "playground"))
+            table = ((0.28, "courtyard"), (0.44, "carpark"), (0.58, "tower"), (0.70, "plaza"),
+                     (0.80, "park"), (0.90, "terrace"), (1.01, "playground"))
         else:
-            table = ((0.52, "tower"), (0.68, "plaza"), (0.84, "carpark"), (0.92, "park"),
-                     (1.01, "terrace"))
+            table = ((0.50, "tower"), (0.62, "courtyard"), (0.78, "carpark"), (0.88, "plaza"),
+                     (0.94, "park"), (1.01, "terrace"))
         for p, k in table:
             if r < p:
                 return k
@@ -3434,10 +3488,9 @@ def build_city_blocks(folder: Inst, city: dict, named_xs: list[float]):
                 continue
             cx = x0
             while x1 - cx > 24:
-                gap_before = rng.uniform(10, 26)
-                cx += gap_before
-                if rng.random() < 0.16:
-                    continue  # leave the odd breather of lawn between parcels
+                cx += rng.uniform(4, 10)  # a paved alley between one building and the next
+                if rng.random() < 0.05:
+                    continue  # the odd pocket left open as a paved court
                 kind = pick(zone)
                 lo, hi = w_ranges[kind]
                 w = min(rng.uniform(lo, hi), x1 - cx)
@@ -3447,8 +3500,9 @@ def build_city_blocks(folder: Inst, city: dict, named_xs: list[float]):
                     break
                 mx = cx + w / 2
                 mz = (z0 + z1) / 2 + rng.uniform(-4, 4)
-                p_depths = {"park": depth - 10, "plaza": min(depth - 14, 72), "carpark": 32.0,
-                            "terrace": 46.0, "playground": 34.0, "tower": min(depth - 12, 92)}
+                p_depths = {"park": depth - 10, "plaza": min(depth - 10, 84),
+                            "carpark": min(depth - 10, 160), "terrace": 46.0, "playground": 34.0,
+                            "courtyard": min(depth - 8, 170), "tower": min(depth - 12, 150)}
                 pd = p_depths[kind]
                 yaw = 0.0 if mz > 0 else 180.0  # face the street nearer the city centreline
                 if clear_of_lots(mx, mz, max(w, pd) / 2 + 3):
@@ -3464,6 +3518,8 @@ def build_city_blocks(folder: Inst, city: dict, named_xs: list[float]):
                     elif kind == "terrace":
                         fx, fz = _yaw_point(mx, mz, yaw, 0, -12)
                         terrace_court(folder, rng, fx, fz, yaw, w * 0.94)
+                    elif kind == "courtyard":
+                        courtyard_court(folder, rng, mx, mz, yaw, w * 0.96, pd)
                     else:
                         tower_plot(folder, rng, mx, mz, yaw, w, pd, zone)
                 cx += w
@@ -3530,6 +3586,19 @@ def city_street_furniture(decor: Inst, city: dict, named_xs: list[float]):
                 if clear_any(x, vz):
                     pedestrian(decor, CF(x, 0, vz) * CF.deg(0, 90 if rng.random() < 0.5 else -90, 0), rng)
             x += rng.uniform(60, 100)
+
+
+def build_city_paving(ground: Inst, city: dict):
+    """The city's own ground: a concrete sheet wall-to-wall under every block and verge, so
+    nothing green shows inside the street grid unless a park or garden pad raises grass above
+    it. Sits at top 0.06: above the base grass (0.0), below the lot pads (0.1), the asphalt
+    (0.2) and the kerbs/pavements (0.3), so it reads as the alley-and-courtyard floor, and a
+    defender steps over it without noticing (STEP_UP is 1.4)."""
+    x0, x1 = city["corridor_end"], AVENUE_X1 + 46
+    z0, z1 = -714.0, 714.0
+    for a, b in _span_chunks(x0, x1):
+        part(ground, "CityGround", (b - a, 0.12, z1 - z0), CF((a + b) / 2, 0.0, (z0 + z1) / 2),
+             (152, 147, 138), "Pavement")
 
 
 def build_city_cliffs(cliffs: Inst, decor: Inst, city: dict, sides: dict[int, list[float]]):
@@ -3687,6 +3756,7 @@ def build_map(workspace: Inst) -> Inst:
     build_mansion(houses, mansion, tiers[3], mansion_cf)
     build_mansion_cliff(cliffs, decor, mansion_cf)
 
+    build_city_paving(ground, city)
     build_city_roads(ground, decor, city, entrances)
     build_city_fill(map_folder, city, named_xs)
     build_city_cliffs(cliffs, decor, city, sides)
