@@ -34,7 +34,12 @@
 	    time loot comes back.
 
 	Map layout expected (built by tools/map_builder.py):
-	  Workspace.Map.Houses.<HouseId>  (Model named after its Config.Houses id; attributes Tier & DisplayName)
+	  Workspace.Map              attributes SafeX (chases end west of it) and Lanes (the street
+	                             grid, "axis,fixed,lo,hi" per street, for corner-to-corner chasing)
+	  Workspace.Map.Houses.<HouseId>  (Model named after its Config.Houses id, or CityN for the
+	                             numbered city houses; attributes Tier & DisplayName, and for the
+	                             city houses Guard, Level and LootHouse naming the listed house
+	                             whose guard and loot table they borrow)
 	    Zone        Part covering the whole property (invisible)
 	    ItemSpots   Folder of Parts marking where loot appears
 	    GuardDocks  Folder of Parts where the guards rest (pet beds / drone pads)
@@ -140,7 +145,7 @@ type House = {
 	ZoneHalfSize: Vector3,
 	FrontInset: number, -- how far the front wall sits inside the property
 	GuardSpeed: number, -- the defenders' speed once they are out on the street
-	ChaseMaxX: number, -- chases never go further east than this house's own property
+	ChaseMaxX: number, -- chases never go further east than this house's own property, plus enough to finish the street a side-street house stands on
 	Loot: Folder,
 	Spots: { Spot },
 	SpotById: { [string]: Spot },
@@ -189,6 +194,74 @@ local bustedUntil: { [Player]: number } = {}
 local laserCooldown: { [Player]: number } = {}
 local ragdolls: { [Model]: Ragdoll } = {}
 
+--------------------------------------------------------------------------------
+-- The street network
+--
+-- The city is a grid now, and the defenders chase around its corners: the map publishes the
+-- street plan on itself as the "Lanes" attribute - one "axis,fixed,lo,hi" segment per street -
+-- and a defender on its way anywhere off the property works its way along (and across) those
+-- streets instead of homing on a straight line through the back gardens. Streets that cross are
+-- corners, and the way round a corner is the crossing point itself. (A map without the attribute
+-- is the old one-street town: every helper below stands aside and the straight lane answers win.)
+type Lane = { Axis: string, Fixed: number, Low: number, High: number, Id: number }
+local lanes: { Lane } = {}
+local laneCrossers: { [number]: { number } } = {} -- lane id -> the ids of the streets that cross it
+local laneCorners: { [string]: Vector3 } = {} -- "loId|hiId" -> the crossing's corner (at root height)
+local lanePathCache: { [string]: { Lane }? } = {} -- "fromId|toId" -> the street path (false = none)
+
+local function parseLanes(raw: any)
+	lanes = {}
+	laneCrossers = {}
+	laneCorners = {}
+	lanePathCache = {}
+	if type(raw) ~= "string" then
+		return
+	end
+	for segment in string.gmatch(raw, "[^;]+") do
+		local axis, fixed, low, high = string.match(segment, "^(%l),([%d.-]+),([%d.-]+),([%d.-]+)$")
+		local f, lo, hi = tonumber(fixed), tonumber(low), tonumber(high)
+		if (axis == "x" or axis == "z") and f and lo and hi and lo < hi then
+			table.insert(lanes, { Axis = axis, Fixed = f, Low = lo, High = hi, Id = #lanes + 1 })
+		end
+	end
+	local half = Config.Alarm.LaneHalfWidth
+	for i, a in lanes do
+		laneCrossers[i] = {}
+		for j = i + 1, #lanes do
+			local b = lanes[j]
+			-- Two streets cross when each one's centre line runs through the other's range.
+			if
+				a.Axis ~= b.Axis
+				and b.Fixed >= a.Low - half
+				and b.Fixed <= a.High + half
+				and a.Fixed >= b.Low - half
+				and a.Fixed <= b.High + half
+			then
+				local corner = if a.Axis == "x"
+					then Vector3.new(b.Fixed, FEET_BELOW_ROOT + 0.7, a.Fixed)
+					else Vector3.new(a.Fixed, FEET_BELOW_ROOT + 0.7, b.Fixed)
+				laneCorners[i .. "|" .. j] = corner
+				table.insert(laneCrossers[i], j)
+				laneCrossers[j] = laneCrossers[j] or {}
+				table.insert(laneCrossers[j], i)
+			end
+		end
+	end
+end
+
+-- How far off a street's centre line a position is (clamped to the street's span), plus the
+-- plain perpendicular offset, which is what the pavement band is measured from.
+local function laneOff(lane: Lane, position: Vector3): (number, number)
+	if lane.Axis == "x" then
+		local on = math.clamp(position.X, lane.Low, lane.High)
+		local across = position.Z - lane.Fixed
+		return math.sqrt((position.X - on) ^ 2 + across ^ 2), math.abs(across)
+	end
+	local on = math.clamp(position.Z, lane.Low, lane.High)
+	local across = position.X - lane.Fixed
+	return math.sqrt((position.Z - on) ^ 2 + across ^ 2), math.abs(across)
+end
+
 local function playerFromHit(hit: BasePart): Player?
 	local model = hit:FindFirstAncestorOfClass("Model")
 	if not model then
@@ -235,7 +308,7 @@ local function throughTheDoor(house: House, from: Vector3, target: Vector3): Vec
 	return doorway
 end
 
--- How far a chase can go: this house's own property, plus the street from the front door
+-- How far a chase can go: this house's own property, plus the streets from the front door
 -- all the way back west to the canyon mouth. Inside the yard (past the mouth) it is over.
 local function inChaseArea(house: House, position: Vector3): boolean
 	if isInZone(house, position) then
@@ -243,6 +316,14 @@ local function inChaseArea(house: House, position: Vector3): boolean
 	end
 	if position.X < Config.Alarm.SafeX or position.X > house.ChaseMaxX then
 		return false
+	end
+	if #lanes > 0 then
+		-- Any street in the grid counts: into a dead end, along an avenue - until you leave them.
+		local nearest = math.huge
+		for _, lane in lanes do
+			nearest = math.min(nearest, laneOff(lane, position))
+		end
+		return nearest <= Config.Alarm.LaneHalfWidth
 	end
 	return math.abs(position.Z) <= Config.Alarm.LaneHalfWidth
 end
@@ -252,10 +333,35 @@ local function clampToChase(house: House, position: Vector3): Vector3
 	if isInZone(house, position) then
 		return position
 	end
+	local x = math.clamp(position.X, Config.Alarm.SafeX, house.ChaseMaxX)
+	local half = Config.Alarm.LaneHalfWidth
+	if #lanes == 0 then
+		return Vector3.new(x, position.Y, math.clamp(position.Z, -half, half))
+	end
+	-- Off the streets: back onto the nearest one, between the yard and the property.
+	local clamped = Vector3.new(x, position.Y, position.Z)
+	local best: Lane? = nil
+	local bestDistance = math.huge
+	for _, lane in lanes do
+		local distance = laneOff(lane, clamped)
+		if distance < bestDistance then
+			best, bestDistance = lane, distance
+		end
+	end
+	if best == nil or bestDistance <= half then
+		return clamped
+	end
+	if best.Axis == "x" then
+		return Vector3.new(
+			math.clamp(x, best.Low, best.High),
+			clamped.Y,
+			math.clamp(clamped.Z, best.Fixed - half, best.Fixed + half)
+		)
+	end
 	return Vector3.new(
-		math.clamp(position.X, Config.Alarm.SafeX, house.ChaseMaxX),
-		position.Y,
-		math.clamp(position.Z, -Config.Alarm.LaneHalfWidth, Config.Alarm.LaneHalfWidth)
+		math.clamp(x, math.max(Config.Alarm.SafeX, best.Fixed - half), math.min(house.ChaseMaxX, best.Fixed + half)),
+		clamped.Y,
+		math.clamp(clamped.Z, best.Low, best.High)
 	)
 end
 
@@ -438,6 +544,138 @@ local function throughPoint(from: Vector3, node: Vector3): Vector3
 	return node + offset.Unit * WAYPOINT_THROUGH
 end
 
+-- The street a position belongs to: the one it stands deepest inside (a junction square belongs
+-- to several; the pavement band picks the one it is actually walking along, which is also what
+-- turns a corner there instead of short-cutting the kerb). `pad` is how far off the asphalt a
+-- position may sit and still belong to a street at all (a gate marker stands a few studs off it).
+local function laneUnder(position: Vector3, pad: number): Lane?
+	if #lanes == 0 then
+		return nil
+	end
+	local half = Config.Alarm.LaneHalfWidth
+	local best: Lane? = nil
+	local bestScore = math.huge
+	for _, lane in lanes do
+		local distance, centre = laneOff(lane, position)
+		local off = math.max(0, distance - half)
+		if off <= pad then
+			local score = off * 100 + math.abs(centre - ROAD_Z)
+			if score < bestScore then
+				best, bestScore = lane, score
+			end
+		end
+	end
+	return best
+end
+
+-- Breadth-first over streets that cross: between a handful of lanes the detour question is a
+-- hop count, and the answer is cached (each pair is asked about a defender every frame).
+local function lanePath(from: Lane, to: Lane): { Lane }?
+	if from == to then
+		return { from }
+	end
+	local key = from.Id .. "|" .. to.Id
+	local cached = lanePathCache[key]
+	if cached ~= nil then
+		return if cached then cached else nil
+	end
+	local byId: { [number]: Lane } = {}
+	for _, lane in lanes do
+		byId[lane.Id] = lane
+	end
+	local cameFrom: { [number]: number } = { [from.Id] = 0 }
+	local queue = { from.Id }
+	local read = 1
+	while read <= #queue do
+		local id = queue[read]
+		read += 1
+		if id == to.Id then
+			break
+		end
+		for _, nextId in laneCrossers[id] or {} do
+			if cameFrom[nextId] == nil then
+				cameFrom[nextId] = id
+				table.insert(queue, nextId)
+			end
+		end
+	end
+	if cameFrom[to.Id] == nil then
+		lanePathCache[key] = false
+		return nil
+	end
+	local path: { Lane } = {}
+	local id = to.Id
+	while id ~= 0 do
+		table.insert(path, 1, byId[id])
+		id = cameFrom[id]
+	end
+	lanePathCache[key] = path
+	return path
+end
+
+-- The first corner on the street route from `from` to `goal` (both off the property): where a
+-- defender turns between two streets. Nothing to turn for on one street, at either end, or
+-- between places the streets do not reach.
+local function streetCorner(from: Vector3, goal: Vector3): Vector3?
+	local hereLane, thereLane = laneUnder(from, 4), laneUnder(goal, 10)
+	if hereLane == nil or thereLane == nil or hereLane == thereLane then
+		return nil
+	end
+	local path = lanePath(hereLane, thereLane)
+	if path == nil or #path < 2 then
+		return nil
+	end
+	local a, b = path[1], path[2]
+	local key = math.min(a.Id, b.Id) .. "|" .. math.max(a.Id, b.Id)
+	return laneCorners[key]
+end
+
+-- A defender that has been shoved off the street (over a kerb, round a post, along a fence)
+-- walks back onto the pavement before anything else: the street is the one stretch of ground
+-- every way in and out of anywhere runs along.
+local function backToTheStreet(from: Vector3): Vector3?
+	if #lanes == 0 then
+		if math.abs(from.Z) - ROAD_Z > OFF_ROAD then
+			return Vector3.new(from.X, from.Y, if from.Z < 0 then -ROAD_Z else ROAD_Z)
+		end
+		return nil
+	end
+	local half = Config.Alarm.LaneHalfWidth
+	local best: Lane? = nil
+	local bestOff = math.huge
+	for _, lane in lanes do
+		local distance = laneOff(lane, from)
+		local off = math.max(0, distance - half)
+		if off < bestOff then
+			best, bestOff = lane, off
+		end
+	end
+	if best == nil then
+		return nil
+	end
+	-- Only the pavement band matters, not the street's edge: a few studs past a kerb (a fence
+	-- line, a gate marker) is still part of the walk, and dragging the aim back for those is
+	-- what has a body pacing the kerb instead of getting where it is going.
+	if best.Axis == "x" then
+		if math.abs(from.Z - best.Fixed) - ROAD_Z > OFF_ROAD then
+			return Vector3.new(
+				math.clamp(from.X, best.Low, best.High),
+				from.Y,
+				best.Fixed + (if from.Z >= best.Fixed then ROAD_Z else -ROAD_Z)
+			)
+		end
+		return nil
+	end
+	if math.abs(from.X - best.Fixed) - ROAD_Z > OFF_ROAD then
+		return Vector3.new(
+			best.Fixed + (if from.X >= best.Fixed then ROAD_Z else -ROAD_Z),
+			from.Y,
+			math.clamp(from.Z, best.Low, best.High)
+		)
+	end
+	return nil
+end
+
 local function routeTo(house: House, guard: Guard, aim: Vector3): Vector3
 	local from = guard.Root.Position
 	-- A waypoint it has already picked stays picked until it is through it. Asking the room boxes
@@ -451,15 +689,25 @@ local function routeTo(house: House, guard: Guard, aim: Vector3): Vector3
 
 	local here, there = roomOf(house, from), roomOf(house, aim)
 	-- A defender that has been shoved off the street - over the kerb, round a lamp post, along
-	-- the pickets - walks back onto it before anything else. The road is the one stretch of
+	-- the pickets - walks back onto it before anything else. The street is the one stretch of
 	-- ground every way in and out of a lot runs along, and a body working its way along a garden
 	-- fence instead is how it ends up stuck in the corner of somebody's yard with its own gate
 	-- on the far side of the fence.
-	if here == nil and not Houses.isOnProperty(from) and math.abs(from.Z) - ROAD_Z > OFF_ROAD then
-		local off = math.abs(from.Z) - ROAD_Z
-		if off > OFF_ROAD then
-			local road = Vector3.new(from.X, from.Y, if from.Z < 0 then -ROAD_Z else ROAD_Z)
-			return Vector3.new(road.X, road.Y, road.Z)
+	if here == nil and not Houses.isOnProperty(from) then
+		local road = backToTheStreet(from)
+		if road then
+			return road
+		end
+		-- And a quarter away in the city: around the corner, not through the back gardens. The
+		-- corner route only settles the far end of the walk - the last stretch (through the
+		-- gate, at the thief standing on the same street) is decided below like it always was.
+		local goal = aim
+		if Houses.isOnProperty(aim) then
+			goal = house.Route.Street or house.Route.Gate or aim
+		end
+		local corner = streetCorner(from, goal)
+		if corner then
+			return throughPoint(from, corner)
 		end
 	end
 	-- Off the lot and going back to it (or on it and going off): the way in and out is the garden
@@ -482,9 +730,17 @@ local function routeTo(house: House, guard: Guard, aim: Vector3): Vector3
 		-- the approach is done with and the way in is through the gate.
 		local street = house.Route.Street
 		if leaving then
+			-- The way out is the gateway and then the pavement marker: a body that leaves the
+			-- gate heading straight for the street marker crosses the fence line square in the
+			-- gap, instead of stepping over the pickets the moment the straight line west
+			-- (or north, or anywhere) happens to leave the fence's plane just past the gap.
 			if distance_of(gate, from) > WAYPOINT_REACHED then
 				guard.Way = gate
 				return throughPoint(from, gate)
+			end
+			if street and distance_of(street, from) > WAYPOINT_REACHED then
+				guard.Way = street
+				return throughPoint(from, street)
 			end
 		elseif coming then
 			local approaching = street
@@ -1783,16 +2039,26 @@ local function setupHouse(model: Model)
 		#Config.HouseTiers
 	)
 	local displayName = model:GetAttribute("DisplayName")
-	local guardId = if info then info.Guard else "TuxedoCat"
+	-- The map builder writes the guard (and the loot level) onto every house as attributes; a
+	-- listed house's own line in Config wins over both, and anything else is settled by default.
+	local guardAttribute = model:GetAttribute("Guard")
+	local guardId = if info
+		then info.Guard
+		elseif type(guardAttribute) == "string" then guardAttribute
+		else "TuxedoCat"
 	local guardInfo = Config.Guards[guardId] or Config.Guards.TuxedoCat
 
-	-- Houses added by hand in Studio borrow the loot of a listed house of the same tier.
-	local lootHouse = model.Name
-	if #Items.forHouse(lootHouse) == 0 then
-		for _, other in Config.Houses do
-			if other.Tier == tier then
-				lootHouse = other.Id
-				break
+	-- The numbered city houses name the listed house whose loot table they borrow; a house added
+	-- any other way borrows from a listed house of the same tier.
+	local lootHouse = model:GetAttribute("LootHouse") :: any
+	if type(lootHouse) ~= "string" or #Items.forHouse(lootHouse) == 0 then
+		lootHouse = model.Name
+		if #Items.forHouse(lootHouse) == 0 then
+			for _, other in Config.Houses do
+				if other.Tier == tier then
+					lootHouse = other.Id
+					break
+				end
 			end
 		end
 	end
@@ -1875,6 +2141,17 @@ local function setupHouse(model: Model)
 		end
 	end
 
+	-- A house up a side street has to reach the yard through that street's crossing, so its
+	-- window on a chase is not only the lot's own east edge: it widens to take in the whole of
+	-- the street it fronts, dead end to junction.
+	local gate = house.Route.Gate
+	if gate and #lanes > 0 then
+		local front = laneUnder(gate, 10)
+		if front and front.Axis == "z" then
+			house.ChaseMaxX = math.max(house.ChaseMaxX, front.Fixed + Config.Alarm.LaneHalfWidth + 4)
+		end
+	end
+
 	local rooms = model:FindFirstChild("Rooms")
 	if rooms then
 		for _, roomPart in rooms:GetChildren() do
@@ -1943,6 +2220,8 @@ end
 
 function Houses.init()
 	local map = Workspace:WaitForChild("Map")
+	-- The street grid the defenders chase through (see the street network notes above).
+	parseLanes(map:GetAttribute("Lanes"))
 	local folder = map:WaitForChild("Houses")
 	for _, model in folder:GetChildren() do
 		if model:IsA("Model") then

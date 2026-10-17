@@ -189,18 +189,25 @@ def check_structure(roots: list[Item], check: Checker) -> None:
     for folder in ("Ground", "Houses", "Warehouses", "Shop", "SellPoint", "Hub", "Decor", "Cliffs"):
         check.expect(game_map.child(folder) is not None, f"Map.{folder} is missing")
 
-    # Houses: one model per Config.Houses entry, named after its id
+    # Houses: one model per Config.Houses entry, named after its id, plus the numbered city houses
+    # the city plan (deterministically) places between them.
     import map_builder
-    expected_houses = {h["id"]: h for h in map_builder.read_houses()}
+    houses_cfg = map_builder.read_houses()
+    named_list = houses_cfg[:-1]  # everything before the Mansion
+    named_xs = [map_builder.house_x(i + 1) for i in range(len(named_list))]
+    city_plan = map_builder.plan_city(named_xs, named_list)
+    city_by_id = {ch["id"]: ch for ch in city_plan["houses"]}
+    expected_houses = {h["id"]: h for h in houses_cfg}
     houses = game_map.child("Houses")
     tiers = {}
     total_spots = 0
     total_guards = 0
     if houses:
         names = {h.name for h in houses.children}
-        check.expect(names == set(expected_houses),
-                     f"Map.Houses should match Config.Houses: missing {sorted(set(expected_houses) - names)}, "
-                     f"extra {sorted(names - set(expected_houses))}")
+        expected_names = set(expected_houses) | set(city_by_id)
+        check.expect(names == expected_names,
+                     f"Map.Houses should be the named houses plus the city plan: "
+                     f"missing {sorted(expected_names - names)}, extra {sorted(names - expected_names)}")
         for house in houses.children:
             attrs = house.attributes()
             info = expected_houses.get(house.name)
@@ -208,6 +215,18 @@ def check_structure(roots: list[Item], check: Checker) -> None:
                 check.expect(attrs.get("Tier") == info["tier"], f"{house.path()} Tier doesn't match Config.Houses")
                 check.expect(attrs.get("DisplayName") == info["display"], f"{house.path()} DisplayName doesn't match")
                 check.expect(attrs.get("Guard") == info["guard"]["id"], f"{house.path()} Guard doesn't match")
+            else:
+                ch = city_by_id.get(house.name)
+                if ch is None:
+                    continue
+                check.expect(attrs.get("DisplayName") == ch["display"],
+                             f"{house.path()} DisplayName doesn't match the city plan")
+                check.expect(attrs.get("Guard") == ch["guard"]["id"],
+                             f"{house.path()} Guard doesn't match the city plan")
+                check.expect(attrs.get("Level") == ch["level"] and attrs.get("Tier") == ch["tier"],
+                             f"{house.path()} Level/Tier doesn't match the city plan")
+                check.expect(attrs.get("LootHouse") == f"House{ch['level']}",
+                             f"{house.path()} should loot House{ch['level']}'s table")
             tier = attrs.get("Tier")
             check.expect(isinstance(tier, float) and 1 <= tier <= 4, f"{house.path()} has bad Tier attribute")
             check.expect(isinstance(attrs.get("DisplayName"), str), f"{house.path()} has no DisplayName")
@@ -242,26 +261,67 @@ def check_structure(roots: list[Item], check: Checker) -> None:
                 check.expect("Phase" in laser.attributes(), f"{laser.path()} has no Phase attribute")
     check.expect(all(tiers.get(t, 0) >= 1 for t in (1, 2, 3, 4)), f"Expected houses of every tier, got {tiers}")
 
-    # Every house has to hug the canyon street: nothing may be left over from the old open neighbourhood.
+    # The guide's named houses still line the main street, each at its fraction of the trip; the
+    # numbered city houses fill the grid, each within the guide's slack of its difficulty level.
     for house in houses.children if houses else []:
         position = cframe_position(house)
         if position is None:
             check.error(f"{house.path()} has no world pivot")
             continue
-        check.expect(map_builder.FIRST_HOUSE_X - 80.0 <= position[0] <= map_builder.ROAD_X1 + 200.0,
-                     f"{house.path()} sits at x = {position[0]:.0f}, outside the neighbourhood")
-        if int(house.attributes().get("Tier") or 0) < 4:
+        named_index = next((i for i, h in enumerate(named_list) if h["id"] == house.name), None)
+        if named_index is not None:
+            check.expect(abs(position[0] - named_xs[named_index]) < 0.5,
+                         f"{house.path()} should stand at x = {named_xs[named_index]:.0f} "
+                         f"({(named_index + 1)}/{map_builder.LEVELS} of the trip), it is at {position[0]:.0f}")
             front = abs(position[2]) - map_builder.OUT_D / 2
             check.expect(abs(front - map_builder.HOUSE_FRONT_Z) < 1.5,
-                         f"{house.path()} should stand on the street with its front wall at |z| = "
+                         f"{house.path()} should stand on the main street with its front wall at |z| = "
                          f"{map_builder.HOUSE_FRONT_Z}, it is at {front:.0f}")
             check.expect(abs(position[2]) + map_builder.OUT_D / 2 >= map_builder.CLIFF_FACE_Z,
                          f"{house.path()} does not run back into the cliff")
-            check.expect(map_builder.HOUSE_PITCH > map_builder.OUT_W,
-                         "neighbouring houses would overlap: widen HOUSE_PITCH")
+            continue
+        ch = city_by_id.get(house.name)
+        if ch is None:  # the Mansion sits on its hill at the end
+            check.expect(position[0] > map_builder.ROAD_X1, f"{house.path()} is not past the end of the street")
+            check.expect(position[0] > max(named_xs), f"{house.path()} is not the furthest house east")
+            continue
+        # the model pivot is the house's centre, pushed back from the lot centre by HouseBuilder
+        lot_w, lot_d = map_builder.city_lot(ch["kind"])
+        plan_w, plan_d = map_builder.CITY_KIND_PLANS[ch["kind"]]
+        hz = lot_d / 2 - map_builder.FRONT_YARD - plan_d * map_builder.HOUSE_SCALE / 2
+        expect_cf = map_builder.CF(ch["x"], 0, ch["z"]) * map_builder.CF.deg(0, ch["yaw"], 0) * map_builder.CF(0, 0, hz)
+        ex, _, ez = expect_cf.p
+        check.expect(abs(position[0] - ex) < 0.5 and abs(position[2] - ez) < 0.5,
+                     f"{house.path()} is not where the city plan put it")
+        check.expect(map_builder.AVENUE_X0 - 200 <= position[0] <= map_builder.ROAD_X1 and
+                     abs(position[2]) <= map_builder.CITY_DEPTH + 40,
+                     f"{house.path()} stands outside the city ({position[0]:.0f}, {position[2]:.0f})")
+        import math as _math
+        frac = _math.hypot(position[0] - map_builder.YARD_CX, position[2]) / map_builder.CITY_DIST
+        check.expect(abs(frac - ch["level"] / map_builder.LEVELS) <= map_builder.LEVEL_SLACK + 1e-6,
+                     f"{house.path()} at {frac * 100:.1f}% of the trip claims level {ch['level']} "
+                     f"(allowed within {map_builder.LEVEL_SLACK * 100:.0f}%)")
+
+    # The street network the defenders chase through is published on the Map.
+    lanes_attr = game_map.attributes().get("Lanes")
+    check.expect(isinstance(lanes_attr, str) and lanes_attr != "", "Map needs a Lanes attribute")
+    if isinstance(lanes_attr, str):
+        lanes = []
+        for seg in lanes_attr.split(";"):
+            fields = seg.split(",")
+            check.expect(len(fields) == 4 and fields[0] in ("x", "z"), f"Bad lane {seg!r}")
+            if len(fields) == 4:
+                lanes.append((fields[0], float(fields[1]), float(fields[2]), float(fields[3])))
+                check.expect(lanes[-1][2] < lanes[-1][3], f"Lane {seg!r} runs backwards")
+        main = [l for l in lanes if l[0] == "x" and l[1] == 0]
+        check.expect(len(main) == 1 and main[0][2] <= map_builder.ROAD_X0 + 1 and
+                     main[0][3] >= map_builder.ROAD_X1 - 1,
+                     "The main street lane should cover the whole trip")
+        check.expect(sum(1 for l in lanes if l[0] == "z") == len(city_plan["junctions"]),
+                     "Every cross street needs a lane")
 
     cliffs = game_map.child("Cliffs")
-    for folder in ("Street", "Mansion", "Yard", "Corridor"):
+    for folder in ("City", "Mansion", "Yard", "Corridor"):
         check.expect(cliffs is not None and cliffs.child(folder) is not None, f"Map.Cliffs.{folder} is missing")
     rocks = [d for d in cliffs.walk() if d.name == "Rock"] if cliffs else []
     rock_sizes = [vector3(r.props["size"]) for r in rocks if "size" in r.props]

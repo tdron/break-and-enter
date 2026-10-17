@@ -2,7 +2,7 @@
 
 …actually called **Steal an Item** 🦝
 
-A complete Roblox heist game. You spawn in a walled yard of garages with the market in the middle, then run down a canyon street of houses at night, pick the locks, grab the loot and outrun whatever the owner keeps inside — a cat, a puppy, a labrador, a guard dog, a home owner with a rolling pin, an off-duty officer, a wizard, a T-Rex, a squad of security bots, and a security car; the Grand Mansion at the end of the road is the town's **museum**, with a whole fleet of them parked on the drive. Stash everything in your warehouse, where it earns you cash every second — or walk up to a shelf and **take an item back off it**, or sell it on the spot at the **💰 SELL POINT** stall in the yard. Spend the money on a bigger loot bag, more warehouse space and a better treadmill. Your treadmill sits outside your warehouse and trains you even while you're AFK, until you're fast enough to outrun the fastest defenders — and when speed alone stops being enough, the **♻️ rebirth shrine** beside the market hall trades everything you have trained for a permanent boost to what your warehouse earns. Every house has its own loot, **Epic and Legendary items glow in their rarity's colour**, and the **📖 Loot Index** shows how many of the 48 items you've collected.
+A complete Roblox heist game. You spawn in a walled yard of garages with the market in the middle, then work your way **12,000 studs east through a whole city** — a main street with cross streets branching off it at random intervals, avenues behind the rooftops, and houses everywhere — pick the locks at night, grab the loot and outrace whatever the owner keeps inside: a cat, a puppy, a labrador, a guard dog, a home owner with a rolling pin, an off-duty officer, a wizard, a T-Rex, a squad of security bots, and a security car. The guide's eleven famous stops stand at eleven equal marks along the way, and the Grand Mansion at the end of the road — the town's **museum**, best loot and longest chase in the game — closes the far end with a whole fleet of security cars on the drive. In between, **44 numbered city houses** (each on its own street address) fill the blocks; their difficulty and loot grow steadily with the distance from your warehouse. Stash everything in your warehouse, where it earns you cash every second — or walk up to a shelf and **take an item back off it**, or sell it on the spot at the **💰 SELL POINT** stall in the yard. Spend the money on a bigger loot bag, more warehouse space and a better treadmill. Your treadmill sits outside your warehouse and trains you even while you're AFK, until you're fast enough to outrun the fastest defenders — and when speed alone stops being enough, the **♻️ rebirth shrine** beside the market hall trades everything you have trained for a permanent boost to what your warehouse earns. The defenders chase **around the corners of the street grid** — never through the gardens — and every house has its own loot, **Epic and Legendary items glow in their rarity's colour**, and the **📖 Loot Index** shows how many of the 48 items you've collected.
 
 ![Overview of the town](docs/preview-overview.png)
 
@@ -21,7 +21,7 @@ Everything is inside that one file: the town, all the scripts and the UI. Nothin
 | Step | What to do |
 |---|---|
 | 1 | You spawn in **the yard**: a parking lot ringed by six garages. One of them is yours (your name is over the door), and you always respawn inside it. |
-| 2 | Run (or sprint) east down the street. Walk up to a front door and **hold E to pick the lock** (only at night!). |
+| 2 | Run (or sprint) east down the street — it's a long road now, with the city laid out around it twelve times over. Walk up to a front door and **hold E to pick the lock** (only at night!). |
 | 3 | Walk up to loot and **hold E to steal** it. Your bag fills up and a loot sack appears on your back. |
 | 4 | **Stealing trips the alarm!** After a short warning, the house's defenders wake up and come after you — out of the front door, through the yard and all the way back down the street. Inside the house everyone moves at the same speed; past the gate they run at their listed speed. Reach the **canyon mouth at the yard** and you're safe. If one catches you indoors, you ragdoll through the front door into the road and it slams shut. A road catch ragdolls you where you stand while the defender carries your loot home; every recovered item returns to its exact original loot spot. |
 | 5 | Sprint home with the loot. The further down the street you rob, the faster they are — train on your treadmill before you take on the T-Rex. |
@@ -34,7 +34,7 @@ Everything is inside that one file: the town, all the scripts and the UI. Nothin
 
 ### 🅿️ The yard (where you spawn)
 
-The spawn is a walled parking lot at the west end of the street. **Six garages** stand around its edges — two on each of three sides — each one with a loading dock, a yellow loading bay and a treadmill outside. A cube cliff wraps the three closed sides, and the only way out is the road east, which the cliffs follow until they meet the canyon street.
+The spawn is a walled parking lot at the west end of the street. **Six garages** stand around its edges — two on each of three sides — each one with a loading dock, a yellow loading bay and a treadmill outside. A cube cliff wraps the three closed sides, and the only way out is the road east, which the cliffs follow as a long canyon until it opens onto the city.
 
 Each garage is your **warehouse**: the loading dock, the green DEPOSIT pad, your shelves and your treadmill are all there.
 
@@ -42,25 +42,37 @@ In the middle of the lot stand **two market stalls, back to back**: the **🛒 U
 
 ![The yard](docs/preview-yard.png)
 
-### The street
+### The city
 
-All ten houses are the same roomy design (living room, kitchen, bedroom, study and a display pedestal at the end of the hall), painted differently and alternating sides of the road. Each one is built **1.35× the original plan** — about 76 × 57 studs of floor and 15 studs to the ceiling, so the rooms are genuinely big now — and they stand **further apart** down the street (78 studs between neighbours, alternating sides). Each one backs onto a rocky cliff made of different-sized cubes, so the street feels like a canyon. The further east you go, the tougher the defender and the better the loot. The Grand Mansion — now the town's **museum** — closes off the end of the road, on the same bigger plan.
+The 12,050-stud run from your warehouse to the museum no longer crosses one canyon street of ten lookalike houses — it passes through a **city**. The main street still runs due east into the museum's hill, but along the way twelve cross streets branch off north and south at random intervals, two avenues parallel the rooftops mid-block, and a grid of numbered city houses fills the blocks between them. A canyon still carries you out of the yard; rocky cliffs close the city's rim and the museum's final rise.
 
-Every house — the museum included — puts **five items out** at a time. Houses have four to six kinds of loot each, so a cottage shows its four and one extra copy, while the museum picks five of its six treasures for each night.
+The guide's **eleven canonical houses** stand on the main street at 1/11, 2/11 … all the way to the museum at 100% of the trip — same roomy 1.35× design as always (living room, kitchen, bedroom, study and a display pedestal at the end of the hall), alternating sides, each backing onto its cliff. Their row neighbours make the rule easy to read: **everything gets slowly harder the further east you rob**.
+
+Between them stand the **44 numbered city houses** — 68 Jasper St, 22 Midtown Ave and the like — each pinned by its straight-line distance from your warehouse to a **difficulty level** (within 3% of the guide's): a house on the far side of a block is a level tougher than one across the avenue, and the level names its guard and its loot table. Numbered houses borrow the matching canonical loot pool, so the **📖 Loot Index stays at 48 items** — but three different floor plans keep the streets interesting:
+
+- **Cottages** — the classic single-floor plan (living room, kitchen, bedroom, display pedestal).
+- **Ranch houses** — wider, shallow single-floor layouts for the big mid-city blocks.
+- **Two-storey town houses** — upstairs bedrooms with the good items on the upper floor. Defenders can't climb stairs (they camp below), so a second floor is cover, not a shortcut.
+
+Every house — numbered, named, museum included — puts **five items out** at a time, so the city holds **275 pieces of loot** a night. Houses have four to six kinds of loot each, so a cottage shows its four and one extra copy, while the museum picks five of its six treasures each night.
+
+**They chase you round the block.** A defender no longer beelines straight for you: from any house it runs **out the gate, down its own street, around the corner of the junction and along the next street** — the whole way on the street grid, never through gardens or buildings — and only the **yard** (past the canyon mouth) ends a chase. A side street's chase runs its whole length, into the cul-de-sac if that's where you went. With the city stretching east for miles, the locals can actually *catch* you before you're anywhere near home — train on your treadmill before you take on the deep east.
 
 | House | Waits inside | Lockpick | Chase speed | Loot |
 |---|---|---|---|---|
-| 🏡 1: Maple Cottage | 🐱 a Tuxedo Cat | 0.6 s | 10 | $25–$420 |
-| 🏡 2: Willow Cottage | 🐶 a Puppy | 0.6 s | 25 | $25–$420 |
-| 🏡 3: Rose Cottage | 🐕 a Labrador | 0.6 s | 70 | $25–$420 |
-| 🏡 4: Daisy Cottage | 🐕‍🦺 a Guard Dog | 0.6 s | 300 | $25–$420 |
-| 🏠 5: Blue Oak House | 🧑 a Home Owner (rolling pin) | 1.2 s | 1,200 | $160–$1,600 |
-| 🏠 6: Cedar House | 👮 an Off Duty Officer (torch) | 1.2 s | 17,500 | $160–$1,600 |
-| 🏠 7: Elm Street House | 🧙 a Wizard | 1.2 s | 50,000 | $160–$1,600 |
-| 🏠 8: Birch House | 🦖 a T-Rex | 1.2 s | 100,000 | $160–$1,600 |
-| 🏠 9: Pine Ridge House (lasers!) | 🤖 three Security Bots | 2.0 s | 1,100,000 | $1,400–$22,000 |
-| 🏠 10: Aspen House (lasers!) | 🚔 a Security Car | 2.0 s | 125,000,000 | $1,400–$22,000 |
+| 🏡 1: Maple Cottage | 🐱 a Tuxedo Cat | 0.6 s | 10 | $25–$400 |
+| 🏡 2: Willow Cottage | 🐶 a Puppy | 0.6 s | 25 | $45–$650 |
+| 🏡 3: Rose Cottage | 🐕 a Labrador | 0.6 s | 70 | $75–$1,050 |
+| 🏡 4: Daisy Cottage | 🐕‍🦺 a Guard Dog | 0.6 s | 300 | $120–$1,650 |
+| 🏠 5: Blue Oak House | 🧑 a Home Owner (rolling pin) | 1.2 s | 1,200 | $220–$2,600 |
+| 🏠 6: Cedar House | 👮 an Off Duty Officer (torch) | 1.2 s | 17,500 | $350–$4,200 |
+| 🏠 7: Elm Street House | 🧙 a Wizard | 1.2 s | 50,000 | $550–$6,800 |
+| 🏠 8: Birch House | 🦖 a T-Rex | 1.2 s | 100,000 | $850–$11,000 |
+| 🏠 9: Pine Ridge House (lasers!) | 🤖 three Security Bots | 2.0 s | 1,100,000 | $1,500–$22,000 |
+| 🏠 10: Aspen House (lasers!) | 🚔 a Security Car | 2.0 s | 125,000,000 | $2,400–$36,000 |
 | 🏛️ Grand Mansion **museum** (laser vault!) | 🚔 a fleet of four Security Cars | 3.0 s | 125,000,000 | $12,000–$120,000 |
+
+A numbered house at your level pays the same as the named stop next to it, so there is no dead row: every row of the ladder pays strictly more than the one before, and the museum remains the richest mark on the map (and the furthest from home), 12,000 studs from your garage.
 
 **Every defender waits at its own post** — a pet bed for the animals, a chair for the people, a nest for the T-Rex, a charging pad for the bots and a marked parking bay for the cars. When you trip the alarm they wake up (eyes glowing red) and, after a short wind-up, come after you.
 
@@ -203,7 +215,7 @@ Unpublished, the game still runs normally and shows a small "progress won't be s
 
 Every number lives in **[`src/shared/Config.luau`](src/shared/Config.luau)**: upgrade prices and values (including the treadmill's speed curve), each house's defender and chase speed, the chase lane and where it ends, lockpick times, how long the night and daytime last (and the sky colours), income rate and sounds.
 
-The map is generated by `tools/map_builder.py`, where the shape of the street is easy to change: `HOUSE_SCALE` (how much bigger than the plan the houses are built), `HOUSE_PITCH` (how far apart they stand), `HOUSE_SPOTS` (how many items a house puts out at a time, the museum included) and `HOUSE_WALL_H` (how tall the rooms are). The street, the cliffs, the road and the Mansion's estate all follow those numbers.
+The map is generated by `tools/map_builder.py`, where the shape of the city is easy to change: `HOUSE_SCALE` (how much bigger than the plan the houses are built), `HOUSE_SPOTS` (how many items a house puts out at a time, the museum included) and `HOUSE_WALL_H` (how tall the rooms are), while the guide's named houses always stand at the eleven equal marks between the warehouses and the museum. The street grid, the city fill, the cliffs and the Mansion's estate all follow those numbers.
 
 - **The street:** `Config.Houses` lists every house in order, with its name, difficulty tier and guard. `Config.Guards` names the guards. The map builder reads both, so rebuild after changing them.
 - **Add or change loot:** [`src/shared/Items.luau`](src/shared/Items.luau). Each item belongs to one house and is a small model built from parts, so no uploads are needed.
@@ -250,10 +262,11 @@ src/
     Config.luau  Items.luau  ItemModels.luau  Guards.luau  Format.luau
 tools/
   build_place.py           builds StealAnItem.rbxlx from src/ + the generated map
-  map_builder.py           procedural town (the house design, cube cliffs, Mansion, the yard + garages, roads)
+  map_builder.py           procedural city builder (the house designs, cube cliffs, the street grid
+                           and numbered houses, the Mansion on its hill, the yard + garages, roads)
   rbxlx.py                 Roblox XML place writer
   validate_place.py        checks the place file (structure + Roblox API)
-  run_luau_tests.py        runs the Luau test suites
+  run_luau_tests.py        runs the Luau test suites (77 tests)
   render_preview.py        renders the preview images in docs/
 tests/                     unit, server-integration and client tests (+ a mock Roblox engine)
 default.project.json       optional Rojo project for live-syncing scripts
@@ -266,11 +279,11 @@ The scripts are written in strict-mode Luau and checked against the real Roblox 
 ```bash
 python3 tools/build_place.py                                   # build the place
 python3 tools/validate_place.py --database database.json      # check every class/property/enum
-python3 tools/run_luau_tests.py --database database.json      # 69 tests (needs the `luau` CLI)
+python3 tools/run_luau_tests.py --database database.json      # 77 tests (needs the `luau` CLI)
 luau-lsp analyze --settings .vscode/settings.json --platform roblox \
   --sourcemap sourcemap.json --definitions=@roblox=globalTypes.d.luau src   # type-check
 ```
 
 - `database.json` is Rojo's API dump ([rbx-dom](https://github.com/rojo-rbx/rbx-dom/blob/master/rbx_dom_lua/src/database.json)). `luau` and `luau-lsp` come from their GitHub releases.
-- The integration tests run the real server and client scripts against a small mock of the Roblox engine. That mock loads the real generated map and rejects invalid properties, just like Roblox does. They play through joining, lockpicking, stealing (and discovering items), getting busted by a defender, escaping, the speed change at the property line, being chased down the street to the canyon mouth, depositing, earning, upgrading, AFK treadmill training (including hopping off with Space), managing storage (taking an item off a shelf, selling it, a full-bag refusal), selling carried loot at the sell point, the Loot Index UI, the loot auras, a full daytime (houses locking, everyone shown out, every house restocking), and saving then loading.
+- The integration tests run the real server and client scripts against a small mock of the Roblox engine. That mock loads the real generated map and rejects invalid properties, just like Roblox does. They play through joining, lockpicking, stealing (and discovering items), getting busted by a defender, escaping, the speed change at the property line, being chased down the main street to the canyon mouth, and a city defender chasing round its street corner after you and home again, depositing, earning, upgrading, AFK treadmill training (including hopping off with Space), managing storage (taking an item off a shelf, selling it, a full-bag refusal), selling carried loot at the sell point, the Loot Index UI, the loot auras, a full daytime (houses locking, everyone shown out, every house restocking), and saving then loading.
 - **Rojo (optional):** open `StealAnItem.rbxlx` in Studio, run `rojo serve`, and connect the Rojo plugin to live-sync `src/` while you edit.

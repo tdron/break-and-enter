@@ -131,19 +131,30 @@ step("server boots without errors or warnings", function()
 	task.spawn(RunServer)
 	Mock.advance(0.5)
 	check(#Mock.warnings == 0, "warnings during boot:\n  " .. table.concat(Mock.warnings, "\n  "))
+	local houseModels = Map.Houses:GetChildren()
 	local items = 0
-	for _, house in Map.Houses:GetChildren() do
+	for _, house in houseModels do
 		local loot = house:FindFirstChild("Loot")
 		check(loot, house.Name .. " has no Loot folder")
 		items += #loot:GetChildren()
 	end
-	eq(items, 55, "loot spawned in houses (five per house, however big they get)")
+	eq(items, #houseModels * 5, "loot spawned in houses (five per house, however big they get)")
+	eq(#houseModels, 55, "the guide's eleven stops plus forty-four numbered city houses")
 	local kinds = {}
+	local expectedKinds = {}
 	local total = 0
-	for _, house in Map.Houses:GetChildren() do
+	for _, house in houseModels do
 		local info = Config.getHouse(house.Name)
-		check(info, house.Name .. " isn't in Config.Houses")
-		local guardInfo = Config.Guards[info.Guard]
+		local cityLevel = house:GetAttribute("Level")
+		check(info or cityLevel, house.Name .. " is neither a named house nor a numbered city house")
+		local guardId = if info then info.Guard else house:GetAttribute("Guard")
+		local guardInfo = Config.Guards[guardId]
+		check(guardInfo, house.Name .. " names an unknown guard " .. tostring(guardId))
+		-- City houses borrow the guide house their level names; named houses roll their own table.
+		local pool = if cityLevel then house:GetAttribute("LootHouse") else house.Name
+		check(not cityLevel or pool == "House" .. cityLevel, house.Name .. " should loot its level's table")
+		local docks = house:FindFirstChild("GuardDocks")
+		local beds = if docks then #docks:GetChildren() else 0
 		local found = 0
 		for _, child in house:GetChildren() do
 			if child.Name == "Guard" then
@@ -155,21 +166,19 @@ step("server boots without errors or warnings", function()
 				kinds[kind] = (kinds[kind] or 0) + 1
 			end
 		end
-		eq(found, info.GuardCount or 1, house.Name .. " defender count")
-		-- Every house only ever spawns its own loot.
+		-- The map puts one bed down per defender, and every one of them wakes up.
+		eq(found, beds, house.Name .. " should wake one defender per bed")
+		expectedKinds[guardInfo.Kind] = (expectedKinds[guardInfo.Kind] or 0) + beds
+		-- Every house only ever spawns its own (or its borrowed level's) loot.
 		for _, item in house.Loot:GetChildren() do
 			local def = Items.get(item:GetAttribute("ItemId"))
-			check(def and def.House == house.Name, tostring(item.Name) .. " spawned in the wrong house: " .. house.Name)
+			check(def and def.House == pool, tostring(item.Name) .. " spawned in the wrong house: " .. house.Name)
 		end
 	end
-	eq(total, 16, "one defender for eight houses, three bots in house 9, one car in house 10, a fleet of four at the Mansion")
-	eq(kinds.Cat, 1, "the tuxedo cat guards Maple Cottage")
-	eq(kinds.Dog, 3, "a puppy, a labrador and a guard dog")
-	eq(kinds.Human, 2, "the home owner and the off-duty officer")
-	eq(kinds.Wizard, 1, "a wizard on Elm Street")
-	eq(kinds.Beast, 1, "a T-Rex in Birch House")
-	eq(kinds.Robot, 3, "three security bots in Pine Ridge House")
-	eq(kinds.Vehicle, 5, "a security car in Aspen House and four parked outside the museum")
+	eq(total, 68, "sixty-eight defenders across the named houses and the whole city")
+	for kind, beds in expectedKinds do
+		eq(kinds[kind] or 0, beds, "wrong number of " .. kind .. " defenders")
+	end
 	eq(workspace:GetAttribute("Daytime"), false, "the game starts at night")
 	local left = workspace:GetAttribute("PhaseEndsAt") - workspace:GetServerTimeNow()
 	check(math.abs(left - Config.DayNight.NightLength) < 1, "night should last 5 minutes, got " .. left)
@@ -422,7 +431,10 @@ step("they chase you out of the house and all the way back down the street", fun
 	-- come after you at all. You keep running the whole time, so it never quite catches you.
 	-- You wait on the street, a long way off, while it finds its way out of the house; then the
 	-- two of you play cat and mouse down the street, you keeping one step ahead of it.
-	root.CFrame = CFrame.new(-40, 3, -12)
+	-- (Maple Cottage is the first house of the city now, a long way up the main street; the play
+	-- is measured from its door, and the canyon mouth is still where a chase ends.)
+	local home = cottage.Zone.Position
+	root.CFrame = CFrame.new(home.X - 40, 3, -12)
 	local outside = nil
 	for _ = 1, 40 do
 		Mock.advance(0.5)
@@ -448,7 +460,7 @@ step("they chase you out of the house and all the way back down the street", fun
 	for hop = 1, 12 do
 		local before = cat.Root.Position.X
 		local poseBefore = legs[1].C0._r[5]
-		root.CFrame = CFrame.new(-40 - hop * 8, 3, -12)
+		root.CFrame = CFrame.new(home.X - 40 - hop * 8, 3, -12)
 		Mock.advance(1)
 		stepped = stepped or legs[1].C0._r[5] ~= poseBefore
 		local p = cat.Root.Position
@@ -462,7 +474,7 @@ step("they chase you out of the house and all the way back down the street", fun
 	end
 	check(stepped, "the cat's legs should have moved while it was running after you")
 	check(onStreet, "the cat should have been out on the street at some point, not just round the yards")
-	check(chasedTo < -60, "the cat should have been well down the street by now, at " .. tostring(chasedTo))
+	check(chasedTo < home.X - 60, "the cat should have been well down the street by now, at " .. tostring(chasedTo))
 
 	-- Through the canyon mouth and into the yard: the chase is over.
 	root.CFrame = CFrame.new(-230, 3, -12)
@@ -489,14 +501,130 @@ step("they chase you out of the house and all the way back down the street", fun
 	Mock.advance(4)
 	check(cat.Root.Position.X > turnedAt + 1, "the cat should have turned for home, at " .. tostring(cat.Root.Position))
 	check(chasedTo < turnedAt + 1, "the cat was down the street at " .. tostring(chasedTo))
+	-- Home is a long way off now: it walks the whole way back rather than blinking to its bed.
 	local closest = cat.Root.Position.X
-	for _ = 1, 8 do
+	for _ = 1, 40 do
+		if (cat.Root.Position - post).Magnitude < 8 then
+			break
+		end
 		Mock.advance(5)
 		closest = math.min(closest, cat.Root.Position.X)
 	end
 	check(closest > -212, "the cat should stop at the canyon mouth, not follow you into the yard: " .. closest)
 	check((cat.Root.AlignPosition.Position - post).Magnitude < 10, "the cat should be back at its post, at " .. tostring(cat.Root.AlignPosition.Position))
 	check((cat.Root.Position - post).Magnitude < 8, "and asleep in it, at " .. tostring(cat.Root.Position))
+end)
+
+step("a city guard chases you round the corner of its street and all the way home", function()
+	-- The grid's rules: the way back to the yard is along the streets, around the corners of
+	-- the junctions - never diagonally across somebody's block. A slow city house up a cross
+	-- street shows it: out after you down the street, around the corner onto the main one,
+	-- and home through the same corner once you make the yard.
+	local Houses = moduleOf("Houses")
+	local PlayerData = moduleOf("PlayerData")
+	PlayerData.addSpeed(thief, 5000)
+	Mock.advance(0.2)
+
+	-- The cross streets, from the street plan the map publishes.
+	local junctions = {}
+	for segment in string.gmatch(Map:GetAttribute("Lanes"), "[^;]+") do
+		local axis, fixed = string.match(segment, "^(%l),([%d.-]+),")
+		if axis == "z" then
+			table.insert(junctions, tonumber(fixed))
+		end
+	end
+	check(#junctions > 0, "the map should publish the cross streets it chases through")
+
+	-- A slow defender up one of them: an easy-level city house off the main street.
+	local city, jx, dir = nil, nil, nil
+	for _, house in Map.Houses:GetChildren() do
+		local level = house:GetAttribute("Level")
+		if level and level <= 2 and math.abs(house.Zone.Position.Z) > 60 then
+			local nearest = nil
+			for _, fixed in junctions do
+				if nearest == nil or math.abs(fixed - house.Zone.Position.X) < math.abs(nearest - house.Zone.Position.X) then
+					nearest = fixed
+				end
+			end
+			city, jx, dir = house, nearest, math.sign(house.Zone.Position.Z)
+			break
+		end
+	end
+	check(city, "no slow city house up a cross street")
+	check(math.abs(jx - city.Zone.Position.X) < 150, city.Name .. " is not on a cross street: " .. jx)
+	local guard = city:FindFirstChild("Guard")
+	check(guard, city.Name .. " has no defender")
+	local post = guard.Root.AlignPosition.Position
+
+	-- Rob it and wait up its street, well past the property: the chase follows you round the
+	-- block's corner towards the junction - not through the back gardens.
+	stealFrom(city, thief, root)
+	Mock.advance(0.2)
+	local waitZ = dir * math.max(80, math.abs(city.Zone.Position.Z) - 100)
+	root.CFrame = CFrame.new(jx, 3, waitZ)
+	local out = nil
+	for _ = 1, 60 do
+		Mock.advance(0.5)
+		local p = guard.Root.Position
+		if not Houses.isOnProperty(p) then
+			out = p
+			break
+		end
+	end
+	check(out, "the guard should have come off the property after you, at " .. tostring(guard.Root.Position))
+	eq(thief:GetAttribute("AlarmHouse"), city:GetAttribute("DisplayName"), "the alarm is following you")
+
+	-- It closes in along its own street while you hold your ground.
+	local before = guard.Root.Position
+	Mock.advance(1.5)
+	local closed = (guard.Root.Position - Vector3.new(jx, 0, waitZ)).Magnitude
+	check(closed < (before - Vector3.new(jx, 0, waitZ)).Magnitude - 5,
+		"the guard should close on you up the cross street")
+
+	-- Now make the main street, way past the corner. The straight line crosses the block; the
+	-- streets go through the junction square, and that is the way it must come.
+	local throughSquare = false
+	local roundTheCorner = false
+	root.CFrame = CFrame.new(jx - 300, 3, -12)
+	for _ = 1, 90 do
+		Mock.advance(0.5)
+		local p = guard.Root.Position
+		if math.abs(p.X - jx) < 30 and math.abs(p.Z) < 30 then
+			throughSquare = true
+		end
+		if math.abs(p.Z) <= 26 and p.X < jx - 40 then
+			roundTheCorner = true
+			break
+		end
+	end
+	check(throughSquare, "the guard should pass through the junction square, at " .. tostring(guard.Root.Position))
+	check(roundTheCorner, "the guard should turn the corner onto the main street, at " .. tostring(guard.Root.Position))
+	eq(thief:GetAttribute("AlarmHouse"), city:GetAttribute("DisplayName"), "still coming, round the corner")
+
+	-- Into the yard, the chase over: it calms down and walks the same streets home again.
+	root.CFrame = CFrame.new(-230, 3, -12)
+	Mock.advance(Config.Alarm.CalmDownTime + 1)
+	eq(thief:GetAttribute("AlarmHouse"), "", "banner cleared in the yard")
+	for _ = 1, 90 do
+		if (guard.Root.Position - post).Magnitude < 8 then
+			break
+		end
+		Mock.advance(5)
+	end
+	check((guard.Root.Position - post).Magnitude < 8, "it should be home by the same route, at " .. tostring(guard.Root.Position))
+
+	-- One piece in the bag again, as it was when this step came in: the Maple Cottage run kept
+	-- its own, and this street's piece goes the way of the deposit step all the same.
+	local Inventory = moduleOf("Inventory")
+	Inventory.takeCarried(thief)
+	Inventory.refresh(thief)
+	check(Inventory.addCarried(thief, "Toaster"), "a stand-in piece for the bag")
+	Mock.advance(0.2)
+
+	PlayerData.get(thief).Profile.SpeedPoints = 0
+	PlayerData.replicate(thief)
+	PlayerData.applyWalkSpeed(thief)
+	Mock.advance(0.2)
 end)
 
 step("legs step in stops, and only on things that have legs", function()

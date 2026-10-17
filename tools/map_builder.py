@@ -1,20 +1,25 @@
 """
-Procedurally builds the Steal an Item town into Workspace.Map.
+Procedurally builds the Steal an Item city into Workspace.Map.
 
 Layout (top-down, X = east, Z = south, the main street runs along Z = 0):
 
-    west  [THE YARD: 6 garages in a U + spawn parking lot + 2 market stalls] -- [10 houses, alternating sides] -- [MANSION]  east
+    west [THE YARD: 6 garages + spawn parking lot] -canyon- [CITY: avenues and
+         cross streets in a grid, 10 named houses on the main street plus about
+         forty numbered city houses] ... [MUSEUM on its hill] east
 
-The yard is the spawn area. Two garages sit on each of three sides of a paved
-parking lot, the two market stalls stand back to back in the middle and a cube
-cliff wraps the three closed sides. Only the road east leaves the yard, and the
-cliffs follow it, narrowing into the canyon street where the houses stand.
-Every house uses the same design (only the paint changes) and backs onto the
-same style of rocky cliff, so the street feels like a canyon that gets harder
-the further east you go.
+The trip from the warehouses to the museum is ten times longer than the old
+street was: the museum still stands at the far east end (and keeps the best
+loot), and a city fills the space between. The guide's named houses stand on
+the main street at 1/11, 2/11 ... of the way; numbered city houses fill the
+grid, each at the difficulty level its straight-line distance from the
+warehouses earns it (within the guide's 3% slack), borrowing that level's
+guard and loot table. Three house shapes keep the streets varied: cottages,
+ranch houses and two-storey town houses with the best pieces upstairs (the
+defenders cannot climb stairs - they wait below).
 
 Everything the game scripts rely on is named/attributed exactly as the server
-expects (see the header comments in src/server/*.luau).
+expects (see the header comments in src/server/*.luau); the street network is
+published as the Map's "Lanes" attribute for the chase routing.
 """
 
 from __future__ import annotations
@@ -945,9 +950,6 @@ LOT_W, LOT_D = OUT_W + 16.0, OUT_D + FRONT_YARD
 CLIFF_SETBACK = 3.0  # the cliff face sits this far behind the front of each house
 SIDEWALK_EDGE = 24.0  # |z| where the pavement ends and the front yards begin
 HOUSE_FRONT_Z = SIDEWALK_EDGE + FRONT_YARD
-# How the houses are laid out down the street: they alternate sides, harder the further east you go.
-FIRST_HOUSE_X = 30.0
-HOUSE_PITCH = 78.0  # houses alternate sides, so neighbours on the same side are 156 studs apart
 CLIFF_FACE_Z = HOUSE_FRONT_Z + CLIFF_SETBACK
 FENCE_STYLES = {1: "picket", 2: "hedge", 3: "modern"}
 PET_BEDS = {"Cat": 2.8, 1: 2.8, 2: 3.4, 3: 4.2}
@@ -1208,43 +1210,6 @@ class CliffBuilder:
             x = rng.uniform(x0 + size / 2 + 0.8, x1 - size / 2 - 0.8)
             front = rng.uniform(0.3, CLIFF_SETBACK - 0.4)
             self.cube(frame, size, x, front - size / 2, size * rng.uniform(0.6, 1.0), rng.uniform(-30, 30))
-
-
-def build_street_cliffs(parent: Inst, decor: Inst, sides: dict[int, list[float]], x_start: dict[int, float],
-                        x_end: float):
-    """One continuous cliff per side of the street. `sides` maps side (-1 north, +1 south) to its house centre X."""
-    folder = Inst("Folder", "Street", parent)
-    depth = 88.0
-    behind = OUT_D - CLIFF_SETBACK  # distance from the cliff face to the back of a house
-    for side, xs in sides.items():
-        cliff = CliffBuilder(folder, 1000 + side)
-        # Local frame: face at z = 0 looking at the street. South side is turned around, so local x = -world x.
-        frame = CF(0, 0, side * CLIFF_FACE_Z) * CF.deg(0, 0 if side < 0 else 180, 0)
-        flip = -1 if side > 0 else 1
-        west = x_start[side]
-
-        def taper(local_x, west=west, flip=flip):
-            world_x = local_x * flip
-            return min(1.0, max(0.35, (world_x - west) / 26.0))
-
-        def local(a, b, flip=flip):
-            return (min(a * flip, b * flip), max(a * flip, b * flip))
-
-        cursor = west
-        gaps = []
-        for hx in sorted(xs):
-            gaps.append((cursor, hx - OUT_W / 2))
-            cliff.fill(frame, *local(hx - OUT_W / 2, hx + OUT_W / 2), -behind, -depth, (25, 42), taper, decor)
-            cursor = hx + OUT_W / 2
-        gaps.append((cursor, x_end))
-        for a, b in gaps:
-            if b - a < 1:
-                continue
-            la, lb = local(a, b)
-            cliff.face(frame, la, lb, (22, 34), taper)
-            cliff.fill(frame, la, lb, -6, -depth, (26, 40), taper, decor)
-            cliff.rubble(frame, la, lb)
-    return folder
 
 
 def build_mansion_cliff(parent: Inst, decor: Inst, lot_cf: CF):
@@ -2138,51 +2103,52 @@ def build_yard(map_folder: Inst, ground: Inst, decor: Inst):
 # Roads, decor, boundaries
 # ---------------------------------------------------------------------------
 
-# The street is as long as the houses laid out along it need: the last house, then the Mansion's estate.
-LAST_HOUSE_X = FIRST_HOUSE_X + 9 * HOUSE_PITCH
-ROAD_X0, ROAD_X1 = -252.0, LAST_HOUSE_X + 52.0   # the asphalt runs to the Mansion's gate
+# ---------------------------------------------------------------------------
+# City geography
+#
+# The old town was one straight street about 1,200 studs long, yard to museum.
+# That made for a very short chase home, so the museum now stands TEN times as
+# far from the warehouses, and a city fills the space between: a main street,
+# two avenues on each side of it and cross streets joining them up, with the
+# named houses from the guide standing along the main street at 1/11, 2/11 ...
+# of the trip (the museum last, at the very end) and numbered city houses
+# filling the grid, each at the difficulty level its distance earns it.
+# ---------------------------------------------------------------------------
+ORIGINAL_MANSION_X = 885.25                        # where the museum stood on the old short street
+CITY_DIST = (ORIGINAL_MANSION_X - YARD_CX) * 10.0  # warehouses -> museum, as the crow flies (x10)
+LEVELS = 11                # the difficulty guide: House1..House10 + the museum = 11 levels
+LEVEL_SLACK = 0.03         # a house's trip fraction may be this far off its level's position
+MANSION_X = YARD_CX + CITY_DIST                     # the museum is the last stop, straight east
+ROAD_X0, ROAD_X1 = -252.0, MANSION_X - (150.0 * HOUSE_SCALE) / 2   # asphalt to the museum's gate
 WALK_X0 = -204.0                  # the pavements start where the parking lot ends
 CROSSWALK_X = -190.0              # where the yard's drive lane empties onto the street
 MANSION_LOT_W, MANSION_LOT_D = 200.0 * HOUSE_SCALE, 150.0 * HOUSE_SCALE
 MANSION_FRONT_YARD = 50.0 * HOUSE_SCALE
-MANSION_X = ROAD_X1 + MANSION_LOT_D / 2          # the lot's front edge meets the end of the road
-MAP_X0, MAP_X1, MAP_Z = -580.0, MANSION_X + 95.0 * HOUSE_SCALE, 215.0
+MAP_X0, MAP_X1, MAP_Z = -580.0, MANSION_X + 95.0 * HOUSE_SCALE, 780.0
+
+# The grid: avenues run parallel to the main street on each side; cross streets
+# join them together and carry most of the new houses.
+AVENUE_ZS = (-655.0, -330.0, 330.0, 655.0)
+AVENUE_X0 = 560.0                         # the avenues start just past the canyon corridor
+AVENUE_X1 = ROAD_X1 - 200.0               # ...and stop where the museum's hill takes over
+CITY_DEPTH = 700.0                        # cross streets run from z = -CITY_DEPTH to +CITY_DEPTH
+JUNCTION_HALF = 34.0                      # half-width kept clear at a cross-street mouth
+CITY_BOUNDARY_Z = 745.0                   # the cliffs closing off the far ends of the cross streets
+CITY_SEED = 20261017
 
 
-def build_roads(ground: Inst, decor: Inst, entrances: list[tuple[float, float]]):
-    length = ROAD_X1 - ROAD_X0
-    mid = (ROAD_X0 + ROAD_X1) / 2
-    walk_length = ROAD_X1 - WALK_X0
-    walk_mid = (WALK_X0 + ROAD_X1) / 2
-    part(ground, "MainStreet", (length, 0.2, 32), CF(mid, 0.1, 0), ASPHALT, "Asphalt")
-    for z in (-20, 20):
-        part(ground, "Sidewalk", (walk_length, 0.3, 8), CF(walk_mid, 0.15, z), SIDEWALK, "Concrete")
-        part(ground, "Curb", (walk_length, 0.34, 0.6), CF(walk_mid, 0.17, z - math.copysign(3.7, z)),
-             (206, 200, 186), "Concrete")
-    x = ROAD_X0 + 10
-    while x < ROAD_X1 - 10:
-        if not (CROSSWALK_X - 15 < x < CROSSWALK_X + 15):
-            part(decor, "LaneDash", (9, 0.04, 0.6), CF(x, 0.22, 0), WHITE, collide=False, query=False, shadow=False)
-        x += 20
-    # Crosswalk where the yard's drive lane meets the street
-    for i in range(11):
-        part(decor, "Crosswalk", (6, 0.04, 1.4), CF(CROSSWALK_X, 0.22, -14 + i * 2.8), WHITE, collide=False,
-             query=False, shadow=False)
-    # Road end at the mansion gate
-    part(decor, "RoadEnd", (1.2, 0.3, 32), CF(ROAD_X1 - 0.6, 0.25, 0), (228, 224, 212), "Concrete")
+def house_x(i: int) -> float:
+    """Where the i-th named house stands: i/11 of the way from the warehouses to the museum."""
+    return YARD_CX + CITY_DIST * i / LEVELS
 
-    # Street lamps (skip spots in front of driveways and gates)
-    def blocked(px: float) -> bool:
-        return any(abs(px - ex) < half + 5 for ex, half in entrances)
 
-    x = WALK_X0 + 21
-    side = 1
-    while x < ROAD_X1 - 10:
-        z = 23.0 * side
-        if not blocked(x):
-            street_lamp(decor, CF(x, 0.3, z) * CF.deg(0, 0 if side > 0 else 180, 0))
-        x += 45
-        side = -side
+def level_at(x: float, z: float) -> int | None:
+    """The difficulty level a position earns: the guide's levels stand at 1/11, 2/11 ... of the
+    trip, so a house placed here qualifies for the nearest level only when it lands within the
+    3% slack the guide allows."""
+    frac = math.hypot(x - YARD_CX, z) / CITY_DIST
+    level = min(LEVELS - 1, max(1, round(frac * LEVELS)))
+    return level if abs(frac - level / LEVELS) <= LEVEL_SLACK else None
 
 
 def road_sign(parent: Inst, x: float, z: float, text: str, facing_yaw: float):
@@ -2207,16 +2173,931 @@ def build_boundary(map_folder: Inst, decor: Inst):
     while x < MAP_X1 - 10:
         for z in (-MAP_Z + 10, MAP_Z - 10):
             tree(decor, CF(x, 0, z + (i % 3 - 1) * 3), 1.2 + (i % 4) * 0.1, "pine" if i % 2 else "round")
-        x += 26
+        x += 84
         i += 1
+
+
+# ---------------------------------------------------------------------------
+# The city: filling the ten-times-longer trip to the museum
+#
+# The museum now stands ten times as far from the warehouses as it used to,
+# so a city fills the space between: avenues running parallel to the main
+# street, cross streets joining them at irregular intervals, and about forty
+# numbered houses in three shapes (cottages, ranch houses and two-storey town
+# houses). Every city house is placed so its straight-line distance from the
+# warehouses sits within 3% of one of the guide's eleven difficulty levels,
+# and it borrows that level's guard and loot table. The whole street network
+# is written onto the Map as a "Lanes" attribute so the defenders can chase
+# through the grid (see src/server/Houses.luau).
+# ---------------------------------------------------------------------------
+
+CITY_KIND_PLANS = {"cottage": (48.0, 36.0), "ranch": (64.0, 38.0), "town": (44.0, 34.0)}
+
+
+def city_lot(kind: str) -> tuple[float, float]:
+    """A city lot stands snugger than a canyon lot."""
+    w, d = CITY_KIND_PLANS[kind]
+    return w * HOUSE_SCALE + 14.0, d * HOUSE_SCALE + FRONT_YARD
+
+
+# Which shape a house of this level takes. Harder streets get the taller,
+# better-stocked houses - the view up the street tells you how deep you are.
+def city_kind(level: int, rng: random.Random) -> str:
+    if level <= 2:
+        return "cottage"
+    if level <= 4:
+        return rng.choice(("cottage", "ranch", "ranch"))
+    if level <= 6:
+        return "ranch"
+    if level <= 8:
+        return rng.choice(("ranch", "town", "town"))
+    return "town"
+
+
+CITY_WALLS = [(244, 230, 200), (236, 214, 188), (214, 228, 240), (230, 240, 214), (240, 222, 228),
+              (226, 222, 240), (240, 236, 220), (210, 226, 226), (236, 226, 206), (222, 210, 196),
+              (200, 214, 230), (232, 216, 202), (246, 232, 214), (216, 234, 222)]
+CITY_ROOFS = [(176, 100, 88), (110, 130, 158), (136, 104, 156), (150, 112, 86), (98, 120, 138),
+              (160, 100, 100), (112, 138, 116), (166, 128, 96), (188, 122, 108)]
+CITY_DOORS = [(150, 80, 60), (90, 120, 170), (160, 130, 60), (100, 150, 120), (170, 100, 120),
+              (120, 90, 150)]
+
+
+def city_palette(rng: random.Random, level: int) -> dict:
+    wall = rng.choice(CITY_WALLS)
+    roof = rng.choice(CITY_ROOFS)
+    door = rng.choice(CITY_DOORS)
+    shade = lambda c, f: tuple(min(255, max(0, int(v * f))) for v in c)
+    return {"wall": wall, "roof": roof, "door": door,
+            "carpet": shade(wall, 0.92), "sofa": rng.choice(CITY_ROOFS), "rug": shade(roof, 1.15),
+            "bed": shade(rng.choice(CITY_DOORS), 1.15), "bush": LEAF if rng.random() < 0.5 else LEAF_DARK,
+            "accent": rng.choice((WOOD, WOOD_DARK, (176, 122, 82))), "pet": shade(door, 1.3)}
+
+
+def plan_city(canonical_xs: list[float], canonical: list[dict]) -> dict:
+    """Works out the whole city once, deterministically: where the cross streets meet the main
+    street, which numbered houses stand where (at what level), and the street network the
+    defenders chase through."""
+    rng = random.Random(CITY_SEED)
+    street_names = ["Juniper", "Alder", "Bramble", "Hazel", "Fern", "Wren", "Sorrel", "Marigold",
+                    "Copper", "Jasper", "Holly", "Laurel", "Ashby", "Primrose", "Tansy", "Birchwood"]
+    rng.shuffle(street_names)
+
+    # -- junctions: one in each level's band, biased to just short of the band's centre so the
+    # houses up the street straddle the level's official position; a few extras split the big
+    # blocks up so the grid reads as a city rather than a ladder.
+    junctions: list[dict] = []
+
+    def junction_ok(x: float) -> bool:
+        if not (AVENUE_X0 + 80 <= x <= AVENUE_X1 - 140):
+            return False
+        if any(abs(x - cx) < LOT_W / 2 + JUNCTION_HALF + 10 for cx in canonical_xs):
+            return False
+        return all(abs(x - j["x"]) >= 260 for j in junctions)
+
+    for level in range(1, LEVELS - 1):
+        anchor = YARD_CX + CITY_DIST * level / LEVELS
+        half = LEVEL_SLACK * CITY_DIST * 0.9
+        lo, hi = anchor - half + 40, anchor + half - 40
+        pick = None
+        for _ in range(100):
+            cand = lo + (hi - lo) * rng.random() ** 1.6  # nudge west: uphill houses fill the band
+            if junction_ok(cand):
+                pick = cand
+                break
+        if pick is None:
+            cand = lo
+            while cand <= hi and pick is None:
+                if junction_ok(cand):
+                    pick = cand
+                cand += 32
+        if pick is not None:
+            junctions.append({"x": pick})
+    for level in (3, 5, 7):  # extras
+        anchor = YARD_CX + CITY_DIST * level / LEVELS
+        for _ in range(60):
+            cand = anchor + rng.uniform(-0.5, 0.5) * LEVEL_SLACK * CITY_DIST * 2
+            if junction_ok(cand):
+                junctions.append({"x": cand})
+                break
+    junctions.sort(key=lambda j: j["x"])
+    for j, name in zip(junctions, street_names):
+        j["name"] = name
+
+    # -- the houses, level by level (a house's own position decides its level, within 3%)
+    city_houses: list[dict] = []
+    budget = 44
+
+    def add_house(x: float, z: float, yaw: float, kind: str, street: str):
+        level = level_at(x, z)
+        if level is None or len(city_houses) >= budget:
+            return False
+        guard = canonical[level - 1]["guard"]
+        number = int(abs(x) * 3 + abs(z) * 7) % 90 + 4
+        city_houses.append({
+            "id": f"City{len(city_houses) + 1}", "display": f"{number} {street}", "level": level,
+            "tier": canonical[level - 1]["tier"], "guard": guard, "count": canonical[level - 1]["count"],
+            "kind": kind, "x": x, "z": z, "yaw": yaw, "palette": city_palette(rng, level)})
+        return True
+
+    # Cross-street lots: slots up either side of the main street, on both sides of each cross
+    # street, clear of the avenue carriageways and of each other.
+    slot_zs = (96.0, 202.0, 308.0, 416.0, 522.0, 628.0)
+    for j in junctions:
+        jx = j["x"]
+        street = j["name"] + " St"
+        cands = [(half, side, sz) for half in (-1, 1) for side in (-1, 1) for sz in slot_zs]
+        rng.shuffle(cands)
+        taken = rng.randint(2, 4)
+        placed: list[tuple[int, float, float]] = []  # (side, z, lot_w)
+        for half, side, sz in cands:
+            if len(placed) >= taken or len(city_houses) >= budget:
+                break
+            z = half * sz
+            rough = level_at(jx, z)
+            if rough is None:
+                continue
+            kind = city_kind(rough, rng)
+            lot_w, lot_d = city_lot(kind)
+            if abs(z) < JUNCTION_HALF + lot_w / 2 + 4:
+                continue
+            if any(abs(z - az) < JUNCTION_HALF + lot_w / 2 + 4 for az in AVENUE_ZS):
+                continue
+            if any(p[0] == side and abs(p[1] - z) < (p[2] + lot_w) / 2 + 8 for p in placed):
+                continue
+            x = jx + side * (SIDEWALK_EDGE + lot_d / 2)
+            if x < AVENUE_X0 + 10 or x > ROAD_X1 - 20:
+                continue  # keep the lots clear of the city's west wall and the museum's hill
+            yaw = -90 if side > 0 else 90  # the front door faces the cross street
+            if add_house(x, z, yaw, kind, street):
+                placed.append((side, z, lot_w))
+
+    # Avenue lots: numbered doors on the avenues themselves, between the junctions.
+    bounds = [AVENUE_X0 + 80] + [j["x"] for j in junctions] + [AVENUE_X1 - 80]
+    spans = [(a, b) for a, b in zip(bounds, bounds[1:]) if b - a > 300]
+    for az in AVENUE_ZS:
+        avenue = "Midtown Ave" if abs(az) < 500 else "Skyline Ave"
+        for a, b in spans:
+            if len(city_houses) >= budget:
+                break
+            count = 1 if b - a < 520 else 2
+            for pos in rng.sample([rng.uniform(a + 90, b - 90) for _ in range(3)], min(count, 3)):
+                rough = level_at(pos, az)
+                if rough is None:
+                    continue
+                kind = city_kind(rough, rng)
+                lot_w, lot_d = city_lot(kind)
+                if any(abs(pos - j["x"]) < JUNCTION_HALF + lot_w / 2 + 10 for j in junctions):
+                    continue
+                if abs(az) < 500:  # Midtown: both sides are buildable
+                    side = rng.choice((-1, 1))
+                else:              # Skyline: only the side facing the city
+                    side = -1 if az > 0 else 1
+                x, z = pos, az + side * (SIDEWALK_EDGE + lot_d / 2)
+                yaw = 0 if side < 0 else 180  # faces the avenue
+                if add_house(x, z, yaw, kind, avenue):
+                    break  # one per span keeps the avenues from crowding
+
+    # -- the street network the defenders chase through ("axis,fixed,lo,hi" per lane)
+    lanes = [("x", 0.0, ROAD_X0, ROAD_X1)]
+    for az in AVENUE_ZS:
+        lanes.append(("x", az, AVENUE_X0, AVENUE_X1))
+    for j in junctions:
+        lanes.append(("z", j["x"], -CITY_DEPTH, CITY_DEPTH))
+    lanes_str = ";".join(f"{a},{f:.0f},{lo:.0f},{hi:.0f}" for a, f, lo, hi in lanes)
+
+    corridor_end = min(house_x(1) - LOT_W / 2, min(j["x"] for j in junctions)) - 48
+    return {"junctions": junctions, "houses": city_houses, "lanes": lanes_str,
+            "corridor_end": corridor_end}
+
+
+# --- the three city house shapes -------------------------------------------
+
+
+def _city_common(hb: HouseBuilder, ch: dict):
+    """Wiring every city house shares: attributes the server reads, budget of loot spots,
+    front path, gate route markers, a small city garden and a driveway if the guard needs one."""
+    hb.model.attr(Guard=ch["guard"]["id"], GuardCount=ch["count"], LootHouse=f'House{ch["level"]}',
+                  Level=ch["level"])
+    front = hb.lot_d / 2 - FRONT_YARD
+    gaps = [(0, 6)]
+    if ch["guard"]["kind"] == "Vehicle":
+        gaps.append((CITY_DRIVE_X[ch["kind"]], 13))
+    hb.fence({1: "picket", 2: "hedge", 3: "modern"}[min(3, ch["tier"])], gaps)
+    hb.path(0, front + 4.0, hb.lot_d / 2 - 0.6, 4)
+    hb.route_lot("Street", 0, hb.lot_d / 2 + 6)
+    hb.route_lot("Gate", 0, hb.lot_d / 2 - 0.2)
+    hb.route_lot("Door", 0, front - 0.3)
+    palette = ch["palette"]
+    bush(hb.yard, hb.lot_cf * CF(-hb.lot_w / 2 + 6, 0, front + 1.2), 2.2, palette["bush"])
+    bush(hb.yard, hb.lot_cf * CF(hb.lot_w / 2 - 6, 0, front + 1.2), 2.2, palette["bush"])
+    hb.y("MailboxPost", (0.3, 3.0, 0.3), (4.6, 1.5, hb.lot_d / 2 - 1.2), WOOD_DARK, "Wood")
+    hb.y("Mailbox", (1.0, 0.9, 1.6), (4.6, 3.4, hb.lot_d / 2 - 1.2), palette["door"], "Metal")
+    if ch["guard"]["kind"] == "Vehicle":
+        hb.y("Driveway", (13, 0.12, FRONT_YARD - 1.5), (CITY_DRIVE_X[ch["kind"]], 0.06, hb.lot_d / 2 - (FRONT_YARD - 1.5) / 2),
+             (198, 194, 184), "Concrete")
+
+
+CITY_DRIVE_X = {"cottage": 10.5, "ranch": 12.0, "town": 10.5}
+
+# Where each kind of defender waits in each house shape, in plan coordinates (x, z, facing).
+CITY_POSTS = {
+    "cottage": {
+        "Cat": ((-9.5, 11, "e"),), "Dog": ((-9.5, 11, "e"),), "Human": ((-9.5, 11, "e"),),
+        "Wizard": ((-9.5, 11, "e"),), "Beast": ((-11.5, 5, "e"),),
+        "Robot": ((-6.5, 4, "e"), (10, 5, "w"), (8, -12, "n")),
+        "Vehicle": ((7.8, 20, "s"),),
+    },
+    "ranch": {
+        "Cat": ((-12, 13, "e"),), "Dog": ((-12, 13, "e"),), "Human": ((-12, 13, "e"),),
+        "Wizard": ((-12, 13, "e"),), "Beast": ((-15, 8, "e"),),
+        "Robot": ((-7, 5, "e"), (9, 10, "w"), (11, -11, "n")),
+        "Vehicle": ((9.2, 21, "s"),),
+    },
+    "town": {
+        "Cat": ((-9, 12.5, "e"),), "Dog": ((-9, 12.5, "e"),), "Human": ((-9, 12.5, "e"),),
+        "Wizard": ((-9, 12.5, "e"),), "Beast": ((-11, 5, "e"),),
+        "Robot": ((-6, 5, "e"), (9, 12, "w"), (8, -11, "n")),
+        "Vehicle": ((7, 19.5, "s"),),
+    },
+}
+
+
+def _city_guards(hb: HouseBuilder, ch: dict):
+    guard = ch["guard"]
+    posts = list(CITY_POSTS[ch["kind"]].get(guard["kind"], CITY_POSTS[ch["kind"]]["Dog"]))
+    while len(posts) < ch["count"]:
+        posts.append(posts[-1])
+    for post_x, post_z, facing in posts[: ch["count"]]:
+        hb.guard_post(post_x, post_z, facing, guard, ch["tier"], ch["palette"]["pet"])
+
+
+def build_city_cottage(folder: Inst, ch: dict, lot_cf: CF, lot_w: float, lot_d: float):
+    """A compact one-storey cottage: living room and kitchen on the left, a den on the right."""
+    W, D = CITY_KIND_PLANS["cottage"]
+    H = 13.0
+    hb = HouseBuilder(folder, ch["id"], ch["display"], ch["tier"], lot_cf, lot_w, lot_d, W, D, H,
+                      FRONT_YARD, HOUSE_SCALE)
+    palette = ch["palette"]
+    hb.spot_budget = HOUSE_SPOTS  # same five items out as every other house
+    hb.wall_color, hb.wall_material = palette["wall"], "Plaster"
+    t = 0.8
+    xi, zi = W / 2 - t, D / 2 - t
+    hb.exterior(t, palette["wall"], "Plaster",
+                front=[door_opening(0, 5, 9), window(-16.5, 4.4), window(-8.5, 4.4), window(8.5, 4.4),
+                       window(16.5, 4.4)],
+                back=[window(-8, 4.6), window(8, 4.6)], left=[window(-5, 4.4)], right=[window(5, 4.4)])
+    hb.floor(WOOD_LIGHT)
+    hb.room_floor(-xi, -4.25, -zi, -0.25, (226, 226, 222), "CeramicTiles")
+    hb.room_floor(4.25, xi, -zi + 0.05, zi, palette["carpet"], "Carpet")
+    hb.wall_z(-4, -zi, zi, 0.5, H, [doorway(8, 5, 9), doorway(-8, 5, 9)], OFFWHITE, "Plaster", "InteriorWall")
+    hb.wall_z(4, -zi, zi, 0.5, H, [doorway(6, 5, 9)], OFFWHITE, "Plaster", "InteriorWall")
+    hb.wall_x(0, -xi, -4.25, 0.5, H, [doorway(-14, 7, 9)], OFFWHITE, "Plaster", "InteriorWall")
+    hb.route_node("WestFront", -4, 8)
+    hb.route_node("WestRear", -4, -8)
+    hb.route_node("EastDen", 4, 6)
+    hb.route_node("Hall", 0, 12)
+    hb.room("Living", -xi + 0.3, 0.3, -4.6, zi - 0.3, "WestFront")
+    hb.room("Kitchen", -xi + 0.3, -zi + 0.3, -4.6, -0.3, "WestRear")
+    hb.room("Den", 4.6, -zi + 0.3, xi - 0.3, zi - 0.3, "EastDen")
+    hb.room("Hall", -4.6, -zi + 0.3, 4.6, zi - 0.3)
+    hb.gable_roof(8.0, 1.3, palette["roof"])
+    hb.p("Chimney", (2.6, 8, 2.6), (-15, H + 4.6, -7), (186, 108, 88), "Brick")
+    hb.door("x", D / 2 - t / 2, 0, 5, 9, +1, palette["door"], step=False)
+    for sx in (-1, 1):
+        hb.p("DoorTrim", (0.55, 9, 0.35), (sx * 2.78, 4.5, D / 2 + 0.1), WHITE, "SmoothPlastic")
+    hb.p("DoorTrim", (6.2, 0.55, 0.35), (0, 9.28, D / 2 + 0.1), WHITE, "SmoothPlastic")
+    porch_h = H - 2.6
+    hb.p("PorchFloor", (11, 0.35, 4.2), (0, 0.175, D / 2 + 2.1), (202, 172, 132), "WoodPlanks")
+    for x in (-4.9, 4.9):
+        hb.p("PorchColumn", (porch_h, 0.8, 0.8), (x, 0.35 + porch_h / 2, D / 2 + 3.7), WHITE,
+             "SmoothPlastic", rot=(0, 0, 90), shape="Cylinder")
+    hb.p("PorchRoof", (12.2, 0.6, 4.9), (0, 0.35 + porch_h + 0.3, D / 2 + 2.3), palette["roof"], "RoofShingles")
+    porch_light = hb.p("PorchLight", (0.6, 0.9, 0.4), (3.4, 7.4, D / 2 + 0.25), (255, 222, 160), "Neon",
+                       parent=hb.furniture, collide=False)
+    point_light(porch_light, (255, 214, 150), 1.0, 16)
+    # Living room
+    hb.tv_stand(-22.0, 8, "e")
+    hb.p("TV", (0.3, 3.2, 5.4), (-22.9, 5.0, 8), BLACK, parent=hb.furniture)
+    hb.p("TVScreen", (0.05, 2.8, 5.0), (-22.73, 5.0, 8), (40, 110, 220), "Neon", parent=hb.furniture,
+         collide=False)
+    hb.sofa(-11.5, 8, "w", length=8, color=palette["sofa"])
+    hb.rug(-15, 8, 8, 7, palette["rug"])
+    hb.plant(-21.5, 14.6)
+    hb.coffee_table(-14.2, 8, "e")
+    # Kitchen
+    hb.counter(-13, -15.35, "s", length=10, spots=2)
+    hb.fridge(-21.35, -15.2, "s")
+    hb.table(-13, -6.5, "s", width=6, depth=3.6, height=2.9, spots=1, chairs=True)
+    # Hall
+    hb.pedestal(0, -13.2, "s")
+    hb.rug(0, 4, 3.2, 18, palette["rug"])
+    hb.painting("z", -3.75, 3, 6.4, +1, (palette["accent"], (240, 220, 120)))
+    # The den
+    hb.bed(15.5, -11.9, "s", color=palette["bed"])
+    hb.nightstand(20.35, -15.2, "s")
+    hb.desk(19.35, 9.5, "w")
+    hb.dresser(19.35, -3.5, "w", color=palette["accent"])
+    hb.low_shelf(9, 3.3, "s")
+    for x, z in ((-14, 8), (-13, -9), (0, 10), (0, -6), (13, -7), (13, 9)):
+        hb.lamp(x, z)
+    _city_guards(hb, ch)
+    hb.siren((0, H - 0.6, D / 2 + 0.45))
+    hb.siren((0, H - 0.5, 5))
+    _city_common(hb, ch)
+    return hb
+
+
+def build_city_ranch(folder: Inst, ch: dict, lot_cf: CF, lot_w: float, lot_d: float):
+    """A long single-storey ranch house with a carport on the east gable."""
+    W, D = CITY_KIND_PLANS["ranch"]
+    H = 15.0
+    hb = HouseBuilder(folder, ch["id"], ch["display"], ch["tier"], lot_cf, lot_w, lot_d, W, D, H,
+                      FRONT_YARD, HOUSE_SCALE)
+    palette = ch["palette"]
+    hb.spot_budget = HOUSE_SPOTS  # same five items out as every other house
+    hb.wall_color, hb.wall_material = palette["wall"], "Plaster"
+    t = 0.8
+    xi, zi = W / 2 - t, D / 2 - t
+    hb.exterior(t, palette["wall"], "Plaster",
+                front=[door_opening(0, 5, 9), window(-24, 5), window(-15, 5), window(-7, 5), window(7, 5),
+                       window(15, 5), window(24, 5)],
+                back=[window(-22, 5), window(-10, 5), window(10, 5), window(22, 5)],
+                left=[window(-6, 5)], right=[window(2, 5)])
+    hb.floor(WOOD_LIGHT)
+    hb.room_floor(-xi, -4.25, -zi, -0.25, (226, 226, 222), "CeramicTiles")
+    hb.room_floor(4.25, xi, -zi, 2.5, palette["carpet"], "Carpet")
+    hb.room_floor(4.25, xi, 3.5, zi, WOOD, "WoodPlanks")
+    hb.wall_z(-4, -zi, zi, 0.5, H, [doorway(10, 5, 9), doorway(-10, 5, 9)], OFFWHITE, "Plaster", "InteriorWall")
+    hb.wall_z(4, -zi, zi, 0.5, H, [doorway(11, 5, 9), doorway(-9, 5, 9)], OFFWHITE, "Plaster", "InteriorWall")
+    hb.wall_x(0, -xi, -4.25, 0.5, H, [doorway(-18, 8, 9)], OFFWHITE, "Plaster", "InteriorWall")
+    hb.wall_x(3, 4.25, xi, 0.5, H, [], OFFWHITE, "Plaster", "InteriorWall")
+    hb.route_node("WestFront", -4, 10)
+    hb.route_node("WestRear", -4, -10)
+    hb.route_node("EastFront", 4, 11)
+    hb.route_node("EastRear", 4, -9)
+    hb.route_node("Hall", 0, 14)
+    hb.room("Living", -xi + 0.3, 0.3, -4.6, zi - 0.3, "WestFront")
+    hb.room("Kitchen", -xi + 0.3, -zi + 0.3, -4.6, -0.3, "WestRear")
+    hb.room("Bedroom", 4.6, -zi + 0.3, xi - 0.3, 2.4, "EastRear")
+    hb.room("Study", 4.6, 3.6, xi - 0.3, zi - 0.3, "EastFront")
+    hb.room("Hall", -4.6, -zi + 0.3, 4.6, zi - 0.3)
+    hb.gable_roof(9.0, 1.4, palette["roof"])
+    hb.door("x", D / 2 - t / 2, 0, 5, 9, +1, palette["door"], step=False)
+    for sx in (-1, 1):
+        hb.p("DoorTrim", (0.55, 9, 0.35), (sx * 2.78, 4.5, D / 2 + 0.1), WHITE, "SmoothPlastic")
+    hb.p("DoorTrim", (6.2, 0.55, 0.35), (0, 9.28, D / 2 + 0.1), WHITE, "SmoothPlastic")
+    porch_h = H - 2.8
+    hb.p("PorchFloor", (13, 0.35, 4.6), (0, 0.175, D / 2 + 2.3), (202, 172, 132), "WoodPlanks")
+    for x in (-5.9, 5.9):
+        hb.p("PorchColumn", (porch_h, 0.9, 0.9), (x, 0.35 + porch_h / 2, D / 2 + 4.1), WHITE,
+             "SmoothPlastic", rot=(0, 0, 90), shape="Cylinder")
+    hb.p("PorchRoof", (14.4, 0.6, 5.4), (0, 0.35 + porch_h + 0.3, D / 2 + 2.5), palette["roof"], "RoofShingles")
+    porch_light = hb.p("PorchLight", (0.6, 0.9, 0.4), (3.6, 7.6, D / 2 + 0.25), (255, 222, 160), "Neon",
+                       parent=hb.furniture, collide=False)
+    point_light(porch_light, (255, 214, 150), 1.0, 16)
+    # Carport on the east side (pure set dressing, no way in)
+    cp_x = W / 2 + 6.5
+    hb.p("CarportPad", (13, 0.14, 20), (cp_x, 0.07, 3), CONCRETE, "Concrete", parent=hb.yard, frame=hb.cf)
+    for dx, dz in ((-5.6, -8.6), (5.6, -8.6), (-5.6, 8.6), (5.6, 8.6)):
+        hb.p("CarportPost", (0.7, 8.6, 0.7), (cp_x + dx, 4.3, 3 + dz), WHITE, "SmoothPlastic",
+             parent=hb.structure, frame=hb.cf)
+    hb.p("CarportRoof", (14.6, 0.7, 21), (cp_x, 9.0, 3), palette["roof"], "RoofShingles",
+         parent=hb.structure, frame=hb.cf)
+    hb.p("CarBody", (4.6, 2.4, 8.6), (cp_x, 1.65, 3), (150, 160, 175), "Metal", parent=hb.yard, frame=hb.cf)
+    hb.p("CarCab", (4.0, 1.6, 4.2), (cp_x, 3.6, 3.6), (120, 150, 180), "Glass", parent=hb.yard, frame=hb.cf,
+         transparency=0.3)
+    # Living room
+    hb.tv_stand(-30.0, 9.5, "e")
+    hb.p("TV", (0.3, 3.4, 6.0), (-30.95, 5.3, 9.5), BLACK, parent=hb.furniture)
+    hb.p("TVScreen", (0.05, 3.0, 5.6), (-30.78, 5.3, 9.5), (40, 110, 220), "Neon", parent=hb.furniture,
+         collide=False)
+    hb.sofa(-18, 9.5, "w", length=10, color=palette["sofa"])
+    hb.sofa(-24, 13.8, "n", length=5, color=palette["sofa"])
+    hb.rug(-21, 9.5, 9, 8, palette["rug"])
+    hb.plant(-29.5, 15.6)
+    # Kitchen & dining
+    hb.counter(-19, -16.35, "s", length=12, spots=2)
+    hb.fridge(-29.4, -16.2, "s")
+    hb.table(-19, -7.5, "s", width=8, depth=4, height=2.9, spots=1, chairs=True)
+    # Hall
+    hb.pedestal(0, -14.8, "s")
+    hb.rug(0, 4, 3.4, 22, palette["rug"])
+    hb.painting("z", -3.75, 3, 7, +1, (palette["accent"], (240, 220, 120)))
+    hb.painting("z", 3.75, -3, 7, -1, ((80, 140, 200), palette["accent"]))
+    # Bedroom & study
+    hb.bed(21, -13.0, "s", color=palette["bed"])
+    hb.nightstand(27.8, -15.6, "s")
+    hb.dresser(27.4, -5.5, "w", color=palette["accent"])
+    hb.desk(27.4, 10, "w")
+    hb.tall_bookcase(9, 3.1, "s")
+    hb.sofa(14, 16.6, "n", length=5, color=palette["sofa"])
+    for x, z in ((-20, 9), (-19, -9), (0, 11), (0, -7), (20, -9), (16, 10)):
+        hb.lamp(x, z)
+    _city_guards(hb, ch)
+    hb.siren((0, H - 0.6, D / 2 + 0.45))
+    hb.siren((0, H - 0.5, 6))
+    _city_common(hb, ch)
+    return hb
+
+
+def build_city_townhouse(folder: Inst, ch: dict, lot_cf: CF, lot_w: float, lot_d: float):
+    """A two-storey town house: down below a living room, kitchen and den like a normal house;
+    a staircase climbs from the living room to the bedroom and gallery upstairs, where the best
+    pieces are kept. Defenders sleep downstairs and cannot climb, so the way back down is the
+    risky part."""
+    W, D = CITY_KIND_PLANS["town"]
+    GROUND_H, SLAB_T = 10.7, 0.8                 # the upstairs floor slab
+    FLOOR2 = GROUND_H + SLAB_T                   # 11.5: where upstairs feet and furniture stand
+    UPPER_H = 21.9                               # top of the upper walls
+    hb = HouseBuilder(folder, ch["id"], ch["display"], ch["tier"], lot_cf, lot_w, lot_d, W, D,
+                      UPPER_H, FRONT_YARD, HOUSE_SCALE)
+    palette = ch["palette"]
+    hb.spot_budget = HOUSE_SPOTS  # same five items out as every other house
+    hb.wall_color, hb.wall_material = palette["wall"], "Brick"
+    t = 0.9
+    xi, zi = W / 2 - t, D / 2 - t
+    upper_windows_f = [window(x, 4.6, 14.6, 19.0) for x in (-14, -6.8, 6.8, 14)]
+    upper_windows_b = [window(x, 4.6, 14.6, 19.0) for x in (-10, 0, 10)]
+    hb.exterior(t, palette["wall"], "Brick",
+                front=[door_opening(0, 5, 9), window(-10.5, 4.4, 3.2, 7.6), window(10.5, 4.4, 3.2, 7.6),
+                       window(17, 3.6, 3.2, 7.6)] + upper_windows_f,
+                back=[window(-8, 4.6, 3.2, 7.6), window(8, 4.6, 3.2, 7.6)] + upper_windows_b,
+                left=[window(-4, 4.2, 14.6, 19.0)], right=[window(4, 4.2, 14.6, 19.0)])
+    # Cornice band between the storeys and the parapet that finishes the flat roof.
+    for sz in (-1, 1):
+        hb.p("Cornice", (W + 0.5, 0.65, t + 0.5), (0, 10.9, sz * (D / 2 - t / 2)), WHITE, "Limestone")
+        hb.p("Parapet", (W + 0.9, 1.5, t + 0.9), (0, UPPER_H + 0.55, sz * (D / 2 - t / 2)), WHITE, "Limestone")
+    for sx in (-1, 1):
+        hb.p("Cornice", (t + 0.5, 0.65, D + 0.5), (sx * (W / 2 - t / 2), 10.9, 0), WHITE, "Limestone")
+        hb.p("Parapet", (t + 0.9, 1.5, D + 0.9), (sx * (W / 2 - t / 2), UPPER_H + 0.55, 0), WHITE, "Limestone")
+    hb.flat_roof(0.9, (66, 60, 58), 1.0)
+
+    hb.floor(WOOD_LIGHT)
+    hb.room_floor(-xi, -4.25, -zi, -0.25, (226, 226, 222), "CeramicTiles")
+    hb.room_floor(4.25, xi, -zi + 0.05, zi, palette["carpet"], "Carpet")
+    hb.wall_z(-4, -zi, zi, 0.5, GROUND_H, [doorway(8, 5, 9), doorway(-8, 5, 9)], OFFWHITE, "Plaster",
+              "InteriorWall")
+    hb.wall_z(4, -zi, zi, 0.5, GROUND_H, [doorway(8, 5, 9)], OFFWHITE, "Plaster", "InteriorWall")
+    hb.wall_x(0, -xi, -4.25, 0.5, GROUND_H, [doorway(-13, 7, 9)], OFFWHITE, "Plaster", "InteriorWall")
+    hb.route_node("WestFront", -4, 8)
+    hb.route_node("WestRear", -4, -8)
+    hb.route_node("EastDen", 4, 8)
+    hb.route_node("Hall", 0, 11)
+
+    def room3d(name, x0, z0, x1, z1, y0, y1, via=None):
+        box = hb.p(name, (abs(x1 - x0), y1 - y0, abs(z1 - z0)), ((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2),
+                   (60, 200, 255), parent=hb.rooms, transparency=1, collide=False, query=False, touch=False,
+                   shadow=False)
+        if via:
+            box.attr(Via=via)
+        return box
+
+    room3d("Living", -xi + 0.3, 0.3, -4.6, zi - 0.3, 0.0, 10.4, "WestFront")
+    room3d("Kitchen", -xi + 0.3, -zi + 0.3, -4.6, -0.3, 0.0, 10.4, "WestRear")
+    room3d("Den", 4.6, -zi + 0.3, xi - 0.3, zi - 0.3, 0.0, 10.4, "EastDen")
+    room3d("Hall", -4.6, -zi + 0.3, 4.6, zi - 0.3, 0.0, 10.4)
+    # Upstairs: the landing at the top of the stairs, the master bedroom over the den, and the
+    # gallery over the living room and kitchen. No waypoints lead up here on purpose - the
+    # defenders wait below while you find your own way back down.
+    room3d("Landing", -xi + 0.3, -zi + 0.3, 4.6, -7.6, 11.5, 21.5)
+    room3d("Bedroom", 4.6, -zi + 0.3, xi - 0.3, -0.4, 11.5, 21.5, "BedDoor")
+    room3d("Gallery", -xi + 0.3, -7.6, 4.6, zi - 0.3, 11.5, 21.5)
+    marker(hb.route, "Stairs", hb.frame(-17.6, -5.2, "n", FLOOR2), (0.6, 0.6, 0.6))
+    marker(hb.route, "BedDoor", hb.frame(4, -13.5, "n", FLOOR2), (0.6, 0.6, 0.6))
+
+    # The staircase: a straight ramp in the living room climbing the west wall, with a handrail.
+    ramp_len, ramp_w = 18.6, 5.0
+    ramp_zc, ramp_x = 2.1, -17.6
+    hb.p("StairRamp", (ramp_w, FLOOR2 - 0.7, ramp_len), (ramp_x, 0.7 + (FLOOR2 - 0.7) / 2, ramp_zc),
+         (196, 168, 128), "WoodPlanks", rot=(0, 180, 0), cls="WedgePart")
+    hb.p("StairLanding", (ramp_w + 0.6, 0.5, 1.8), (ramp_x, FLOOR2 - 0.25, -7.5), (196, 168, 128), "WoodPlanks")
+    slope = math.degrees(math.atan2(FLOOR2 - 0.7, ramp_len))
+    hb.p("StairRail", (0.3, 0.3, ramp_len + 1.4), (ramp_x + ramp_w / 2 - 0.2, 3.4 + (FLOOR2 - 0.7) / 2, ramp_zc),
+         WOOD_DARK, "Wood", rot=(-slope, 0, 0))
+    for i in range(4):
+        zz = ramp_zc + ramp_len / 2 - 1 - i * (ramp_len / 3.2)
+        yy = 0.7 + (FLOOR2 - 0.7) * (ramp_zc + ramp_len / 2 - zz) / ramp_len
+        hb.p("RailPost", (0.28, 3.4, 0.28), (ramp_x + ramp_w / 2 - 0.2, yy + 1.7, zz), WOOD_DARK, "Wood")
+    # Balustrade guarding the stairwell opening where the upstairs floor is cut away.
+    hb.p("Balustrade", (0.3, 3.0, 20.4), (-14.75, FLOOR2 + 1.5, ramp_zc + 0.4), WOOD_DARK, "Wood")
+    hb.p("BalustradeCap", (0.5, 0.3, 20.7), (-14.75, FLOOR2 + 3.05, ramp_zc + 0.4), WOOD, "Wood")
+    # The upstairs floor slab, in pieces around the stairwell.
+    slab_y = GROUND_H + SLAB_T / 2
+    hb.p("UpperFloor", (xi + 15.0, SLAB_T, D - 0.2), ((xi - 15.0) / 2, slab_y, 0), (206, 186, 156), "WoodPlanks")
+    hb.p("UpperFloor", (0.9, SLAB_T, D - 0.2), (-xi + 0.45, slab_y, 0), (206, 186, 156), "WoodPlanks")
+    hb.p("UpperFloor", (5.2, SLAB_T, zi - 7.8 + 0.1), (-17.6, slab_y, -(7.8 + (zi - 7.8) / 2) + 0.05 - 0.25),
+         (206, 186, 156), "WoodPlanks")
+    hb.p("UpperFloor", (5.2, SLAB_T, zi - 12.2 + 0.1), (-17.6, slab_y, (12.2 + zi) / 2 - 0.05),
+         (206, 186, 156), "WoodPlanks")
+    # Upstairs interior walls: landing | bedroom wall with a doorway, and the upstairs ceilings.
+    def uwall(name, size, pos):
+        hb.p(name, size, pos, OFFWHITE, "Plaster")
+    uy0, uy1 = FLOOR2, UPPER_H - 0.3
+    # wall at x=+4 separating the bedroom, with a doorway at z=-13.5
+    for z0, z1 in ((-zi, -16), (-11, -0.4)):
+        uwall("InteriorWall", (0.5, uy1 - uy0, z1 - z0), (4, (uy0 + uy1) / 2, (z0 + z1) / 2))
+    # wall at z=-7.6 separating the landing from the gallery on the west half (open arch at the
+    # stairs side, x < 1)
+    uwall("InteriorWall", (1 - (-xi + 0.3), uy1 - uy0, 0.5), ((1 + (-xi + 0.3)) / 2, (uy0 + uy1) / 2, -7.6))
+    hb.p("UpperCeiling", (W - 0.2, 0.3, D - 0.2), (0, UPPER_H - 0.45, 0), (236, 234, 228), "Plaster")
+
+    door_color = palette["door"]
+    hb.door("x", D / 2 - t / 2, 0, 5, 9, +1, door_color, step=False)
+    for sx in (-1, 1):
+        hb.p("DoorTrim", (0.55, 9, 0.35), (sx * 2.78, 4.5, D / 2 + 0.1), WHITE, "SmoothPlastic")
+    hb.p("DoorTrim", (6.2, 0.55, 0.35), (0, 9.28, D / 2 + 0.1), WHITE, "SmoothPlastic")
+    steps = ("Stoop", (7.5, 0.5, 3.4), (0, 0.25, D / 2 + 1.9), CONCRETE)
+    hb.p(*steps, "Concrete")
+    hb.p("CanopyRoof", (8.6, 0.5, 3.2), (0, 9.8, D / 2 + 1.8), palette["roof"], "RoofShingles")
+    hb.p("CanopyFascia", (8.8, 0.4, 3.4), (0, 9.55, D / 2 + 1.8), WHITE, "SmoothPlastic")
+    porch_light = hb.p("PorchLight", (0.6, 0.9, 0.4), (3.4, 7.4, D / 2 + 0.25), (255, 222, 160), "Neon",
+                       parent=hb.furniture, collide=False)
+    point_light(porch_light, (255, 214, 150), 1.0, 16)
+
+    def ground_lamp(x, z):
+        f = hb.cf * CF(x, GROUND_H - 0.45, z)
+        shade_part = part(hb.furniture, "CeilingLamp", (0.6, 1.8, 1.8), f * CF.deg(0, 0, 90),
+                          (255, 240, 205), "Neon", shape="Cylinder", collide=False)
+        point_light(shade_part, (255, 236, 205), 0.85, 18)
+
+    def upper_lamp(x, z):
+        f = hb.cf * CF(x, UPPER_H - 0.85, z)
+        shade_part = part(hb.furniture, "CeilingLamp", (0.6, 1.8, 1.8), f * CF.deg(0, 0, 90),
+                          (255, 240, 205), "Neon", shape="Cylinder", collide=False)
+        point_light(shade_part, (255, 236, 205), 0.85, 18)
+
+    # Ground floor: living room, kitchen, den (the stairs fill the west of the living room).
+    hb.sofa(-13, 8.2, "w", length=6, color=palette["sofa"])
+    hb.rug(-11, 10, 6, 6, palette["rug"])
+    hb.plant(-5.6, 14.8)
+    hb.counter(-12, -14.6, "s", length=9, spots=2)
+    hb.fridge(-20.15, -14.5, "s")
+    hb.table(-10, -7, "s", width=5.4, depth=3.4, height=2.9, spots=0, chairs=True)
+    hb.pedestal(0, -12.9, "s")
+    hb.rug(0, 4, 3.0, 16, palette["rug"])
+    hb.bed(13, -11.9, "s", color=palette["bed"])
+    hb.nightstand(19.65, -14.7, "s")
+    hb.desk(19.6, 9.5, "w")
+    hb.low_shelf(9, 3.3, "s")
+    for x, z in ((-10, 8), (-11, -9), (0, 8), (0, -6), (12, -7), (12, 9)):
+        ground_lamp(x, z)
+    # Upstairs: the gallery's dresser and display (the good stuff), the bedroom and the landing.
+    hb.FLOOR_Y = FLOOR2  # frame()-built furniture (beds, dressers...) lands on the upstairs floor
+    hb.dresser(-18.9, 8.5, "w", color=palette["accent"])
+    hb.nightstand(-18.9, -2.5, "w")
+    hb.bed(12.5, -12.4, "s", color=palette["bed"], headboard_h=3.6)
+    hb.desk(19.6, -6.5, "w")
+    hb.table(-9, -12.6, "s", width=4.2, depth=2.6, height=2.9, spots=1, color=WOOD_DARK)
+    hb.tall_bookcase(2.9, -13.5, "n")
+    hb.rug(-8, -11.5, 5, 4, palette["rug"])
+    hb.FLOOR_Y = 0.7
+    for x, z in ((-8, -6), (-12, 8), (12, -8), (12, 6), (-8, 12)):
+        upper_lamp(x, z)
+    if ch["level"] >= 9:
+        hb.laser((-3.6, 2.4, 4), (3.6, 2.4, 4), 0.7)          # across the ground-floor hall
+        hb.laser((0.6, 13.2, -7.6), (4.9, 13.2, -7.6), 1.9)   # across the upstairs gallery archway
+    _city_guards(hb, ch)
+    hb.siren((0, GROUND_H - 0.6, D / 2 + 0.45))
+    hb.siren((0, UPPER_H - 1.0, D / 2 + 0.45))
+    _city_common(hb, ch)
+    return hb
+
+
+def build_city_house(folder: Inst, ch: dict):
+    lot_w, lot_d = city_lot(ch["kind"])
+    lot_cf = CF(ch["x"], 0, ch["z"]) * CF.deg(0, ch["yaw"], 0)
+    builder = {"cottage": build_city_cottage, "ranch": build_city_ranch, "town": build_city_townhouse}
+    hb = builder[ch["kind"]](folder, ch, lot_cf, lot_w, lot_d)
+    return hb
+
+
+# --- streets, filling and skyline -------------------------------------------
+
+
+def _asphalt(ground: Inst, name: str, x0: float, x1: float, z0: float, z1: float, top: float,
+             color=ASPHALT):
+    part(ground, name, (x1 - x0, 0.2, z1 - z0), CF((x0 + x1) / 2, top - 0.1, (z0 + z1) / 2), color, "Asphalt")
+
+
+def _walkway(ground: Inst, x0: float, x1: float, z0: float, z1: float, top: float = 0.3):
+    part(ground, "Sidewalk", (x1 - x0, 0.3, z1 - z0), CF((x0 + x1) / 2, top - 0.15, (z0 + z1) / 2),
+         SIDEWALK, "Concrete")
+
+
+def build_city_roads(ground: Inst, decor: Inst, city: dict, entrances: list[tuple[float, float]]):
+    """The main street, the avenues, the cross streets and everything that dresses them."""
+    jxs = [j["x"] for j in city["junctions"]]
+
+    def near_junction(x: float, pad: float = JUNCTION_HALF + 5) -> bool:
+        return any(abs(x - jx) < pad for jx in jxs)
+
+    _asphalt(ground, "MainStreet", ROAD_X0, ROAD_X1, -16, 16, 0.20)
+    for z in (-20, 20):
+        _walkway(ground, WALK_X0, ROAD_X1, z - 4, z + 4, 0.30)
+    part(ground, "Curb", (ROAD_X1 - WALK_X0, 0.34, 0.6), CF((WALK_X0 + ROAD_X1) / 2, 0.17, -23.7),
+         (206, 200, 186), "Concrete")
+    part(ground, "Curb", (ROAD_X1 - WALK_X0, 0.34, 0.6), CF((WALK_X0 + ROAD_X1) / 2, 0.17, 23.7),
+         (206, 200, 186), "Concrete")
+    for az in AVENUE_ZS:
+        _asphalt(ground, "Avenue", AVENUE_X0, AVENUE_X1, az - 16, az + 16, 0.17)
+        _walkway(ground, AVENUE_X0, AVENUE_X1, az - 24, az - 16, 0.27)
+        _walkway(ground, AVENUE_X0, AVENUE_X1, az + 16, az + 24, 0.27)
+    for j in city["junctions"]:
+        jx = j["x"]
+        _asphalt(ground, "CrossStreet", jx - 16, jx + 16, -CITY_DEPTH, CITY_DEPTH, 0.185)
+        _walkway(ground, jx - 24, jx - 16, -CITY_DEPTH, CITY_DEPTH, 0.28)
+        _walkway(ground, jx + 16, jx + 24, -CITY_DEPTH, CITY_DEPTH, 0.28)
+        # dead ends get a turning pad at each end
+        for end in (-1, 1):
+            _asphalt(ground, "TurnPad", jx - 22, jx + 22, end * (CITY_DEPTH - 6), end * CITY_DEPTH, 0.186)
+    # junction caps sit just above every overlap, hiding the seams
+    for j in city["junctions"]:
+        jx = j["x"]
+        _asphalt(ground, "Junction", jx - 24, jx + 24, -24, 24, 0.205, (112, 116, 128))
+        for az in AVENUE_ZS:
+            _asphalt(ground, "Junction", jx - 24, jx + 24, az - 24, az + 24, 0.206, (112, 116, 128))
+    # crosswalks where the cross streets meet the main street (and at the yard's drive lane)
+    for cx in [CROSSWALK_X] + jxs:
+        for i in range(11):
+            part(decor, "Crosswalk", (6, 0.04, 1.4), CF(cx, 0.24, -14 + i * 2.8), WHITE, collide=False,
+                 query=False, shadow=False)
+    part(decor, "RoadEnd", (1.2, 0.3, 32), CF(ROAD_X1 - 0.6, 0.25, 0), (228, 224, 212), "Concrete")
+    # lane dashes: dense on the main street, sparser further out
+    x = ROAD_X0 + 10
+    while x < ROAD_X1 - 10:
+        if not near_junction(x) and not (CROSSWALK_X - 15 < x < CROSSWALK_X + 15):
+            part(decor, "LaneDash", (9, 0.04, 0.6), CF(x, 0.22, 0), WHITE, collide=False, query=False,
+                 shadow=False)
+        x += 20
+    for az in AVENUE_ZS:
+        x = AVENUE_X0 + 15
+        while x < AVENUE_X1 - 10:
+            if not near_junction(x, JUNCTION_HALF + 3):
+                part(decor, "LaneDash", (9, 0.04, 0.6), CF(x, 0.19, az), WHITE, collide=False, query=False,
+                     shadow=False)
+            x += 40
+    for j in city["junctions"]:
+        jx = j["x"]
+        z = -CITY_DEPTH + 20
+        while z < CITY_DEPTH - 10:
+            if abs(z) > 36 and min(abs(z - az) for az in AVENUE_ZS) > 34:
+                part(decor, "LaneDash", (0.6, 0.04, 9), CF(jx, 0.21, z), WHITE, collide=False, query=False,
+                     shadow=False)
+            z += 56
+    # street lamps: the main street keeps its old rhythm (skipping driveways and junctions);
+    # avenues and cross streets get a lamp now and then, and every junction gets corners.
+    def blocked(px: float) -> bool:
+        return near_junction(px) or any(abs(px - ex) < half + 5 for ex, half in entrances)
+
+    x = WALK_X0 + 21
+    side = 1
+    while x < ROAD_X1 - 10:
+        if not blocked(x):
+            street_lamp(decor, CF(x, 0.3, 23.0 * side) * CF.deg(0, 0 if side > 0 else 180, 0))
+        x += 90
+        side = -side
+    for az in AVENUE_ZS:
+        x = AVENUE_X0 + 40
+        side = 1
+        while x < AVENUE_X1 - 30:
+            if not near_junction(x, JUNCTION_HALF + 8):
+                street_lamp(decor, CF(x, 0.27, (az + 20 * side)) * CF.deg(0, 0 if side > 0 else 180, 0))
+            x += 160
+            side = -side
+    for j in city["junctions"]:
+        jx = j["x"]
+        z = -CITY_DEPTH + 40
+        side = 1
+        while z < CITY_DEPTH - 30:
+            if abs(z) > 40 and min(abs(z - az) for az in AVENUE_ZS) > 38:
+                street_lamp(decor, CF(jx + 20 * side, 0.28, z) * CF.deg(0, -90 * side, 0))
+            z += 220
+            side = -side
+        for corner in ((-1, -1), (1, 1)):  # two diagonal corners of each main junction
+            street_lamp(decor, CF(jx + 21 * corner[0], 0.3, 21 * corner[1])
+                        * CF.deg(0, -90 if corner[0] > 0 else 90, 0))
+    # street name signs at the main-street junctions
+    for j in city["junctions"]:
+        for side in (-1, 1):
+            road_sign(decor, j["x"] + 20, side * 27, j["name"].upper() + " ST", 0)
+
+
+CITY_BRICKS = [(192, 124, 104), (182, 140, 112), (164, 128, 118), (186, 112, 96), (172, 146, 128),
+               (148, 140, 160), (190, 150, 122), (158, 142, 118), (176, 128, 142), (150, 152, 168)]
+
+
+def facade(parent: Inst, rng: random.Random, x: float, z: float, yaw: float, width: float,
+           floors: int, kind: str = "brick") -> Inst:
+    """One plain city building: a wall box with a strip of windows per floor, facing local -Z.
+    `kind` = "brick" for street-infill blocks, "tower" for the skyline slabs."""
+    frame = CF(x, 0, z) * CF.deg(0, yaw, 0)
+    m = model(parent, "Building", frame)
+    depth = rng.uniform(13, 18) if kind == "brick" else rng.uniform(24, 34)
+    color = rng.choice(CITY_BRICKS)
+    trim = tuple(max(0, int(c * 0.82)) for c in color)
+
+    def q(name, size, pos, c=color, mat="Brick", **kw):
+        return part(m, name, size, frame * CF(*pos), c, mat, **kw)
+
+    height = floors * 9.6 + rng.uniform(0, 2.5)
+    q("Body", (width, height, depth), (0, height / 2, depth / 2))
+    q("Parapet", (width + 0.8, 1.1, depth + 0.8), (0, height + 0.55, depth / 2), trim)
+    q("Base", (width + 0.4, 2.2, depth + 0.4), (0, 1.1, depth / 2), trim)
+    for f in range(floors):
+        y = 4.6 + f * 9.6
+        q("Windows", (width * 0.82, 4.2, 0.3), (0, y, -0.15), (56, 68, 88), "Glass", transparency=0.25,
+          reflectance=0.3, collide=False)
+        q("Sills", (width * 0.86, 0.5, 0.6), (0, y - 2.45, -0.2), trim)
+    if kind == "brick":
+        q("Door", (4.2, 6.0, 0.5), (width * (-0.28 if rng.random() < 0.5 else 0.28), 3.2, -0.3),
+          rng.choice(CITY_DOORS), "Wood")
+        q("Canopy", (6.2, 0.5, 2.4), (width * (-0.28 if rng.random() < 0.5 else 0.28), 6.8, -1.2), trim)
+    else:
+        q("Crown", (width * 0.6, 5.0, depth * 0.6), (0, height + 3.0, depth / 2), trim)
+        q("Beacon", (1.2, 1.2, 1.2), (0, height + 6.4, depth / 2), (255, 90, 90), "Neon", collide=False)
+    return m
+
+
+def build_city_fill(map_folder: Inst, city: dict, canonical_xs: list[float]):
+    """Fills the blocks between the streets with building fronts and the skyline behind them,
+    so every street in the city is lined and the middle distance is rooftops, not lawn."""
+    rng = random.Random(CITY_SEED + 5)
+    folder = Inst("Folder", "CityFill", map_folder)
+    jxs = [j["x"] for j in city["junctions"]]
+    houses = city["houses"]
+
+    def row(x0: float, x1: float, z: float, yaw: float, floors_min: int, floors_max: int,
+            skip: list[tuple[float, float]] | None = None):
+        """A run of building fronts along X between x0..x1, facing the street at z, skipping gaps."""
+        x = x0
+        while x < x1 - 24:
+            width = rng.uniform(30, 56)
+            cx = x + width / 2
+            if skip and any(abs(cx - sx) < (width + sw) / 2 + 6 for sx, sw in skip):
+                x += width * 0.5
+                continue
+            if cx + width / 2 > x1:
+                width = x1 - cx
+            levels = rng.randint(floors_min, floors_max)
+            facade(folder, rng, cx, z, yaw, width, levels)
+            x += width + rng.uniform(0, 6)
+
+    # The main street is lined from the canyon corridor to the museum's hill, around the named
+    # houses' lots and the cross-street mouths.
+    skip = [(cx, LOT_W + 8) for cx in canonical_xs] + [(j["x"], JUNCTION_HALF * 2 + 12) for j in city["junctions"]]
+    corridor_end = city["corridor_end"]
+    for side in (-1, 1):
+        row(corridor_end + 12, AVENUE_X1 + 30, side * 55, 180 if side < 0 else 0, 2, 6, skip)
+    # The avenues get a city wall too, between grid junctions and around the numbered houses
+    # that face them.
+    for az in AVENUE_ZS:
+        skip = [(j["x"], JUNCTION_HALF * 2 + 8) for j in city["junctions"]]
+        skip += [(ch["x"], city_lot(ch["kind"])[0] + 6) for ch in houses if abs(abs(ch["z"]) - abs(az)) < 120]
+        for side in (-1, 1):
+            if abs(az) > 500 and side == (1 if az > 0 else -1):
+                continue  # the outer face of the outer avenues is cliffs and towers
+            row(AVENUE_X0 + 10, AVENUE_X1 - 10, az + side * 55, 180 if side < 0 else 0, 2, 7, skip)
+    # The cross streets: fronts between their houses, keeping clear of every lot.
+    for j in city["junctions"]:
+        jx = j["x"]
+        for side in (-1, 1):
+            street_houses = [ch for ch in houses if abs(ch["x"] - jx) < 110 and (ch["x"] - jx) * side > 30]
+            lots = sorted((ch["z"], city_lot(ch["kind"])[0]) for ch in street_houses)
+            gaps = []
+            cursor = -CITY_DEPTH + 4
+            for zc, lw in lots:
+                gaps.append((cursor, zc - lw / 2 - 3))
+                cursor = zc + lw / 2 + 3
+            gaps.append((cursor, CITY_DEPTH - 4))
+            for a, b in gaps:
+                a = max(a, -CITY_DEPTH + 4)
+                if b - a < 34:
+                    continue
+                if abs((a + b) / 2) < JUNCTION_HALF + 18:
+                    if abs(a) < JUNCTION_HALF + 18:
+                        a = -JUNCTION_HALF - 18 if a < 0 else JUNCTION_HALF + 18
+                    if b - a < 34:
+                        continue
+                if any(abs((a + b) / 2 - az) < JUNCTION_HALF + 14 for az in AVENUE_ZS):
+                    # cut the block at the avenue rather than filling across it
+                    for az in AVENUE_ZS:
+                        if a < az - JUNCTION_HALF - 14 and b > az + JUNCTION_HALF + 14:
+                            facade_row_gap(folder, rng, jx, side, a, az - JUNCTION_HALF - 14)
+                            facade_row_gap(folder, rng, jx, side, az + JUNCTION_HALF + 14, b)
+                            break
+                    else:
+                        facade_row_gap(folder, rng, jx, side, a, b)
+                else:
+                    facade_row_gap(folder, rng, jx, side, a, b)
+    # The skyline: towers rising in the middle of the big blocks.
+    bands = ((-285.0, -75.0), (75.0, 286.0), (-610.0, -400.0), (400.0, 612.0))
+    bounds = [corridor_end + 60] + jxs + [AVENUE_X1 - 20]
+    def clear_of_lots(tx: float, tz: float, half: float) -> bool:
+        for ch in houses:
+            lot_w, lot_d = city_lot(ch["kind"])
+            if abs(tx - ch["x"]) < lot_w / 2 + half + 6 and abs(tz - ch["z"]) < lot_d / 2 + half + 6:
+                return False
+        for cx in canonical_xs:
+            if abs(tx - cx) < LOT_W / 2 + half + 6 and abs(tz) < LOT_D + half:
+                return False
+        return True
+
+    for i, (a, b) in enumerate(zip(bounds, bounds[1:])):
+        if b - a < 160:
+            continue
+        for z0, z1 in bands:
+            if rng.random() < 0.42:
+                tx = rng.uniform(a + 70, b - 70)
+                tz = rng.uniform(z0 + 55, z1 - 40)
+                if not clear_of_lots(tx, tz, 22):
+                    continue
+                floors = rng.randint(6, 13)
+                facade(folder, rng, tx, tz, rng.choice((0, 90, 180, 270)), rng.uniform(26, 40), floors, "tower")
+                continue
+            if rng.random() < 0.3:
+                # a pocket park on the grass instead
+                px = rng.uniform(a + 60, b - 60)
+                pz = rng.uniform(z0 + 55, z1 - 30)
+                if not clear_of_lots(px, pz, 16):
+                    continue
+                part(folder, "ParkPad", (26, 0.14, 20), CF(px, 0.07, pz), (110, 200, 95), "Grass",
+                     collide=False, shadow=False)
+                bush(folder, CF(px - 6, 0, pz - 4), 3.2, LEAF)
+                bush(folder, CF(px + 5, 0, pz + 5), 2.6, LEAF_DARK)
+                for tx2, tz2 in ((-6, 3), (0, 0), (7, -3)):
+                    tree(folder, CF(px + tx2, 0, pz + tz2), rng.uniform(0.9, 1.2),
+                         "pine" if rng.random() < 0.5 else "round")
+
+
+def facade_row_gap(folder: Inst, rng: random.Random, jx: float, side: int, z0: float, z1: float):
+    """Building fronts along one side of a cross street between two z limits."""
+    z = z0
+    while z < z1 - 26:
+        width = rng.uniform(28, 46)
+        cz = z + width / 2
+        if cz + width / 2 > z1:
+            width = z1 - cz
+        x = jx + side * 33.5
+        yaw = 90 if side > 0 else -90
+        facade(folder, rng, x, cz, yaw, width, rng.randint(2, 5))
+        z += width + rng.uniform(0, 5)
+
+
+def build_city_cliffs(cliffs: Inst, decor: Inst, city: dict, sides: dict[int, list[float]]):
+    """The rock that still holds the city in: behind the named houses, around the far ends of
+    the cross streets, up the museum's approach hill and around the city's west and east edges."""
+    folder = Inst("Folder", "City", cliffs)
+    cliff = CliffBuilder(folder, 7700)
+    depth = 88.0
+    behind = OUT_D - CLIFF_SETBACK
+    for side, xs in sides.items():
+        frame = CF(0, 0, side * CLIFF_FACE_Z) * CF.deg(0, 0 if side < 0 else 180, 0)
+        flip = -1 if side > 0 else 1
+
+        def local(a, b, flip=flip):
+            return (min(a * flip, b * flip), max(a * flip, b * flip))
+
+        for hx in xs:
+            cliff.fill(frame, *local(hx - OUT_W / 2, hx + OUT_W / 2), -behind, -depth, (25, 42), None, decor)
+    corridor_end = city["corridor_end"]
+    # the west wall of the city, from the corridor's shoulders out to the far boundary
+    cliff_wall(cliff, decor, (AVENUE_X0 - 30, -(CITY_BOUNDARY_Z + 45) / 2), (1, 0),
+                CITY_BOUNDARY_Z - 45, (24, 38), fill_heights=(28, 44), depth=46, trees=decor)
+    cliff_wall(cliff, decor, (AVENUE_X0 - 30, (CITY_BOUNDARY_Z + 45) / 2), (1, 0),
+                CITY_BOUNDARY_Z - 45, (24, 38), fill_heights=(28, 44), depth=46, trees=decor)
+    # the north and south walls that the cross streets dead-end into
+    for side in (-1, 1):
+        cliff_wall(cliff, decor, ((AVENUE_X0 - 40 + AVENUE_X1 + 120) / 2, side * CITY_BOUNDARY_Z),
+                   (0, -side), AVENUE_X1 + 160 - AVENUE_X0, (26, 42), fill_heights=(30, 48), depth=55,
+                   rubble=0.08, trees=decor)
+    # the museum's approach: canyon walls return for the last stretch of the main street
+    for side in (-1, 1):
+        cliff_wall(cliff, decor, ((AVENUE_X1 + 58 + ROAD_X1) / 2, side * CLIFF_FACE_Z), (0, -side),
+                   ROAD_X1 - AVENUE_X1 - 58, (24, 38), fill_heights=(28, 44), depth=52, rubble=0.1,
+                   trees=decor)
+    # and the eastern bowl beyond the avenues, joining the approach walls to the museum's cliff
+    for side in (-1, 1):
+        cliff_wall(cliff, decor, (ROAD_X1 + 46, side * (CITY_BOUNDARY_Z + 178) / 2), (-1, 0),
+                   CITY_BOUNDARY_Z - 178, (24, 40), fill_heights=(28, 46), depth=48, trees=decor)
+
+
+def city_greenery(decor: Inst, city: dict):
+    """Street trees at the junction corners, so the grid has some green in it."""
+    rng = random.Random(CITY_SEED + 9)
+    for j in city["junctions"]:
+        for corner in ((-1, 1), (1, -1)):
+            tx = j["x"] + 38 * corner[0]
+            tz = 23.5 * corner[1]
+            tree(decor, CF(tx, 0, tz), rng.uniform(1.0, 1.25), "pine" if rng.random() < 0.4 else "round")
 
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
-# Paint for the ten identical houses (street order) — pastel candy walls and sorbet roofs, matching the
-# light UI. "pet" is the colour of the guard's bed.
+# Paint for the guide's ten named houses (in street order) — pastel candy walls and sorbet roofs,
+# matching the light UI. "pet" is the colour of the guard's bed.
 HOUSE_PALETTES = [
     # 1 Butter — cream-yellow cottage with a coral roof
     {"wall": (250, 240, 194), "roof": (255, 138, 116), "door": (238, 112, 96), "carpet": (248, 206, 176),
@@ -2272,18 +3153,25 @@ def build_map(workspace: Inst) -> Inst:
     warehouses = Inst("Folder", "Warehouses", map_folder)
     cliffs = Inst("Folder", "Cliffs", map_folder)
 
-    # Ground extends well past the invisible boundary walls (2048 = max part size) so the edge of the
-    # world fades into the atmosphere instead of looking like a cliff.
-    mid = (MAP_X0 + MAP_X1) / 2
-    part(ground, "Grass", (2048, 4, 2048), CF(mid, -2, 0), GRASS, "Grass")
+    # The map is now far wider than the 2,048-stud part limit, so the grass is tiled east to west.
+    # It reaches well past the invisible boundary walls so the edge of the world fades out.
+    edge = MAP_X0
+    while edge < MAP_X1:
+        x1 = min(edge + 2048, MAP_X1)
+        part(ground, "Grass", (x1 - edge, 4, MAP_Z * 2), CF((edge + x1) / 2, -2, 0), GRASS, "Grass")
+        edge = x1
 
-    entrances: list[tuple[float, float]] = []
-
-    # Where the street's houses stand: they alternate sides of the road, harder the further east you go.
+    # Where the guide's named houses stand: they alternate sides of the main street, each at its
+    # fraction of the trip (1/11, 2/11 ... - the museum takes the 11th at the very end).
+    named_xs = [house_x(i + 1) for i in range(len(street))]
     sides: dict[int, list[float]] = {-1: [], 1: []}
-    for i in range(len(street)):
-        sides[-1 if i % 2 == 0 else 1].append(FIRST_HOUSE_X + i * HOUSE_PITCH)
-    starts = {side: min(xs) - HOUSE_PITCH for side, xs in sides.items()}
+    for i, x in enumerate(named_xs):
+        sides[-1 if i % 2 == 0 else 1].append(x)
+
+    # Plan the whole city once (junctions, numbered houses) and publish the street network so the
+    # defenders can chase around the corners (see src/server/Houses.luau).
+    city = plan_city(named_xs, street)
+    map_folder.attr(Lanes=city["lanes"])
 
     # The yard at the west end of the street: six garages around the spawn parking lot. Each one sits a
     # hair higher than the last so the aprons that overlap in the corners never fight over one plane.
@@ -2291,54 +3179,36 @@ def build_map(workspace: Inst) -> Inst:
         build_warehouse(warehouses, ground, index, CF(x, 0.003 * index, z) * CF.deg(0, yaw, 0))
     build_yard(map_folder, ground, decor)
     build_yard_cliffs(cliffs, decor)
-    # The canyon joins the yard to whichever house stands nearest the corner on each side of the road.
-    build_corridor_cliffs(cliffs, decor, {side: x + 4.0 for side, x in starts.items()})
+    # The canyon joins the yard to the city's west wall.
+    build_corridor_cliffs(cliffs, decor, {side: city["corridor_end"] for side in (-1, 1)})
 
+    entrances: list[tuple[float, float]] = []
     for i, info in enumerate(street):
-        x = FIRST_HOUSE_X + i * HOUSE_PITCH
+        x = named_xs[i]
         side = -1 if i % 2 == 0 else 1
         lot_cf = CF(x, 0, side * (SIDEWALK_EDGE + LOT_D / 2)) * CF.deg(0, 0 if side < 0 else 180, 0)
         build_house(houses, info, tiers[info["tier"] - 1], lot_cf, HOUSE_PALETTES[i % len(HOUSE_PALETTES)])
-        entrances.append((x, 4))
-    build_street_cliffs(cliffs, decor, sides, starts, ROAD_X1)
-    build_frontage(decor, sides, starts)
+        entrances.append((x, 6))
+
+    # The numbered city houses fill the grid between them.
+    for ch in city["houses"]:
+        build_city_house(houses, ch)
 
     # The Mansion (the town's museum) at the end of the street, its front facing the road
     mansion_cf = CF(MANSION_X, 0, 0) * CF.deg(0, -90, 0)
     build_mansion(houses, mansion, tiers[3], mansion_cf)
     build_mansion_cliff(cliffs, decor, mansion_cf)
 
-    build_roads(ground, decor, entrances)
-    road_sign(decor, -30, -23, "RICH NEIGHBORHOOD ➜", 0)
+    build_city_roads(ground, decor, city, entrances)
+    build_city_fill(map_folder, city, named_xs)
+    build_city_cliffs(cliffs, decor, city, sides)
+    city_greenery(decor, city)
+    road_sign(decor, -30, -23, "DOWNTOWN & MUSEUM ➜", 0)
     road_sign(decor, -170, 23, "⬅ YOUR GARAGE", 0)
     build_boundary(map_folder, decor)
 
-    # Street trees on the grass between the yard and the neighbourhood
+    # Street trees on the grass between the yard and the city
     for x in (-170.0, -110.0):
         for z in (-34.0, 34.0):
             tree(decor, CF(x, 0, z), 1.1)
     return map_folder
-
-
-def build_frontage(decor: Inst, sides: dict[int, list[float]], starts: dict[int, float]):
-    """Trees, bushes and boulders on the grass between the pavement and the cliff opposite each house."""
-    rng = random.Random(77)
-    for side, xs in sides.items():
-        edges = [starts[side]] + [x for hx in sorted(xs) for x in (hx - LOT_W / 2, hx + LOT_W / 2)] + [ROAD_X1]
-        for a, b in zip(edges[0::2], edges[1::2]):
-            if b - a < 12:
-                continue
-            z = side * (SIDEWALK_EDGE + (CLIFF_FACE_Z - SIDEWALK_EDGE) * 0.55)
-            # One tree every ~26 studs of frontage (the gaps got wider with the bigger houses).
-            for step in range(max(1, round((b - a) / 26))):
-                tx = a + (b - a) * (step + 0.5) / max(1, round((b - a) / 26))
-                tree(decor, CF(tx, 0, z), rng.uniform(1.0, 1.25), "pine" if rng.random() < 0.5 else "round")
-            for _ in range(max(3, round((b - a) / 9))):
-                bx = rng.uniform(a + 3, b - 3)
-                bush(decor, CF(bx, 0, side * (CLIFF_FACE_Z - 2.2)), rng.uniform(2.2, 3.2),
-                     LEAF if rng.random() < 0.5 else LEAF_DARK)
-            for _ in range(max(1, round((b - a) / 40))):
-                size = rng.uniform(2.5, 4.5)
-                part(decor, "Boulder", (size, size, size),
-                     CF(rng.uniform(a + 4, b - 4), size * 0.4, side * (CLIFF_FACE_Z - 5)) * CF.deg(0, rng.uniform(0, 90), 0),
-                     rng.choice(ROCK_COLORS), "Rock")

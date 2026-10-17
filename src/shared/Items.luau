@@ -167,7 +167,7 @@ define("GrandmasJewels", "Grandma's Jewels", "House1", 400, "Epic", {
 --------------------------------------------------------------------------------
 -- Willow Cottage — guarded by a tuxedo cat
 --------------------------------------------------------------------------------
-define("DeskLamp", "Desk Lamp", "House2", 30, "Common", {
+define("DeskLamp", "Desk Lamp", "House2", 45, "Common", {
 	P("Cylinder", V(0.2, 1.2, 1.2), V(0, 0.1, 0), C(60, 60, 66), M.Metal, { Rotation = VERTICAL }),
 	P("Block", V(0.16, 1.7, 0.16), V(0, 1.05, 0), C(60, 60, 66), M.Metal),
 	P("Cylinder", V(0.9, 1.2, 1.2), V(0, 2.1, 0), C(255, 214, 102), M.SmoothPlastic, { Rotation = VERTICAL }),
@@ -176,7 +176,7 @@ define("DeskLamp", "Desk Lamp", "House2", 30, "Common", {
 
 local FUR = C(156, 104, 62)
 local SNOUT = C(214, 172, 124)
-define("TeddyBear", "Teddy Bear", "House2", 35, "Common", {
+define("TeddyBear", "Teddy Bear", "House2", 50, "Common", {
 	P("Ball", V(1.3, 1.3, 1.3), V(0, 0.75, 0), FUR, M.Fabric),
 	P("Ball", V(1.05, 1.05, 1.05), V(0, 1.75, 0), FUR, M.Fabric),
 	P("Ball", V(0.42, 0.42, 0.42), V(-0.4, 2.2, 0), FUR, M.Fabric),
@@ -193,7 +193,7 @@ define("TeddyBear", "Teddy Bear", "House2", 35, "Common", {
 })
 
 local CLOCK_WOOD = C(118, 72, 40)
-define("CuckooClock", "Cuckoo Clock", "House2", 90, "Rare", {
+define("CuckooClock", "Cuckoo Clock", "House2", 130, "Rare", {
 	P("Block", V(1.4, 1.4, 0.7), V(0, 0.7, 0), CLOCK_WOOD, M.Wood),
 	P("Block", V(1.0, 0.1, 0.9), V(-0.39, 1.67, 0), C(70, 40, 22), M.Wood, { Rotation = V(0, 0, 35) }),
 	P("Block", V(1.0, 0.1, 0.9), V(0.39, 1.67, 0), C(70, 40, 22), M.Wood, { Rotation = V(0, 0, -35) }),
@@ -208,7 +208,7 @@ define("CuckooClock", "Cuckoo Clock", "House2", 90, "Rare", {
 })
 
 local TEA_SILVER = C(214, 216, 224)
-define("SilverTeaSet", "Silver Tea Set", "House2", 380, "Epic", {
+define("SilverTeaSet", "Silver Tea Set", "House2", 650, "Epic", {
 	P("Block", V(2.3, 0.08, 1.5), V(0, 0.04, 0), TEA_SILVER, M.Metal, { Reflectance = 0.3 }),
 	P("Ball", V(0.95, 0.95, 0.95), V(-0.45, 0.55, 0), TEA_SILVER, M.Metal, { Reflectance = 0.35 }),
 	P("Block", V(0.13, 0.55, 0.13), V(-1.02, 0.66, 0), TEA_SILVER, M.Metal, { Rotation = V(0, 0, 40), Reflectance = 0.35 }),
@@ -225,7 +225,7 @@ define("SilverTeaSet", "Silver Tea Set", "House2", 380, "Epic", {
 --------------------------------------------------------------------------------
 -- Rose Cottage — guarded by a Siamese cat
 --------------------------------------------------------------------------------
-define("OldRadio", "Old Radio", "House3", 45, "Common", {
+define("OldRadio", "Old Radio", "House3", 75, "Common", {
 	P("Block", V(1.8, 1.1, 0.8), V(0, 0.55, 0), C(122, 78, 44), M.Wood),
 	P("Block", V(0.8, 0.8, 0.06), V(-0.4, 0.55, -0.41), C(48, 40, 34), M.Fabric),
 	P("Cylinder", V(0.08, 0.42, 0.42), V(0.48, 0.7, -0.42), C(236, 226, 196), nil, { Rotation = FACING }),
@@ -235,7 +235,7 @@ define("OldRadio", "Old Radio", "House3", 45, "Common", {
 	P("Block", V(1.0, 0.12, 0.16), V(0, 1.22, 0), C(70, 46, 26), M.Wood),
 })
 
-define("CookieJar", "Cookie Jar", "House3", 40, "Common", {
+define("CookieJar", "Cookie Jar", "House3", 85, "Common", {
 	P("Cylinder", V(1.2, 1.2, 1.2), V(0, 0.6, 0), C(200, 235, 245), M.Glass, { Rotation = VERTICAL, Transparency = 0.45 }),
 	P("Cylinder", V(0.14, 0.85, 0.85), V(0, 0.2, 0), C(196, 136, 72), nil, { Rotation = VERTICAL }),
 	P("Cylinder", V(0.14, 0.85, 0.85), V(0.05, 0.4, 0.04), C(176, 116, 58), nil, { Rotation = V(4, 0, 90) }),
@@ -248,7 +248,7 @@ define("CookieJar", "Cookie Jar", "House3", 40, "Common", {
 })
 
 local PINK = C(255, 160, 196)
-define("PiggyBank", "Piggy Bank", "House3", 150, "Rare", {
+define("PiggyBank", "Piggy Bank", "House3", 220, "Rare", {
 	P("Ball", V(1.4, 1.4, 1.4), V(0, 0.95, 0), PINK),
 	P("Cylinder", V(0.26, 0.55, 0.55), V(0, 0.9, -0.75), C(255, 130, 176), nil, { Rotation = FACING }),
 	P("Cylinder", V(0.4, 0.32, 0.32), V(-0.35, 0.2, -0.3), PINK, nil, { Rotation = VERTICAL }),
@@ -276,12 +276,12 @@ local musicBox: { PartSpec } = {
 	P("Block", V(0.32, 0.06, 0.06), V(0.9, 0.4, 0), GOLD, M.Metal),
 	P("Ball", V(0.14, 0.14, 0.14), V(1.06, 0.4, 0), GOLD, M.Metal),
 }
-define("MusicBox", "Antique Music Box", "House3", 360, "Epic", musicBox)
+define("MusicBox", "Antique Music Box", "House3", 1050, "Epic", musicBox)
 
 --------------------------------------------------------------------------------
 -- Daisy Cottage — guarded by a grey tabby
 --------------------------------------------------------------------------------
-define("SnowGlobe", "Snow Globe", "House4", 35, "Common", {
+define("SnowGlobe", "Snow Globe", "House4", 120, "Common", {
 	P("Cylinder", V(0.5, 1.2, 1.2), V(0, 0.25, 0), C(120, 72, 40), M.Wood, { Rotation = VERTICAL }),
 	P("Cylinder", V(0.08, 1.24, 1.24), V(0, 0.5, 0), GOLD, M.Metal, { Rotation = VERTICAL }),
 	P("Cylinder", V(0.06, 1.0, 1.0), V(0, 0.56, 0), WHITE, nil, { Rotation = VERTICAL }),
@@ -296,7 +296,7 @@ define("SnowGlobe", "Snow Globe", "House4", 35, "Common", {
 })
 
 local DRYER = C(70, 196, 196)
-define("HairDryer", "Hair Dryer", "House4", 30, "Common", {
+define("HairDryer", "Hair Dryer", "House4", 135, "Common", {
 	P("Cylinder", V(1.2, 0.62, 0.62), V(0, 1.0, 0), DRYER, nil, { Rotation = FACING }),
 	P("Cylinder", V(0.32, 0.44, 0.44), V(0, 1.0, -0.74), C(50, 54, 60), nil, { Rotation = FACING }),
 	P("Cylinder", V(0.06, 0.56, 0.56), V(0, 1.0, 0.62), C(70, 74, 80), nil, { Rotation = FACING }),
@@ -305,7 +305,7 @@ define("HairDryer", "Hair Dryer", "House4", 30, "Common", {
 	P("Block", V(0.08, 0.08, 0.9), V(0, 0.05, 0.62), BLACK),
 })
 
-define("RecordPlayer", "Record Player", "House4", 120, "Rare", {
+define("RecordPlayer", "Record Player", "House4", 380, "Rare", {
 	P("Block", V(2.0, 0.5, 1.6), V(0, 0.25, 0), C(140, 90, 50), M.Wood),
 	P("Block", V(1.9, 0.04, 1.5), V(0, 0.52, 0), C(40, 40, 44)),
 	P("Cylinder", V(0.04, 1.3, 1.3), V(-0.2, 0.56, 0), C(20, 20, 22), nil, { Rotation = VERTICAL }),
@@ -321,7 +321,7 @@ local CRYSTAL = C(180, 228, 255)
 local function crystal(): Extra
 	return { Transparency = 0.25, Reflectance = 0.3 }
 end
-define("CrystalCat", "Crystal Cat Statue", "House4", 420, "Epic", {
+define("CrystalCat", "Crystal Cat Statue", "House4", 1650, "Epic", {
 	P("Block", V(1.3, 0.3, 1.1), V(0, 0.15, 0), BLACK, M.Marble),
 	P("Block", V(1.34, 0.06, 1.14), V(0, 0.3, 0), GOLD, M.Metal),
 	P("Ball", V(0.95, 0.95, 0.95), V(0, 0.78, 0.08), CRYSTAL, M.Glass, crystal()),
@@ -339,7 +339,7 @@ define("CrystalCat", "Crystal Cat Statue", "House4", 420, "Epic", {
 --------------------------------------------------------------------------------
 -- Blue Oak House — guarded by Chihuahuas
 --------------------------------------------------------------------------------
-define("Microwave", "Microwave", "House5", 160, "Common", {
+define("Microwave", "Microwave", "House5", 220, "Common", {
 	P("Block", V(2.0, 1.2, 1.3), V(0, 0.6, 0), C(232, 232, 236)),
 	P("Block", V(1.25, 0.82, 0.06), V(-0.3, 0.6, -0.66), C(24, 26, 30), M.Glass, { Transparency = 0.15 }),
 	P("Block", V(0.5, 1.0, 0.06), V(0.68, 0.6, -0.66), C(54, 54, 60)),
@@ -347,7 +347,7 @@ define("Microwave", "Microwave", "House5", 160, "Common", {
 	P("Block", V(0.08, 0.5, 0.12), V(0.35, 0.6, -0.72), SILVER, M.Metal),
 })
 
-define("Blender", "Blender", "House5", 180, "Common", {
+define("Blender", "Blender", "House5", 250, "Common", {
 	P("Block", V(1.0, 0.7, 1.0), V(0, 0.35, 0), C(50, 50, 56)),
 	P("Cylinder", V(0.05, 0.16, 0.16), V(-0.25, 0.35, -0.52), C(80, 220, 120), nil, { Rotation = FACING }),
 	P("Cylinder", V(0.05, 0.16, 0.16), V(0, 0.35, -0.52), C(255, 200, 60), nil, { Rotation = FACING }),
@@ -359,7 +359,7 @@ define("Blender", "Blender", "House5", 180, "Common", {
 })
 
 local GUITAR_RED = C(200, 30, 40)
-define("ElectricGuitar", "Electric Guitar", "House5", 450, "Rare", {
+define("ElectricGuitar", "Electric Guitar", "House5", 700, "Rare", {
 	P("Cylinder", V(0.3, 1.45, 1.45), V(0, 0.75, 0), GUITAR_RED, nil, { Rotation = FACING }),
 	P("Cylinder", V(0.3, 1.05, 1.05), V(0, 1.5, 0), GUITAR_RED, nil, { Rotation = FACING }),
 	P("Block", V(0.62, 0.62, 0.05), V(0.05, 0.85, -0.16), WHITE),
@@ -368,7 +368,7 @@ define("ElectricGuitar", "Electric Guitar", "House5", 450, "Rare", {
 	P("Block", V(0.5, 0.08, 0.08), V(0, 0.55, -0.17), SILVER, M.Metal),
 })
 
-define("GoldenWatch", "Golden Watch", "House5", 1500, "Epic", {
+define("GoldenWatch", "Golden Watch", "House5", 2600, "Epic", {
 	P("Block", V(1.1, 0.5, 0.85), V(0, 0.25, 0), C(30, 30, 34), M.Fabric),
 	P("Block", V(0.85, 0.14, 0.62), V(0, 0.57, 0), C(236, 226, 200), M.Fabric),
 	P("Block", V(0.26, 0.06, 1.0), V(0, 0.66, 0), GOLD, M.Metal, { Reflectance = 0.2 }),
@@ -381,14 +381,14 @@ define("GoldenWatch", "Golden Watch", "House5", 1500, "Epic", {
 --------------------------------------------------------------------------------
 -- Cedar House — guarded by Pugs
 --------------------------------------------------------------------------------
-define("Laptop", "Laptop", "House6", 280, "Common", {
+define("Laptop", "Laptop", "House6", 380, "Common", {
 	P("Block", V(1.9, 0.12, 1.3), V(0, 0.06, 0), C(70, 72, 82), M.Metal),
 	P("Block", V(1.6, 0.03, 0.62), V(0, 0.13, -0.16), C(30, 30, 36)),
 	P("Block", V(1.9, 1.25, 0.08), V(0, 0.72, 0.72), C(70, 72, 82), M.Metal, { Rotation = V(15, 0, 0) }),
 	P("Block", V(1.7, 1.05, 0.02), V(0, 0.73, 0.67), C(90, 180, 255), M.Neon, { Rotation = V(15, 0, 0) }),
 })
 
-define("SmartSpeaker", "Smart Speaker", "House6", 220, "Common", {
+define("SmartSpeaker", "Smart Speaker", "House6", 350, "Common", {
 	P("Cylinder", V(0.12, 1.0, 1.0), V(0, 0.06, 0), C(40, 40, 46), nil, { Rotation = VERTICAL }),
 	P("Cylinder", V(1.6, 0.92, 0.92), V(0, 0.9, 0), C(120, 124, 132), M.Fabric, { Rotation = VERTICAL }),
 	P("Cylinder", V(0.1, 0.94, 0.94), V(0, 1.75, 0), C(30, 30, 34), nil, { Rotation = VERTICAL }),
@@ -396,7 +396,7 @@ define("SmartSpeaker", "Smart Speaker", "House6", 220, "Common", {
 	P("Cylinder", V(0.05, 0.5, 0.5), V(0, 1.83, 0), C(30, 30, 34), nil, { Rotation = VERTICAL }),
 })
 
-define("FlatscreenTV", "Flatscreen TV", "House6", 600, "Rare", {
+define("FlatscreenTV", "Flatscreen TV", "House6", 1100, "Rare", {
 	P("Block", V(1.4, 0.1, 0.7), V(0, 0.05, 0), BLACK),
 	P("Block", V(0.25, 0.7, 0.2), V(0, 0.45, 0.1), BLACK),
 	P("Block", V(3.6, 2.1, 0.16), V(0, 1.85, 0.05), BLACK),
@@ -417,12 +417,12 @@ table.insert(collar, P("Ball", V(0.26, 0.26, 0.26), V(0, 0.52, -0.55), C(200, 24
 	Reflectance = 0.5,
 	Light = { Color = C(200, 230, 255), Range = 6, Brightness = 1 },
 }))
-define("DiamondCollar", "Diamond Dog Collar", "House6", 1300, "Epic", collar)
+define("DiamondCollar", "Diamond Dog Collar", "House6", 4200, "Epic", collar)
 
 --------------------------------------------------------------------------------
 -- Elm Street House — guarded by Corgis
 --------------------------------------------------------------------------------
-define("GameConsole", "Game Console", "House7", 320, "Common", {
+define("GameConsole", "Game Console", "House7", 600, "Common", {
 	P("Block", V(1.7, 0.42, 1.25), V(0, 0.21, 0), BLACK),
 	P("Block", V(1.3, 0.05, 0.05), V(0, 0.28, -0.63), C(60, 160, 255), M.Neon),
 	P("Block", V(0.9, 0.16, 0.42), V(0, 0.5, -0.12), C(50, 50, 58)),
@@ -432,7 +432,7 @@ define("GameConsole", "Game Console", "House7", 320, "Common", {
 	P("Ball", V(0.1, 0.1, 0.1), V(0.3, 0.6, -0.1), C(70, 200, 255)),
 })
 
-define("RetroCamera", "Retro Camera", "House7", 260, "Common", {
+define("RetroCamera", "Retro Camera", "House7", 550, "Common", {
 	P("Block", V(1.5, 0.7, 0.6), V(0, 0.35, 0), C(34, 34, 38), M.Fabric),
 	P("Block", V(1.5, 0.22, 0.6), V(0, 0.81, 0), SILVER, M.Metal),
 	P("Block", V(0.5, 0.25, 0.42), V(0, 1.04, 0), SILVER, M.Metal),
@@ -461,10 +461,10 @@ for _, yaw in { 90, 210, 330 } do
 		})
 	)
 end
-define("Telescope", "Telescope", "House7", 520, "Rare", telescope)
+define("Telescope", "Telescope", "House7", 1800, "Rare", telescope)
 
 local CORGI_ORANGE = C(226, 146, 62)
-define("CorgiPortrait", "Royal Corgi Portrait", "House7", 1400, "Epic", {
+define("CorgiPortrait", "Royal Corgi Portrait", "House7", 6800, "Epic", {
 	P("Block", V(1.6, 0.15, 0.8), V(0, 0.075, 0.1), C(60, 44, 32), M.Wood),
 	P("Block", V(0.15, 1.2, 0.15), V(0, 0.75, 0.15), C(60, 44, 32), M.Wood),
 	P("Block", V(2.3, 2.5, 0.18), V(0, 2.55, 0.08), GOLD, M.Metal, { Reflectance = 0.15 }),
@@ -485,7 +485,7 @@ define("CorgiPortrait", "Royal Corgi Portrait", "House7", 1400, "Epic", {
 --------------------------------------------------------------------------------
 -- Birch House — guarded by Dalmatians
 --------------------------------------------------------------------------------
-define("Boombox", "Boombox", "House8", 240, "Common", {
+define("Boombox", "Boombox", "House8", 900, "Common", {
 	P("Block", V(2.4, 1.2, 0.7), V(0, 0.6, 0), C(160, 160, 168), M.Metal),
 	P("Cylinder", V(0.08, 0.82, 0.82), V(-0.76, 0.55, -0.36), C(30, 30, 34), nil, { Rotation = FACING }),
 	P("Cylinder", V(0.08, 0.82, 0.82), V(0.76, 0.55, -0.36), C(30, 30, 34), nil, { Rotation = FACING }),
@@ -502,7 +502,7 @@ define("Boombox", "Boombox", "House8", 240, "Common", {
 })
 
 local FIRE_RED = C(196, 30, 30)
-define("FireHelmet", "Vintage Fire Helmet", "House8", 230, "Common", {
+define("FireHelmet", "Vintage Fire Helmet", "House8", 850, "Common", {
 	P("Ball", V(1.3, 1.3, 1.3), V(0, 0.66, 0), FIRE_RED, nil, { Reflectance = 0.15 }),
 	P("Cylinder", V(0.1, 2.0, 2.0), V(0, 0.06, 0), FIRE_RED, nil, { Rotation = VERTICAL }),
 	P("Block", V(1.0, 0.1, 0.8), V(0, 0.1, 0.9), FIRE_RED, nil, { Rotation = V(8, 0, 0) }),
@@ -525,7 +525,7 @@ local saxophone: { PartSpec } = {
 for i = 0, 4 do
 	table.insert(saxophone, P("Ball", V(0.13, 0.13, 0.13), V(-0.2, 1.05 + i * 0.32, -0.22), C(245, 240, 225)))
 end
-define("Saxophone", "Saxophone", "House8", 550, "Rare", saxophone)
+define("Saxophone", "Saxophone", "House8", 2900, "Rare", saxophone)
 
 local ring: { PartSpec } = {
 	P("Block", V(1.2, 0.6, 1.0), V(0, 0.3, 0), C(120, 20, 36), M.Fabric),
@@ -548,12 +548,12 @@ for i = 0, 7 do
 		})
 	)
 end
-define("RubyRing", "Ruby Ring", "House8", 1600, "Epic", ring)
+define("RubyRing", "Ruby Ring", "House8", 11000, "Epic", ring)
 
 --------------------------------------------------------------------------------
 -- Pine Ridge House — guarded by German Shepherds
 --------------------------------------------------------------------------------
-define("EspressoMachine", "Espresso Machine", "House9", 1400, "Common", {
+define("EspressoMachine", "Espresso Machine", "House9", 1500, "Common", {
 	P("Block", V(1.7, 1.7, 1.3), V(0, 0.85, 0.1), C(186, 188, 196), M.Metal, { Reflectance = 0.15 }),
 	P("Block", V(1.7, 0.1, 1.3), V(0, 1.75, 0.1), BLACK),
 	P("Block", V(0.7, 0.3, 0.5), V(0, 1.2, -0.75), BLACK),
@@ -563,7 +563,7 @@ define("EspressoMachine", "Espresso Machine", "House9", 1400, "Common", {
 	P("Cylinder", V(0.05, 0.36, 0.36), V(-0.52, 1.35, -0.56), WHITE, nil, { Rotation = FACING }),
 })
 
-define("GamingPC", "Gaming PC", "House9", 2000, "Common", {
+define("GamingPC", "Gaming PC", "House9", 2200, "Common", {
 	P("Block", V(1.0, 2.1, 2.0), V(0, 1.05, 0), BLACK),
 	P("Block", V(0.04, 1.9, 1.8), V(-0.51, 1.05, 0), C(120, 140, 170), M.Glass, { Transparency = 0.4 }),
 	P("Cylinder", V(0.06, 0.75, 0.75), V(-0.45, 1.5, 0.35), C(255, 60, 200), M.Neon),
@@ -572,7 +572,7 @@ define("GamingPC", "Gaming PC", "House9", 2000, "Common", {
 	P("Block", V(0.4, 0.05, 0.05), V(0, 1.95, -1.01), C(60, 160, 255), M.Neon),
 })
 
-define("ModernArt", "Modern Art", "House9", 3200, "Rare", {
+define("ModernArt", "Modern Art", "House9", 4500, "Rare", {
 	P("Block", V(1.6, 0.15, 0.8), V(0, 0.075, 0.1), C(60, 44, 32), M.Wood),
 	P("Block", V(0.15, 1.3, 0.15), V(0, 0.8, 0.12), C(60, 44, 32), M.Wood),
 	P("Block", V(2.4, 1.9, 0.12), V(0, 2.4, 0.06), WHITE, M.Fabric),
@@ -597,7 +597,7 @@ for i = 0, 5 do
 	local z = -0.1 - (1 - math.abs(x) / 0.5) * 0.18
 	table.insert(jewelryBox, P("Ball", V(0.2, 0.2, 0.2), V(x, 0.8, z), WHITE))
 end
-define("JewelryBox", "Jewelry Box", "House9", 9000, "Epic", jewelryBox)
+define("JewelryBox", "Jewelry Box", "House9", 9500, "Epic", jewelryBox)
 
 local necklace: { PartSpec } = {
 	P("Block", V(1.3, 0.25, 0.8), V(0, 0.125, 0), BLACK, M.Marble),
@@ -644,9 +644,9 @@ for _, x in { -0.32, 0.32 } do
 		table.insert(robotDog, P("Ball", V(0.3, 0.3, 0.3), V(x, 0.8, z), C(28, 28, 32), M.Metal))
 	end
 end
-define("RobotDog", "Robot Dog", "House10", 1500, "Common", robotDog)
+define("RobotDog", "Robot Dog", "House10", 2400, "Common", robotDog)
 
-define("VRHeadset", "VR Headset", "House10", 1800, "Common", {
+define("VRHeadset", "VR Headset", "House10", 2600, "Common", {
 	P("Cylinder", V(0.15, 1.3, 1.3), V(0, 0.075, 0), BLACK, nil, { Rotation = VERTICAL }),
 	P("Block", V(0.15, 1.0, 0.15), V(0, 0.65, 0.1), C(60, 62, 70), M.Metal),
 	P("Block", V(1.4, 0.75, 0.8), V(0, 1.45, 0), WHITE),
@@ -661,7 +661,7 @@ define("VRHeadset", "VR Headset", "House10", 1800, "Common", {
 	P("Cylinder", V(0.06, 0.42, 0.42), V(0.42, 0.68, -0.35), C(60, 140, 255), M.Neon, { Rotation = VERTICAL }),
 })
 
-define("GoldenTrophy", "Golden Trophy", "House10", 4000, "Rare", {
+define("GoldenTrophy", "Golden Trophy", "House10", 7000, "Rare", {
 	P("Block", V(1.1, 0.45, 1.1), V(0, 0.225, 0), C(32, 32, 36), M.Marble),
 	P("Block", V(0.7, 0.25, 0.04), V(0, 0.225, -0.57), GOLD, M.Metal),
 	P("Cylinder", V(0.75, 0.32, 0.32), V(0, 0.82, 0), GOLD, M.Metal, { Rotation = VERTICAL, Reflectance = 0.25 }),
@@ -689,7 +689,7 @@ for _, x in { -0.5, 0.5 } do
 		table.insert(sneakers, P("Block", V(0.36, 0.05, 0.08), V(x, 0.96 - i * 0.06, -0.12 - i * 0.16), WHITE))
 	end
 end
-define("RareSneakers", "Limited Sneakers", "House10", 8500, "Epic", sneakers)
+define("RareSneakers", "Limited Sneakers", "House10", 13000, "Epic", sneakers)
 
 local tiara: { PartSpec } = {
 	P("Cylinder", V(0.5, 1.5, 1.5), V(0, 0.25, 0), C(30, 30, 40), M.Fabric, { Rotation = VERTICAL }),
@@ -711,7 +711,7 @@ for i = -5, 5 do
 		}))
 	end
 end
-define("SapphireTiara", "Sapphire Tiara", "House10", 20000, "Legendary", tiara)
+define("SapphireTiara", "Sapphire Tiara", "House10", 36000, "Legendary", tiara)
 
 --------------------------------------------------------------------------------
 -- The Grand Mansion — guarded by security drones
