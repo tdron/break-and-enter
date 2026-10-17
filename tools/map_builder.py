@@ -2932,9 +2932,10 @@ CITY_BRICKS = [(192, 124, 104), (182, 140, 112), (164, 128, 118), (186, 112, 96)
 
 
 def facade(parent: Inst, rng: random.Random, x: float, z: float, yaw: float, width: float,
-           floors: int, kind: str = "brick") -> Inst:
+           floors: int, kind: str = "brick", door_sign: int | None = None) -> tuple[Inst, float]:
     """One plain city building: a wall box with a strip of windows per floor, facing local -Z.
-    `kind` = "brick" for street-infill blocks, "tower" for the skyline slabs."""
+    `kind` = "brick" for street-infill blocks, "tower" for the skyline slabs. Returns the model
+    and the local x of its front door, so shopfronts and street life can gather at the door."""
     frame = CF(x, 0, z) * CF.deg(0, yaw, 0)
     m = model(parent, "Building", frame)
     depth = rng.uniform(13, 18) if kind == "brick" else rng.uniform(24, 34)
@@ -2954,13 +2955,34 @@ def facade(parent: Inst, rng: random.Random, x: float, z: float, yaw: float, wid
           reflectance=0.3, collide=False)
         q("Sills", (width * 0.86, 0.5, 0.6), (0, y - 2.45, -0.2), trim)
     if kind == "brick":
-        q("Door", (4.2, 6.0, 0.5), (width * (-0.28 if rng.random() < 0.5 else 0.28), 3.2, -0.3),
-          rng.choice(CITY_DOORS), "Wood")
-        q("Canopy", (6.2, 0.5, 2.4), (width * (-0.28 if rng.random() < 0.5 else 0.28), 6.8, -1.2), trim)
+        door_sx = width * 0.28 * (door_sign if door_sign in (-1, 1) else rng.choice((-1, 1)))
+        q("Door", (4.2, 6.0, 0.5), (door_sx, 3.2, -0.3), rng.choice(CITY_DOORS), "Wood")
+        q("Canopy", (6.2, 0.5, 2.4), (door_sx, 6.8, -1.2), trim)
     else:
+        door_sx = 0.0
         q("Crown", (width * 0.6, 5.0, depth * 0.6), (0, height + 3.0, depth / 2), trim)
         q("Beacon", (1.2, 1.2, 1.2), (0, height + 6.4, depth / 2), (255, 90, 90), "Neon", collide=False)
-    return m
+        # Rooftop life: tanks, vents and aerials, so the skyline reads lived-in, not bare slabs.
+        roof_y = height + 1.1
+        if width > 20:
+            tx, tz = rng.uniform(-width * 0.25, width * 0.25), rng.uniform(depth * 0.25, depth * 0.6)
+            q("RoofTank", (4.4, 4.6, 4.4), (tx, roof_y + 3.5, tz), (122, 96, 74), "Wood")
+            q("TankCap", (4.8, 0.5, 4.8), (tx, roof_y + 5.95, tz), trim)
+            for lx in (-1.6, 1.6):
+                for lz in (-1.6, 1.6):
+                    q("TankLeg", (0.5, 1.5, 0.5), (tx + lx, roof_y + 0.75, tz + lz), trim)
+        for _ in range(rng.randint(1, 3)):
+            q("RoofVent", (rng.uniform(1.6, 2.6), rng.uniform(1.0, 2.0), rng.uniform(1.6, 2.6)),
+              (rng.uniform(-width * 0.35, width * 0.35), roof_y + 0.9,
+               rng.uniform(depth * 0.15, depth * 0.7)), trim, "Metal")
+        if rng.random() < 0.6:
+            ax = rng.uniform(-width * 0.3, width * 0.3)
+            az = rng.uniform(depth * 0.2, depth * 0.7)
+            ah = rng.uniform(5, 9)
+            q("Aerial", (0.3, ah, 0.3), (ax, roof_y + ah / 2, az), (60, 60, 66), "Metal", collide=False)
+            q("AerialTip", (0.7, 0.7, 0.7), (ax, roof_y + ah + 0.35, az), (255, 80, 80), "Neon",
+              collide=False)
+    return m, door_sx
 
 
 def build_city_fill(map_folder: Inst, city: dict, canonical_xs: list[float]):
@@ -2972,8 +2994,9 @@ def build_city_fill(map_folder: Inst, city: dict, canonical_xs: list[float]):
     houses = city["houses"]
 
     def row(x0: float, x1: float, z: float, yaw: float, floors_min: int, floors_max: int,
-            skip: list[tuple[float, float]] | None = None):
-        """A run of building fronts along X between x0..x1, facing the street at z, skipping gaps."""
+            skip: list[tuple[float, float]] | None = None, shops: float = 0.0):
+        """A run of building fronts along X between x0..x1, facing the street at z, skipping gaps.
+        With `shops` > 0 some fronts get a shopkeeper's sign, awning and display window."""
         x = x0
         while x < x1 - 24:
             width = rng.uniform(30, 56)
@@ -2984,7 +3007,10 @@ def build_city_fill(map_folder: Inst, city: dict, canonical_xs: list[float]):
             if cx + width / 2 > x1:
                 width = x1 - cx
             levels = rng.randint(floors_min, floors_max)
-            facade(folder, rng, cx, z, yaw, width, levels)
+            door_sign = rng.choice((-1, 1))
+            _, door_sx = facade(folder, rng, cx, z, yaw, width, levels, door_sign=door_sign)
+            if shops > 0 and rng.random() < shops:
+                shopfront(folder, CF(cx, 0, z) * CF.deg(0, yaw, 0), width, door_sx, city_zone(cx), rng)
             x += width + rng.uniform(0, 6)
 
     # The main street is lined from the canyon corridor to the museum's hill, around the named
@@ -2992,7 +3018,8 @@ def build_city_fill(map_folder: Inst, city: dict, canonical_xs: list[float]):
     skip = [(cx, LOT_W + 8) for cx in canonical_xs] + [(j["x"], JUNCTION_HALF * 2 + 12) for j in city["junctions"]]
     corridor_end = city["corridor_end"]
     for side in (-1, 1):
-        row(corridor_end + 12, AVENUE_X1 + 30, side * 55, 180 if side < 0 else 0, 2, 6, skip)
+        row(corridor_end + 12, AVENUE_X1 + 30, side * 55, 180 if side < 0 else 0, 2, 6, skip,
+            shops=0.38)
     # The avenues get a city wall too, between grid junctions and around the numbered houses
     # that face them.
     for az in AVENUE_ZS:
@@ -3001,7 +3028,8 @@ def build_city_fill(map_folder: Inst, city: dict, canonical_xs: list[float]):
         for side in (-1, 1):
             if abs(az) > 500 and side == (1 if az > 0 else -1):
                 continue  # the outer face of the outer avenues is cliffs and towers
-            row(AVENUE_X0 + 10, AVENUE_X1 - 10, az + side * 55, 180 if side < 0 else 0, 2, 7, skip)
+            row(AVENUE_X0 + 10, AVENUE_X1 - 10, az + side * 55, 180 if side < 0 else 0, 2, 7, skip,
+                shops=0.22)
     # The cross streets: fronts between their houses, keeping clear of every lot.
     for j in city["junctions"]:
         jx = j["x"]
@@ -3014,81 +3042,30 @@ def build_city_fill(map_folder: Inst, city: dict, canonical_xs: list[float]):
                 gaps.append((cursor, zc - lw / 2 - 3))
                 cursor = zc + lw / 2 + 3
             gaps.append((cursor, CITY_DEPTH - 4))
-            # ...but a street never gets a front door on the corner of another one: the junction
-            # square and every avenue mouth stay open for the people (and the defenders) to turn.
-            blockers = sorted([JUNCTION_HALF + 2.0] +
-                              [v for az in AVENUE_ZS for v in (abs(az) - JUNCTION_HALF - 2.0,
-                                                               abs(az) + JUNCTION_HALF + 2.0)])
-            kept = []
-            for a, b in gaps:
-                edge = a
-                for edge_at in blockers:
-                    if edge_at <= a or edge_at >= b:
-                        continue
-                    if edge_at - edge > 8:
-                        kept.append((edge, edge_at))
-                    edge = edge_at
-                if b - edge > 8:
-                    kept.append((edge, b))
-            gaps = kept
+            # ...but a street never gets a front door on the corner of another one: every
+            # corridor window — the junction square and all four avenue mouths — is cut out
+            # of every gap wholesale, so no dice roll can ever slide a wall into a turn.
+            windows = sorted([(-(JUNCTION_HALF + 14.0), JUNCTION_HALF + 14.0)] +
+                             [(az - JUNCTION_HALF - 14.0, az + JUNCTION_HALF + 14.0)
+                              for az in AVENUE_ZS])
             for a, b in gaps:
                 a = max(a, -CITY_DEPTH + 4)
-                if b - a < 34:
-                    continue
-                if abs((a + b) / 2) < JUNCTION_HALF + 18:
-                    if abs(a) < JUNCTION_HALF + 18:
-                        a = -JUNCTION_HALF - 18 if a < 0 else JUNCTION_HALF + 18
-                    if b - a < 34:
-                        continue
-                if any(abs((a + b) / 2 - az) < JUNCTION_HALF + 14 for az in AVENUE_ZS):
-                    # cut the block at the avenue rather than filling across it
-                    for az in AVENUE_ZS:
-                        if a < az - JUNCTION_HALF - 14 and b > az + JUNCTION_HALF + 14:
-                            facade_row_gap(folder, rng, jx, side, a, az - JUNCTION_HALF - 14)
-                            facade_row_gap(folder, rng, jx, side, az + JUNCTION_HALF + 14, b)
-                            break
-                    else:
-                        facade_row_gap(folder, rng, jx, side, a, b)
-                else:
-                    facade_row_gap(folder, rng, jx, side, a, b)
-    # The skyline: towers rising in the middle of the big blocks.
-    bands = ((-285.0, -75.0), (75.0, 286.0), (-610.0, -400.0), (400.0, 612.0))
-    bounds = [corridor_end + 60] + jxs + [AVENUE_X1 - 20]
-    def clear_of_lots(tx: float, tz: float, half: float) -> bool:
-        for ch in houses:
-            lot_w, lot_d = city_lot(ch["kind"])
-            if abs(tx - ch["x"]) < lot_w / 2 + half + 6 and abs(tz - ch["z"]) < lot_d / 2 + half + 6:
-                return False
-        for cx in canonical_xs:
-            if abs(tx - cx) < LOT_W / 2 + half + 6 and abs(tz) < LOT_D + half:
-                return False
-        return True
-
-    for i, (a, b) in enumerate(zip(bounds, bounds[1:])):
-        if b - a < 160:
-            continue
-        for z0, z1 in bands:
-            if rng.random() < 0.42:
-                tx = rng.uniform(a + 70, b - 70)
-                tz = rng.uniform(z0 + 55, z1 - 40)
-                if not clear_of_lots(tx, tz, 22):
-                    continue
-                floors = rng.randint(6, 13)
-                facade(folder, rng, tx, tz, rng.choice((0, 90, 180, 270)), rng.uniform(26, 40), floors, "tower")
-                continue
-            if rng.random() < 0.3:
-                # a pocket park on the grass instead
-                px = rng.uniform(a + 60, b - 60)
-                pz = rng.uniform(z0 + 55, z1 - 30)
-                if not clear_of_lots(px, pz, 16):
-                    continue
-                part(folder, "ParkPad", (26, 0.14, 20), CF(px, 0.07, pz), (110, 200, 95), "Grass",
-                     collide=False, shadow=False)
-                bush(folder, CF(px - 6, 0, pz - 4), 3.2, LEAF)
-                bush(folder, CF(px + 5, 0, pz + 5), 2.6, LEAF_DARK)
-                for tx2, tz2 in ((-6, 3), (0, 0), (7, -3)):
-                    tree(folder, CF(px + tx2, 0, pz + tz2), rng.uniform(0.9, 1.2),
-                         "pine" if rng.random() < 0.5 else "round")
+                b = min(b, CITY_DEPTH - 4)
+                segments = [(a, b)]
+                for wa, wb in windows:
+                    nxt = []
+                    for sa, sb in segments:
+                        if sa < wa:
+                            nxt.append((sa, min(sb, wa)))
+                        if sb > wb:
+                            nxt.append((max(sa, wb), sb))
+                    segments = nxt
+                for sa, sb in segments:
+                    if sb - sa >= 30:
+                        facade_row_gap(folder, rng, jx, side, sa, sb)
+    # The block interiors: every grid square gets a life of its own (plazas, parks, car
+    # parks, townhouse terraces, playgrounds, tower plots) — no more empty lawns.
+    build_city_blocks(folder, city, canonical_xs)
 
 
 def facade_row_gap(folder: Inst, rng: random.Random, jx: float, side: int, z0: float, z1: float):
@@ -3103,6 +3080,456 @@ def facade_row_gap(folder: Inst, rng: random.Random, jx: float, side: int, z0: f
         yaw = 90 if side > 0 else -90
         facade(folder, rng, x, cz, yaw, width, rng.randint(2, 5))
         z += width + rng.uniform(0, 5)
+
+
+# ---------------------------------------------------------------------------
+# City life: people, cars, shopfronts, furniture and packed block interiors
+# ---------------------------------------------------------------------------
+
+SKIN_TONES = [(255, 204, 158), (240, 178, 128), (196, 134, 92), (150, 102, 66), (112, 76, 48)]
+SHIRT_COLORS = [(214, 66, 66), (66, 120, 200), (240, 190, 70), (90, 170, 100), (190, 110, 180),
+                (240, 240, 240), (70, 70, 80), (230, 130, 60)]
+PANTS_COLORS = [(60, 70, 90), (90, 80, 70), (40, 44, 52), (120, 110, 100)]
+CAR_COLORS = [(200, 60, 60), (60, 110, 200), (240, 240, 240), (40, 40, 44), (240, 190, 60),
+              (90, 160, 110), (160, 90, 160)]
+AWNING_COLORS = [(196, 60, 56), (52, 106, 160), (232, 178, 62), (80, 140, 94), (150, 84, 140)]
+FLOWER_COLORS = [(240, 120, 150), (250, 210, 90), (180, 140, 240), (240, 96, 74)]
+
+# The shopkeeper's high street changes as you walk east: homely oldtown, buzzy midtown,
+# then the expensive downtown window displays on the way up to the museum.
+SHOP_NAMES = {
+    "oldtown": ["BAKERY", "CAFÉ", "MILK BAR", "BARBER", "FLORIST", "SWEET SHOP", "LAUNDRY",
+                "PIE SHOP", "GROCER", "BOOKBINDERY"],
+    "midtown": ["PAWN SHOP", "LOCKSMITH", "NOODLE BAR", "RECORDS", "BIKES & CO", "TABAC",
+                "BOOKS", "ARCADE", "KEYS CUT", "CURIOS"],
+    "downtown": ["HOTEL", "BANK", "TAILOR", "CIGARS", "ANTIQUES", "JEWELLERS", "LOUNGE",
+                 "FINE SUITES"],
+}
+
+
+def city_zone(x: float) -> str:
+    """Which district a spot on the map is in — residential oldtown in the west, mixed
+    midtown in the middle, downtown's offices in the east below the museum's hill."""
+    if x < 3400:
+        return "oldtown"
+    if x < 8100:
+        return "midtown"
+    return "downtown"
+
+
+def _yaw_point(x: float, z: float, yaw: float, lx: float, lz: float) -> tuple[float, float]:
+    """World position of the local offset (lx, lz) under a yaw-rotated frame at (x, z)."""
+    t = math.radians(yaw)
+    return x + math.cos(t) * lx + math.sin(t) * lz, z - math.sin(t) * lx + math.cos(t) * lz
+
+
+def pedestrian(parent: Inst, base: CF, rng: random.Random) -> Inst:
+    """A blocky bystander, planted mid-errand (they never actually get there)."""
+    m = model(parent, "Citizen", base)
+    shirt = rng.choice(SHIRT_COLORS)
+    pants = rng.choice(PANTS_COLORS)
+    for sx in (-0.28, 0.28):
+        part(m, "Leg", (0.42, 1.8, 0.42), base * CF(sx, 0.9, 0), pants)
+    part(m, "Torso", (1.4, 1.8, 0.75), base * CF(0, 2.75, 0), shirt)
+    for sx in (-0.88, 0.88):
+        part(m, "Arm", (0.36, 1.6, 0.36), base * CF(sx, 2.7, 0), shirt)
+    part(m, "Head", (0.9, 0.9, 0.9), base * CF(0, 4.2, 0), rng.choice(SKIN_TONES))
+    if rng.random() < 0.4:
+        part(m, "Hat", (1.05, 0.35, 1.05), base * CF(0, 4.82, 0), rng.choice(PANTS_COLORS))
+    return m
+
+
+def simple_car(parent: Inst, base: CF, rng: random.Random, color=None) -> Inst:
+    """A little runabout — five boxes and four wheels, parked, never driven."""
+    m = model(parent, "Car", base)
+    c = color or rng.choice(CAR_COLORS)
+    dark = tuple(max(0, int(v * 0.72)) for v in c)
+    part(m, "Body", (7.6, 1.7, 3.4), base * CF(0, 1.4, 0), c)
+    part(m, "Cabin", (3.8, 1.4, 3.0), base * CF(-0.3, 2.9, 0), dark)
+    part(m, "Glass", (3.2, 1.1, 3.06), base * CF(-0.3, 2.95, 0), (80, 100, 120), "Glass",
+         transparency=0.3, collide=False)
+    for wx in (-2.35, 2.35):
+        for wz in (-1.55, 1.55):
+            part(m, "Wheel", (0.7, 1.3, 1.3), base * CF(wx, 0.65, wz) * CF.deg(0, 90, 0),
+                 (30, 30, 34), "Rubber", shape="Cylinder")
+    part(m, "Lights", (0.3, 0.5, 2.6), base * CF(3.82, 1.3, 0), (255, 240, 190), "Neon", collide=False)
+    return m
+
+
+def bench(parent: Inst, base: CF, color=(96, 70, 52)) -> Inst:
+    m = model(parent, "Bench", base)
+    part(m, "Seat", (4.2, 0.35, 1.4), base * CF(0, 1.35, 0), color, "Wood")
+    part(m, "Back", (4.2, 1.1, 0.3), base * CF(0, 2.3, 0.66), color, "Wood")
+    for sx in (-1.7, 1.7):
+        part(m, "Legs", (0.4, 1.35, 1.2), base * CF(sx, 0.67, 0), (60, 60, 66), "Metal")
+    return m
+
+
+def traffic_light(parent: Inst, base: CF) -> Inst:
+    m = model(parent, "TrafficLight", base)
+    part(m, "Pole", (0.5, 13.5, 0.5), base * CF(0, 6.75, 0), (44, 48, 52), "Metal", collide=False)
+    part(m, "Box", (1.5, 3.6, 1.0), base * CF(0, 12.6, 0), (28, 30, 34), collide=False)
+    for i, c in enumerate(((255, 70, 60), (255, 170, 50), (90, 235, 120))):
+        part(m, "Light", (0.75, 0.75, 0.75), base * CF(0, 13.7 - i * 1.1, -0.32), c, "Neon",
+             shape="Ball", collide=False)
+    return m
+
+
+def street_name_sign(parent: Inst, base: CF, name: str) -> Inst:
+    """The classic corner cross-sign: the cross street one way, MAIN ST the other."""
+    m = model(parent, "StreetSign", base)
+    part(m, "Post", (0.4, 10.5, 0.4), base * CF(0, 5.25, 0), (70, 74, 78), "Metal", collide=False)
+    for i, (txt, yaw) in enumerate(((name.upper() + " ST", 0), ("MAIN ST", 90))):
+        board = part(m, "Board", (9.0, 1.5, 0.3), base * CF(0, 9.4 - i * 1.75, 0) * CF.deg(0, yaw, 0),
+                     (26, 92, 60), "SmoothPlastic", collide=False)
+        surface_text(board, "Front", txt, pixels_per_stud=34)
+        surface_text(board, "Back", txt, pixels_per_stud=34)
+    return m
+
+
+def bus_stop(parent: Inst, base: CF, rng: random.Random) -> Inst:
+    """A shelter, a bench, a sign and someone who has been waiting far too long."""
+    m = model(parent, "BusStop", base)
+    part(m, "Roof", (8.6, 0.4, 3.6), base * CF(0, 7.4, 0), (60, 120, 190), "Metal", collide=False)
+    part(m, "Back", (8.6, 5.6, 0.3), base * CF(0, 3.7, 1.6), (150, 170, 195), "Glass",
+         transparency=0.55, collide=False)
+    for sx in (-4.0, 4.0):
+        part(m, "Post", (0.4, 7.4, 0.4), base * CF(sx, 3.7, 1.4), (44, 48, 52), "Metal", collide=False)
+    bench(m, base * CF(0, 0, 0.8))
+    part(m, "SignPost", (0.35, 9.5, 0.35), base * CF(-4.9, 4.75, -1.3), (70, 74, 78), "Metal",
+         collide=False)
+    board = part(m, "Sign", (2.6, 1.3, 0.2), base * CF(-4.9, 9.9, -1.3), (240, 200, 60),
+                 "SmoothPlastic", collide=False)
+    surface_text(board, "Front", "BUS", color=(30, 30, 30), stroke=None, pixels_per_stud=40)
+    surface_text(board, "Back", "BUS", color=(30, 30, 30), stroke=None, pixels_per_stud=40)
+    # the patient passenger, out front of the glass
+    pedestrian(m, base * CF(rng.uniform(-2.0, 2.0), 0, -2.9) * CF.deg(0, rng.uniform(-30, 30), 0), rng)
+    return m
+
+
+def hydrant(parent: Inst, base: CF) -> Inst:
+    m = model(parent, "Hydrant", base)
+    part(m, "Body", (0.9, 1.6, 0.9), base * CF(0, 0.8, 0), (210, 50, 45), "Metal", collide=False)
+    part(m, "Cap", (1.1, 0.4, 1.1), base * CF(0, 1.75, 0), (240, 200, 60), "Metal", collide=False)
+    return m
+
+
+def mailbox(parent: Inst, base: CF) -> Inst:
+    m = model(parent, "Mailbox", base)
+    part(m, "Post", (0.35, 2.4, 0.35), base * CF(0, 1.2, 0), (70, 74, 78), "Metal", collide=False)
+    part(m, "Box", (1.6, 1.1, 1.0), base * CF(0, 2.9, 0), (60, 100, 190), "Metal", collide=False)
+    part(m, "Flag", (0.15, 0.8, 0.5), base * CF(0.82, 3.6, 0), (230, 60, 55), collide=False)
+    return m
+
+
+def planter(parent: Inst, base: CF, rng: random.Random) -> Inst:
+    m = model(parent, "Planter", base)
+    part(m, "Tub", (4.6, 1.6, 4.6), base * CF(0, 0.8, 0), (150, 120, 96), "Wood")
+    part(m, "Flowers", (3.9, 0.5, 3.9), base * CF(0, 1.8, 0), rng.choice(FLOWER_COLORS), "Grass",
+         collide=False)
+    bush(m, base * CF(-1.0, 1.5, 0.5), 2.6, LEAF)
+    bush(m, base * CF(1.2, 1.5, -0.6), 2.2, LEAF_DARK)
+    return m
+
+
+def fountain(parent: Inst, base: CF) -> Inst:
+    m = model(parent, "Fountain", base)
+    part(m, "Basin", (9.0, 1.4, 9.0), base * CF(0, 0.7, 0), (212, 208, 196), "Marble")
+    part(m, "Water", (7.6, 0.5, 7.6), base * CF(0, 1.35, 0), (110, 190, 235), "Glass",
+         transparency=0.25, collide=False)
+    part(m, "Column", (1.4, 3.2, 1.4), base * CF(0, 2.9, 0), (212, 208, 196), "Marble")
+    part(m, "Top", (3.4, 0.5, 3.4), base * CF(0, 4.6, 0), (226, 222, 210), "Marble")
+    part(m, "Sparkle", (0.8, 1.4, 0.8), base * CF(0, 5.45, 0), (170, 220, 250), "Neon",
+         transparency=0.3, collide=False)
+    return m
+
+
+def shopfront(folder: Inst, frame: CF, width: float, door_sx: float, zone: str,
+              rng: random.Random):
+    """Dress a building's street face as a shop: a name board above and a big display
+    window with a coloured awning beside the door."""
+    name = rng.choice(SHOP_NAMES[zone])
+    col = rng.choice(AWNING_COLORS)
+    board = part(folder, "ShopSign", (min(width * 0.62, 22.0), 2.0, 0.4), frame * CF(0, 9.2, -0.5),
+                 col, "SmoothPlastic")
+    surface_text(board, "Front", name, pixels_per_stud=26)
+    wsx = -door_sx if width > 30 else door_sx
+    part(folder, "ShopAwning", (min(width * 0.4, 14.0), 0.4, 3.4),
+         frame * CF(wsx, 7.0, -2.1) * CF.deg(-14, 0, 0), col, "Fabric", collide=False)
+    part(folder, "ShopWindow", (min(width * 0.34, 11.0), 4.4, 0.3), frame * CF(wsx, 3.4, -0.22),
+         (86, 104, 128), "Glass", transparency=0.2, reflectance=0.35, collide=False)
+
+
+def playground(parent: Inst, base: CF, rng: random.Random) -> Inst:
+    """Swings, a slide, a seesaw and a sand floor — the smallest residents are loud here."""
+    m = model(parent, "Playground", base)
+    part(m, "Floor", (30.0, 0.3, 26.0), base * CF(0, 0.15, 0), (222, 196, 140), "Sand",
+         collide=False, shadow=False)
+    sw = base * CF(-9, 0, -5.5) * CF.deg(0, 20, 0)
+    part(m, "SwingTop", (8.0, 0.4, 0.4), sw * CF(0, 6.0, 0), (70, 74, 78), "Metal")
+    for sx in (-3.8, 3.8):
+        part(m, "SwingLeg", (0.35, 6.4, 0.35), sw * CF(sx, 2.9, -1.0) * CF.deg(12, 0, 0), (70, 74, 78), "Metal")
+        part(m, "SwingLeg", (0.35, 6.4, 0.35), sw * CF(sx, 2.9, 1.0) * CF.deg(-12, 0, 0), (70, 74, 78), "Metal")
+    for sx in (-1.9, 1.9):
+        part(m, "Chain", (0.12, 3.4, 0.12), sw * CF(sx, 4.3, 0), (150, 150, 150), "Metal", collide=False)
+        part(m, "Seat", (1.6, 0.25, 0.8), sw * CF(sx, 2.5, 0), (96, 70, 52), "Wood", collide=False)
+    sl = base * CF(8.5, 0, -5) * CF.deg(0, -35, 0)
+    part(m, "SlideTop", (3.0, 0.3, 3.0), sl * CF(0, 4.6, 0), (220, 90, 60))
+    part(m, "SlideRamp", (2.0, 0.3, 7.6), sl * CF(0, 2.6, -4.7) * CF.deg(-32, 0, 0), (230, 200, 80),
+         collide=False)
+    for sx in (-1.3, 1.3):
+        part(m, "SlideLeg", (0.35, 4.6, 0.35), sl * CF(sx, 2.3, 1.3), (70, 74, 78), "Metal")
+    part(m, "Ladder", (1.8, 5.0, 0.3), sl * CF(0, 2.5, 2.2) * CF.deg(14, 0, 0), (70, 74, 78), "Metal")
+    ss = base * CF(0, 0, 8.5) * CF.deg(0, 75, 0)
+    part(m, "Pivot", (1.0, 1.4, 1.0), ss * CF(0, 0.7, 0), (70, 74, 78), "Metal")
+    part(m, "Plank", (7.0, 0.3, 1.0), ss * CF(0, 1.5, 0) * CF.deg(0, 0, 8), (200, 70, 60))
+    bench(m, base * CF(11, 0, 9) * CF.deg(0, -115, 0))
+    if rng.random() < 0.8:
+        pedestrian(m, base * CF(9.2, 0, 7.8) * CF.deg(0, rng.uniform(0, 360), 0), rng)
+    return m
+
+
+def pocket_park(parent: Inst, base: CF, rng: random.Random, w: float, d: float) -> Inst:
+    """Grass, trees and benches — the pocket parks the towers look down on."""
+    m = model(parent, "Park", base)
+    part(m, "Lawn", (w, 0.16, d), base * CF(0, 0.08, 0), (104, 186, 86), "Grass",
+         collide=False, shadow=False)
+    part(m, "Path", (w * 0.94, 0.2, 3.0), base * CF(0, 0.1, 0), (186, 176, 160), "Pavement",
+         collide=False, shadow=False)
+    for _ in range(rng.randint(3, 5)):
+        tree(m, base * CF(rng.uniform(-w / 2 + 5, w / 2 - 5), 0,
+                          rng.choice((-1, 1)) * rng.uniform(4.5, d / 2 - 4)), rng.uniform(0.85, 1.25),
+             "pine" if rng.random() < 0.4 else "round")
+    for i in range(3):
+        bush(m, base * CF(rng.uniform(-w / 2 + 3, w / 2 - 3), 0, rng.uniform(-d / 2 + 3, d / 2 - 3)),
+             rng.uniform(2.0, 3.2), LEAF_DARK if i % 2 else LEAF)
+    for sx in (-0.28, 0.28):
+        bench(m, base * CF(sx * w, 0, 3.6) * CF.deg(0, 180, 0))
+    if rng.random() < 0.85:
+        pedestrian(m, base * CF(rng.uniform(-w / 4, w / 4), 0, 0) * CF.deg(0, rng.uniform(0, 360), 0), rng)
+    return m
+
+
+def pocket_plaza(parent: Inst, base: CF, rng: random.Random, w: float, d: float) -> Inst:
+    """A paved square with a fountain, benches, hedges and somebody daydreaming by the water."""
+    m = model(parent, "Plaza", base)
+    part(m, "Paving", (w, 0.24, d), base * CF(0, 0.12, 0), (172, 164, 152), "Pavement",
+         collide=False, shadow=False)
+    fountain(m, base)
+    for sx, sz, yawd in ((-1, -1, 30), (1, -1, -30), (-1, 1, 150), (1, 1, 210)):
+        bench(m, base * CF(sx * w * 0.3, 0, sz * d * 0.3) * CF.deg(0, yawd, 0))
+    for hx in (-w / 2 + 2.5, w / 2 - 2.5):
+        part(m, "Hedge", (3.0, 2.2, d - 5), base * CF(hx, 1.1, 0), LEAF_DARK, "LeafyGrass")
+    if rng.random() < 0.8:
+        pedestrian(m, base * CF(rng.uniform(-4, 4), 0, rng.uniform(5, 8)) * CF.deg(0, rng.uniform(0, 360), 0), rng)
+    return m
+
+
+def carpark(parent: Inst, base: CF, rng: random.Random, w: float, d: float) -> Inst:
+    """A neighbourhood car park: pad, painted bays, a pay meter, a few parked runabouts."""
+    m = model(parent, "CarPark", base)
+    part(m, "Pad", (w, 0.3, d), base * CF(0, 0.15, 0), (66, 68, 72), "Asphalt")
+    n = max(2, int(w // 6.4))
+    for i in range(n + 1):
+        bx = -w / 2 + 2 + i * (w - 4) / n
+        part(m, "BayLine", (0.3, 0.06, d * 0.6), base * CF(bx, 0.33, -d * 0.14), (230, 230, 230),
+             "SmoothPlastic", collide=False, shadow=False)
+    for i in range(n):
+        if rng.random() < 0.55:
+            bx = -w / 2 + 2 + (i + 0.5) * (w - 4) / n
+            simple_car(m, base * CF(bx, 0.3, -d * 0.14) * CF.deg(0, 90 + rng.uniform(-4, 4), 0), rng)
+    part(m, "MeterPost", (0.4, 3.0, 0.4), base * CF(w / 2 - 2.0, 1.5, d / 2 - 2.0), (70, 74, 78), "Metal")
+    part(m, "MeterHead", (1.0, 1.2, 0.8), base * CF(w / 2 - 2.0, 3.6, d / 2 - 2.0), (60, 100, 190), "Metal")
+    return m
+
+
+def terrace_court(parent: Inst, rng: random.Random, x: float, z: float, yaw: float, w: float):
+    """A short terrace of townhouses behind hedged front gardens, facing the street."""
+    frame = CF(x, 0, 0 + z) * CF.deg(0, yaw, 0)
+    m = model(parent, "Terrace", frame)
+    n = 3 if w >= 62 else 2
+    tw = w / n - 1.5
+    for i in range(n):
+        lx = -w / 2 + (i + 0.5) * (w / n)
+        wx, wz = _yaw_point(x, z, yaw, lx, 0)
+        facade(parent, rng, wx, wz, yaw, tw, rng.randint(2, 3))
+        part(m, "Hedge", (tw - 2, 1.8, 1.6), frame * CF(lx, 0.9, -9.2), LEAF_DARK, "LeafyGrass")
+        part(m, "Path", (3.0, 0.2, 7.4), frame * CF(lx, 0.1, -5.1), (186, 176, 160), "Pavement",
+             collide=False, shadow=False)
+        if rng.random() < 0.35:
+            bush(m, frame * CF(lx + tw / 2 - 2.2, 0, -7.6), 2.2, LEAF)
+    return m
+
+
+def tower_plot(parent: Inst, rng: random.Random, x: float, z: float, yaw: float, w: float, d: float,
+               zone: str):
+    """An office tower set back behind a planted forecourt: the taller the zone, the
+    taller the tower — downtown scrapes, oldtown just peeks over the rooftops."""
+    frame = CF(x, 0, z) * CF.deg(0, yaw, 0)
+    m = model(parent, "TowerPlot", frame)
+    floors = {"oldtown": rng.randint(5, 8), "midtown": rng.randint(8, 13),
+              "downtown": rng.randint(11, 18)}[zone]
+    face_lz = -d / 2 + 16
+    wx, wz = _yaw_point(x, z, yaw, 0, face_lz)
+    facade(parent, rng, wx, wz, yaw, min(w * 0.55, 40.0), floors, "tower")
+    part(m, "Forecourt", (w * 0.8, 0.2, 12.0), frame * CF(0, 0.1, face_lz - 7), (186, 176, 160),
+         "Pavement", collide=False, shadow=False)
+    planter(m, frame * CF(-w * 0.3, 0, face_lz - 6), rng)
+    planter(m, frame * CF(w * 0.3, 0, face_lz - 6), rng)
+    bench(m, frame * CF(0, 0, face_lz - 10.4))
+    if rng.random() < 0.6:
+        pedestrian(m, frame * CF(rng.uniform(-6, 6), 0, face_lz - 4.6) * CF.deg(0, rng.uniform(0, 360), 0),
+                   rng)
+    return m
+
+
+def build_city_blocks(folder: Inst, city: dict, named_xs: list[float]):
+    """Pack every block interior with a life of its own — plazas, pocket parks, car parks,
+    townhouse terraces, playgrounds and tower plots — so no grid square is an empty lawn
+    between the facades. Cells stay clear of the cross-street mouths, the avenue mouths and
+    every house lot."""
+    rng = random.Random(CITY_SEED + 17)
+    jxs = [j["x"] for j in city["junctions"]]
+    houses = city["houses"]
+    bounds = [city["corridor_end"] + 60] + jxs + [AVENUE_X1 - 20]
+    bands = ((-279.0, -64.0), (64.0, 279.0), (-603.0, -382.0), (382.0, 603.0))
+    w_ranges = {"park": (30, 64), "plaza": (34, 66), "carpark": (36, 60), "terrace": (44, 74),
+                "playground": (36, 54), "tower": (52, 90)}
+    min_w = {"park": 26, "plaza": 30, "carpark": 34, "terrace": 42, "playground": 36, "tower": 50}
+
+    def clear_of_lots(tx: float, tz: float, half: float) -> bool:
+        for ch in houses:
+            lot_w, lot_d = city_lot(ch["kind"])
+            if abs(tx - ch["x"]) < lot_w / 2 + half + 6 and abs(tz - ch["z"]) < lot_d / 2 + half + 6:
+                return False
+        for cx in named_xs:
+            if abs(tx - cx) < LOT_W / 2 + half + 6 and abs(tz) < LOT_D + half:
+                return False
+        return True
+
+    def pick(zone: str) -> str:
+        r = rng.random()
+        if zone == "oldtown":
+            table = ((0.30, "park"), (0.56, "terrace"), (0.70, "playground"), (0.84, "plaza"),
+                     (0.92, "carpark"), (1.01, "tower"))
+        elif zone == "midtown":
+            table = ((0.22, "plaza"), (0.42, "carpark"), (0.60, "tower"), (0.74, "park"),
+                     (0.86, "terrace"), (1.01, "playground"))
+        else:
+            table = ((0.52, "tower"), (0.68, "plaza"), (0.84, "carpark"), (0.92, "park"),
+                     (1.01, "terrace"))
+        for p, k in table:
+            if r < p:
+                return k
+        return "park"
+
+    for a, b in zip(bounds, bounds[1:]):
+        x0, x1 = a + 118.0, b - 118.0
+        if x1 - x0 < 50:
+            continue
+        zone = city_zone((a + b) / 2)
+        for z0, z1 in bands:
+            depth = z1 - z0
+            if depth < 40:
+                continue
+            cx = x0
+            while x1 - cx > 24:
+                gap_before = rng.uniform(10, 26)
+                cx += gap_before
+                if rng.random() < 0.16:
+                    continue  # leave the odd breather of lawn between parcels
+                kind = pick(zone)
+                lo, hi = w_ranges[kind]
+                w = min(rng.uniform(lo, hi), x1 - cx)
+                if w < min_w[kind]:
+                    kind = "park" if w >= min_w["park"] else None
+                if kind is None:
+                    break
+                mx = cx + w / 2
+                mz = (z0 + z1) / 2 + rng.uniform(-4, 4)
+                p_depths = {"park": depth - 10, "plaza": min(depth - 14, 72), "carpark": 32.0,
+                            "terrace": 46.0, "playground": 34.0, "tower": min(depth - 12, 92)}
+                pd = p_depths[kind]
+                yaw = 0.0 if mz > 0 else 180.0  # face the street nearer the city centreline
+                if clear_of_lots(mx, mz, max(w, pd) / 2 + 3):
+                    bcf = CF(mx, 0, mz) * CF.deg(0, yaw, 0)
+                    if kind == "park":
+                        pocket_park(folder, bcf, rng, w * 0.94, pd)
+                    elif kind == "plaza":
+                        pocket_plaza(folder, bcf, rng, w * 0.92, pd)
+                    elif kind == "carpark":
+                        carpark(folder, bcf, rng, w * 0.92, pd)
+                    elif kind == "playground":
+                        playground(folder, bcf, rng)
+                    elif kind == "terrace":
+                        fx, fz = _yaw_point(mx, mz, yaw, 0, -12)
+                        terrace_court(folder, rng, fx, fz, yaw, w * 0.94)
+                    else:
+                        tower_plot(folder, rng, mx, mz, yaw, w, pd, zone)
+                cx += w
+
+
+def city_street_furniture(decor: Inst, city: dict, named_xs: list[float]):
+    """Dress the main street itself: corner traffic lights and street-name boards, bus
+    stops with waiting passengers, benches, planters, hydrants, mailboxes and people out
+    for a walk. Everything keeps off the pavements (|z| 16–26), out of the junction turn
+    lanes (|x − jx| < 40 while |z| < 31) and clear of the named houses' front yards."""
+    rng = random.Random(CITY_SEED + 23)
+    jxs = [j["x"] for j in city["junctions"]]
+
+    def clear_any(x: float, z: float) -> bool:
+        if abs(z) < 26.5:
+            return False
+        for jx in jxs:
+            if abs(x - jx) < 40 and abs(z) < 31:
+                return False
+        for cx in named_xs:
+            if abs(x - cx) < LOT_W / 2 + 7 and abs(z) < SIDEWALK_EDGE + LOT_D + 8:
+                return False
+        return True
+
+    # Every junction corner gets its pair of traffic lights and the crossed street boards.
+    for j in city["junctions"]:
+        jx = j["x"]
+        traffic_light(decor, CF(jx - 33, 0, -27.2))
+        traffic_light(decor, CF(jx + 33, 0, 27.2))
+        street_name_sign(decor, CF(jx + 33, 0, -27.6), j["name"])
+
+    # Bus stops every few junctions, alternating sides of the street.
+    for i, j in enumerate(city["junctions"]):
+        if i % 3 != 1:
+            continue
+        side = 1 if i % 2 == 0 else -1
+        bx, bz = j["x"] + 58, side * 30.5
+        if clear_any(bx, bz):
+            bus_stop(decor, CF(bx, 0, bz) * CF.deg(0, 0 if side > 0 else 180, 0), rng)
+
+    # And the verges between junctions fill with benches, planters, street kit and walkers.
+    bounds = [city["corridor_end"]] + jxs + [AVENUE_X1]
+    for a, b in zip(bounds, bounds[1:]):
+        x = a + 54
+        while x < b - 54:
+            side = rng.choice((-1, 1))
+            r = rng.random()
+            if r < 0.30:
+                vz = side * rng.uniform(28.5, 31.5)
+                if clear_any(x, vz):
+                    bench(decor, CF(x, 0, vz) * CF.deg(0, 0 if side > 0 else 180, 0))
+            elif r < 0.48:
+                vz = side * rng.uniform(28.5, 31.5)
+                if clear_any(x, vz):
+                    planter(decor, CF(x, 0, vz), rng)
+            elif r < 0.58:
+                if clear_any(x, side * 27.4):
+                    hydrant(decor, CF(x, 0, side * 27.4))
+            elif r < 0.68:
+                if clear_any(x, side * 27.6):
+                    mailbox(decor, CF(x, 0, side * 27.6) * CF.deg(0, 180 if side > 0 else 0, 0))
+            elif r < 0.95:
+                vz = side * rng.uniform(27.8, 30.2)
+                if clear_any(x, vz):
+                    pedestrian(decor, CF(x, 0, vz) * CF.deg(0, 90 if rng.random() < 0.5 else -90, 0), rng)
+            x += rng.uniform(60, 100)
 
 
 def build_city_cliffs(cliffs: Inst, decor: Inst, city: dict, sides: dict[int, list[float]]):
@@ -3264,6 +3691,7 @@ def build_map(workspace: Inst) -> Inst:
     build_city_fill(map_folder, city, named_xs)
     build_city_cliffs(cliffs, decor, city, sides)
     city_greenery(decor, city)
+    city_street_furniture(decor, city, named_xs)
     road_sign(decor, -30, -23, "DOWNTOWN & MUSEUM ➜", 0)
     road_sign(decor, -170, 23, "⬅ YOUR GARAGE", 0)
     road_sign(decor, house_x(1) - 64, -23, "MAPLE COTTAGE ➜ START HERE", 0)

@@ -226,7 +226,10 @@ local function parseLanes(raw: any)
 	end
 	local half = Config.Alarm.LaneHalfWidth
 	for i, a in lanes do
-		laneCrossers[i] = {}
+		-- (already filled with this street's earlier crossings, as the `j` side of their scans:
+		-- resetting it here would throw those away, and a street whose own scan only meets
+		-- streets on its own axis would end up with no crossings at all)
+		laneCrossers[i] = laneCrossers[i] or {}
 		for j = i + 1, #lanes do
 			local b = lanes[j]
 			-- Two streets cross when each one's centre line runs through the other's range.
@@ -613,9 +616,11 @@ local function lanePath(from: Lane, to: Lane): { Lane }?
 	return path
 end
 
--- The first corner on the street route from `from` to `goal` (both off the property): where a
--- defender turns between two streets. Nothing to turn for on one street, at either end, or
--- between places the streets do not reach.
+-- The next corner on the street route from `from` to `goal` (both off the property): where a
+-- defender turns between two streets. Standing at a crossing counts as through it - the corner
+-- after that is the one that matters, or a defender already on its crossroads would make its own
+-- position the target for ever and just sway there. Nothing to turn for on one street, at either
+-- end, or between places the streets do not reach.
 local function streetCorner(from: Vector3, goal: Vector3): Vector3?
 	local hereLane, thereLane = laneUnder(from, 4), laneUnder(goal, 10)
 	if hereLane == nil or thereLane == nil or hereLane == thereLane then
@@ -625,9 +630,17 @@ local function streetCorner(from: Vector3, goal: Vector3): Vector3?
 	if path == nil or #path < 2 then
 		return nil
 	end
-	local a, b = path[1], path[2]
-	local key = math.min(a.Id, b.Id) .. "|" .. math.max(a.Id, b.Id)
-	return laneCorners[key]
+	for leg = 1, #path - 1 do
+		local a, b = path[leg], path[leg + 1]
+		local corner = laneCorners[math.min(a.Id, b.Id) .. "|" .. math.max(a.Id, b.Id)]
+		if corner == nil then
+			return nil
+		end
+		if distance_of(corner, from) > Config.Alarm.LaneHalfWidth then
+			return corner
+		end
+	end
+	return nil
 end
 
 -- A defender that has been shoved off the street (over a kerb, round a post, along a fence)
