@@ -297,10 +297,15 @@ def check_structure(roots: list[Item], check: Checker) -> None:
                      abs(position[2]) <= map_builder.CITY_DEPTH + 40,
                      f"{house.path()} stands outside the city ({position[0]:.0f}, {position[2]:.0f})")
         import math as _math
-        frac = _math.hypot(position[0] - map_builder.YARD_CX, position[2]) / map_builder.CITY_DIST
-        check.expect(abs(frac - ch["level"] / map_builder.LEVELS) <= map_builder.LEVEL_SLACK + 1e-6,
-                     f"{house.path()} at {frac * 100:.1f}% of the trip claims level {ch['level']} "
-                     f"(allowed within {map_builder.LEVEL_SLACK * 100:.0f}%)")
+        # the guide's levels are anchored at the named houses' distances from the yard now: a city
+        # house claims the level of the nearest of those marks, within the slack the guide allows;
+        # measure from the plan's own lot centre, the same point the planner qualified
+        d = _math.hypot(ch["x"] - map_builder.YARD_CX, ch["z"])
+        off = abs(d - (named_xs[ch["level"] - 1] - map_builder.YARD_CX))
+        check.expect(off <= map_builder.LEVEL_SLACK * map_builder.CITY_DIST + 1e-6,
+                     f"{house.path()} at distance {d:.0f} claims level {ch['level']} "
+                     f"(its mark is {named_xs[ch['level'] - 1] - map_builder.YARD_CX:.0f} out, "
+                     f"allowed within {map_builder.LEVEL_SLACK * 100:.0f}% of the trip)")
 
     # The street network the defenders chase through is published on the Map.
     lanes_attr = game_map.attributes().get("Lanes")

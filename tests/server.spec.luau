@@ -586,13 +586,14 @@ step("a city guard chases you round the corner of its street and all the way hom
 	local throughSquare = false
 	local roundTheCorner = false
 	root.CFrame = CFrame.new(jx - 300, 3, -12)
-	for _ = 1, 90 do
-		Mock.advance(0.5)
+	-- The walk is a real one: the whole of its own street down to the crossing, then west again.
+	for _ = 1, 150 do
+		Mock.advance(1)
 		local p = guard.Root.Position
 		if math.abs(p.X - jx) < 30 and math.abs(p.Z) < 30 then
 			throughSquare = true
 		end
-		if math.abs(p.Z) <= 26 and p.X < jx - 40 then
+		if math.abs(p.Z) <= 30 and p.X < jx - 40 then
 			roundTheCorner = true
 			break
 		end

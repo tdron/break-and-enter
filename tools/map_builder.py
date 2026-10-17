@@ -10,7 +10,8 @@ Layout (top-down, X = east, Z = south, the main street runs along Z = 0):
 The trip from the warehouses to the museum is ten times longer than the old
 street was: the museum still stands at the far east end (and keeps the best
 loot), and a city fills the space between. The guide's named houses stand on
-the main street at 1/11, 2/11 ... of the way; numbered city houses fill the
+the main street on a progression curve (the first a short walk from the yard,
+then ever further apart); numbered city houses fill the
 grid, each at the difficulty level its straight-line distance from the
 warehouses earns it (within the guide's 3% slack), borrowing that level's
 guard and loot table. Three house shapes keep the streets varied: cottages,
@@ -2109,10 +2110,12 @@ def build_yard(map_folder: Inst, ground: Inst, decor: Inst):
 # The old town was one straight street about 1,200 studs long, yard to museum.
 # That made for a very short chase home, so the museum now stands TEN times as
 # far from the warehouses, and a city fills the space between: a main street,
-# two avenues on each side of it and cross streets joining them up, with the
-# named houses from the guide standing along the main street at 1/11, 2/11 ...
-# of the trip (the museum last, at the very end) and numbered city houses
-# filling the grid, each at the difficulty level its distance earns it.
+# two avenues on each side of it and cross streets joining them up. The named
+# houses from the guide stand along the main street on a progression curve now -
+# the first ones a short walk from the garages so a new player is robbing within
+# footsteps, the gaps growing the deeper the city gets (the museum last, at the
+# very end) - and numbered city houses fill the grid, each at the difficulty
+# level its distance earns it.
 # ---------------------------------------------------------------------------
 ORIGINAL_MANSION_X = 885.25                        # where the museum stood on the old short street
 CITY_DIST = (ORIGINAL_MANSION_X - YARD_CX) * 10.0  # warehouses -> museum, as the crow flies (x10)
@@ -2127,9 +2130,10 @@ MANSION_FRONT_YARD = 50.0 * HOUSE_SCALE
 MAP_X0, MAP_X1, MAP_Z = -580.0, MANSION_X + 95.0 * HOUSE_SCALE, 780.0
 
 # The grid: avenues run parallel to the main street on each side; cross streets
-# join them together and carry most of the new houses.
+# join them together and carry most of the new houses. The city opens right
+# where the canyon corridor ends, so the road out of the yard runs straight in.
 AVENUE_ZS = (-655.0, -330.0, 330.0, 655.0)
-AVENUE_X0 = 560.0                         # the avenues start just past the canyon corridor
+AVENUE_X0 = 110.0                         # the avenues (and the city) begin at the canyon's mouth
 AVENUE_X1 = ROAD_X1 - 200.0               # ...and stop where the museum's hill takes over
 CITY_DEPTH = 700.0                        # cross streets run from z = -CITY_DEPTH to +CITY_DEPTH
 JUNCTION_HALF = 34.0                      # half-width kept clear at a cross-street mouth
@@ -2137,18 +2141,31 @@ CITY_BOUNDARY_Z = 745.0                   # the cliffs closing off the far ends 
 CITY_SEED = 20261017
 
 
+# Where the guide's eleven named houses stand, west to east, the museum pinned at the far end:
+# the walk from the yard to Maple Cottage is about as long as it was on the old street, and each
+# next mark stands a bit further than the last, so every tier is earned one pair of legs at a time.
+GUIDE_XS = (160.0, 830.0, 1610.0, 2560.0, 3740.0, 5140.0, 6740.0, 8540.0, 10140.0, 11240.0)
+assert len(GUIDE_XS) == LEVELS - 1
+
+
 def house_x(i: int) -> float:
-    """Where the i-th named house stands: i/11 of the way from the warehouses to the museum."""
-    return YARD_CX + CITY_DIST * i / LEVELS
+    """The x of the i-th named house (the museum stays at the far end of the trip)."""
+    if i == LEVELS:
+        return MANSION_X
+    return GUIDE_XS[i - 1]
 
 
 def level_at(x: float, z: float) -> int | None:
-    """The difficulty level a position earns: the guide's levels stand at 1/11, 2/11 ... of the
-    trip, so a house placed here qualifies for the nearest level only when it lands within the
-    3% slack the guide allows."""
-    frac = math.hypot(x - YARD_CX, z) / CITY_DIST
-    level = min(LEVELS - 1, max(1, round(frac * LEVELS)))
-    return level if abs(frac - level / LEVELS) <= LEVEL_SLACK else None
+    """The difficulty level a position earns: each named house on the guide marks its level's
+    distance from the yard, and a new house qualifies for the nearest of those marks only when
+    it lands within the 3%-of-the-trip slack the guide allows."""
+    d = math.hypot(x - YARD_CX, z)
+    best, best_off = None, LEVEL_SLACK * CITY_DIST
+    for i in range(1, LEVELS):
+        off = abs(d - (house_x(i) - YARD_CX))
+        if off <= best_off:
+            best, best_off = i, off
+    return best
 
 
 def road_sign(parent: Inst, x: float, z: float, text: str, facing_yaw: float):
@@ -2256,9 +2273,10 @@ def plan_city(canonical_xs: list[float], canonical: list[dict]) -> dict:
         return all(abs(x - j["x"]) >= 260 for j in junctions)
 
     for level in range(1, LEVELS - 1):
-        anchor = YARD_CX + CITY_DIST * level / LEVELS
+        anchor = house_x(level)
         half = LEVEL_SLACK * CITY_DIST * 0.9
-        lo, hi = anchor - half + 40, anchor + half - 40
+        lo = max(anchor - half + 40, AVENUE_X0 + 80)
+        hi = min(anchor + half - 40, AVENUE_X1 - 140)
         pick = None
         for _ in range(100):
             cand = lo + (hi - lo) * rng.random() ** 1.6  # nudge west: uphill houses fill the band
@@ -2274,7 +2292,7 @@ def plan_city(canonical_xs: list[float], canonical: list[dict]) -> dict:
         if pick is not None:
             junctions.append({"x": pick})
     for level in (3, 5, 7):  # extras
-        anchor = YARD_CX + CITY_DIST * level / LEVELS
+        anchor = house_x(level)
         for _ in range(60):
             cand = anchor + rng.uniform(-0.5, 0.5) * LEVEL_SLACK * CITY_DIST * 2
             if junction_ok(cand):
@@ -2970,6 +2988,23 @@ def build_city_fill(map_folder: Inst, city: dict, canonical_xs: list[float]):
                 gaps.append((cursor, zc - lw / 2 - 3))
                 cursor = zc + lw / 2 + 3
             gaps.append((cursor, CITY_DEPTH - 4))
+            # ...but a street never gets a front door on the corner of another one: the junction
+            # square and every avenue mouth stay open for the people (and the defenders) to turn.
+            blockers = sorted([JUNCTION_HALF + 2.0] +
+                              [v for az in AVENUE_ZS for v in (abs(az) - JUNCTION_HALF - 2.0,
+                                                               abs(az) + JUNCTION_HALF + 2.0)])
+            kept = []
+            for a, b in gaps:
+                edge = a
+                for edge_at in blockers:
+                    if edge_at <= a or edge_at >= b:
+                        continue
+                    if edge_at - edge > 8:
+                        kept.append((edge, edge_at))
+                    edge = edge_at
+                if b - edge > 8:
+                    kept.append((edge, b))
+            gaps = kept
             for a, b in gaps:
                 a = max(a, -CITY_DEPTH + 4)
                 if b - a < 34:
@@ -3161,8 +3196,8 @@ def build_map(workspace: Inst) -> Inst:
         part(ground, "Grass", (x1 - edge, 4, MAP_Z * 2), CF((edge + x1) / 2, -2, 0), GRASS, "Grass")
         edge = x1
 
-    # Where the guide's named houses stand: they alternate sides of the main street, each at its
-    # fraction of the trip (1/11, 2/11 ... - the museum takes the 11th at the very end).
+    # Where the guide's named houses stand: they alternate sides of the main street, on the
+    # progression schedule (close to the yard at first, the museum last at the very end).
     named_xs = [house_x(i + 1) for i in range(len(street))]
     sides: dict[int, list[float]] = {-1: [], 1: []}
     for i, x in enumerate(named_xs):
@@ -3205,6 +3240,7 @@ def build_map(workspace: Inst) -> Inst:
     city_greenery(decor, city)
     road_sign(decor, -30, -23, "DOWNTOWN & MUSEUM ➜", 0)
     road_sign(decor, -170, 23, "⬅ YOUR GARAGE", 0)
+    road_sign(decor, house_x(1) - 64, -23, "MAPLE COTTAGE ➜ START HERE", 0)
     build_boundary(map_folder, decor)
 
     # Street trees on the grass between the yard and the city
